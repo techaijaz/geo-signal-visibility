@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal — AI Visibility Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0E16;
+    --ink-2:#10141E;
+    --surface:#141924;
+    --line:#232938;
+    --line-soft:#1B212D;
+    --text:#E9ECF3;
+    --text-dim:#8890A3;
+    --text-faint:#565E70;
+    --amber:#FFC857;
+    --amber-soft:rgba(255,200,87,0.12);
+    --amber-line:rgba(255,200,87,0.35);
+    --good:#4ADE80;
+    --bad:#F87171;
+    --claude:#D97757;
+    --gpt:#3FBF8F;
+    --gemini:#6C8EF5;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  a{color:inherit;}
+  button{font-family:inherit;cursor:pointer;}
+  ::selection{background:var(--amber-soft);color:var(--amber);}
+
+  .screen{display:none;min-height:100vh;}
+  .screen.active{display:flex;}
+
+  /* ---------- Buttons ---------- */
+  .btn{
+    border-radius:8px;border:1px solid var(--line);
+    background:var(--surface);color:var(--text);
+    padding:11px 20px;font-size:13.5px;font-weight:500;
+    transition:border-color .15s, background .15s, transform .1s;
+    display:inline-flex;align-items:center;gap:8px;justify-content:center;
+  }
+  .btn:hover{border-color:#333B4E;}
+  .btn:active{transform:scale(0.98);}
+  .btn-primary{
+    background:var(--amber);border-color:var(--amber);color:#1A1305;font-weight:600;
+  }
+  .btn-primary:hover{background:#FFD37A;border-color:#FFD37A;}
+  .btn-ghost{background:transparent;border-color:transparent;color:var(--text-dim);}
+  .btn-ghost:hover{color:var(--text);}
+  .btn-block{width:100%;}
+  .btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+  /* ---------- Signature: Signal Scanner ---------- */
+  .scanner{
+    position:relative;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:linear-gradient(180deg,#0D111A,#0A0D14);
+    overflow:hidden;
+    padding:22px 20px 18px;
+  }
+  .scanner-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .scanner-label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);}
+  .scanner-track{position:relative;height:52px;border-radius:6px;background:var(--ink-2);overflow:hidden;border:1px solid var(--line-soft);}
+  .scanner-grid{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,0.035) 40px);}
+  .scanner-sweep{
+    position:absolute;top:0;bottom:0;width:120px;
+    background:linear-gradient(90deg, transparent, rgba(255,200,87,0.5), transparent);
+    animation:sweep 3.2s linear infinite;
+    filter:blur(2px);
+  }
+  @keyframes sweep{
+    0%{left:-120px;}
+    100%{left:100%;}
+  }
+  .scanner-ticks{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-around;padding:0 18px;}
+  .scanner-tick{display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .tick-dot{width:7px;height:7px;border-radius:50%;box-shadow:0 0 8px currentColor;}
+  .tick-label{font-size:9.5px;letter-spacing:.06em;color:var(--text-faint);font-family:'JetBrains Mono',monospace;}
+  @media (prefers-reduced-motion: reduce){
+    .scanner-sweep{animation:none;left:40%;}
+  }
+
+  /* ---------- Login ---------- */
+  #screen-login{width:100%;}
+  .login-shell{display:flex;width:100%;min-height:100vh;}
+  .login-side{
+    flex:1.1;background:var(--ink-2);
+    border-right:1px solid var(--line);
+    padding:56px 60px;display:flex;flex-direction:column;justify-content:space-between;
+  }
+  .brand-mark{display:flex;align-items:center;gap:10px;}
+  .brand-mark .dot{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber);}
+  .brand-mark span{font-size:16px;font-weight:600;letter-spacing:.02em;}
+  .login-copy h1{font-size:34px;line-height:1.18;font-weight:600;margin:0 0 14px;max-width:460px;}
+  .login-copy p{color:var(--text-dim);max-width:420px;line-height:1.6;margin:0 0 32px;}
+  .login-form-side{
+    flex:0.9;display:flex;align-items:center;justify-content:center;padding:40px;
+  }
+  .login-form{width:100%;max-width:340px;}
+  .login-form h2{font-size:21px;margin:0 0 6px;font-weight:600;}
+  .login-form .sub{color:var(--text-dim);font-size:13px;margin:0 0 28px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:12.5px;color:var(--text-dim);margin-bottom:6px;}
+  .field input, .field select{
+    width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+    padding:10px 12px;color:var(--text);font-size:13.5px;font-family:inherit;
+  }
+  .field input:focus, .field select:focus, textarea:focus{outline:2px solid var(--amber-line);outline-offset:1px;border-color:var(--amber-line);}
+  .divider-row{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--text-faint);font-size:12px;}
+  .divider-row::before, .divider-row::after{content:"";flex:1;height:1px;background:var(--line);}
+  .foot-note{margin-top:20px;font-size:12.5px;color:var(--text-dim);text-align:center;}
+  .foot-note button{background:none;border:none;color:var(--amber);padding:0;font-weight:600;text-decoration:underline;}
+
+  /* ---------- Onboarding shell ---------- */
+  .onb-shell{width:100%;display:flex;flex-direction:column;align-items:center;padding:56px 20px;}
+  .onb-topbar{width:100%;max-width:640px;display:flex;align-items:center;justify-content:space-between;margin-bottom:34px;}
+  .stepper{display:flex;gap:10px;align-items:center;}
+  .step{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-faint);}
+  .step .num{width:20px;height:20px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:11px;font-family:'JetBrains Mono',monospace;}
+  .step.active{color:var(--text);}
+  .step.active .num{background:var(--amber);border-color:var(--amber);color:#1A1305;font-weight:700;}
+  .step.done .num{background:transparent;border-color:var(--good);color:var(--good);}
+  .step-line{width:24px;height:1px;background:var(--line);}
+  .onb-card{width:100%;max-width:640px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:36px 38px;}
+  .onb-card h2{margin:0 0 6px;font-size:21px;font-weight:600;}
+  .onb-card .sub{color:var(--text-dim);margin:0 0 28px;font-size:13.5px;}
+  .onb-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .onb-actions{display:flex;justify-content:space-between;margin-top:30px;padding-top:22px;border-top:1px solid var(--line-soft);}
+
+  .chip{
+    display:inline-flex;align-items:center;gap:7px;background:var(--ink-2);border:1px solid var(--line);
+    border-radius:20px;padding:6px 12px 6px 14px;font-size:12.5px;color:var(--text);
+  }
+  .chip button{background:none;border:none;color:var(--text-faint);font-size:14px;line-height:1;padding:0;}
+  .chip button:hover{color:var(--bad);}
+  .chip-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0;}
+  .add-row{display:flex;gap:10px;}
+  .add-row input{flex:1;}
+  .suggested-label{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin:22px 0 10px;}
+  .suggest-chip{background:transparent;border:1px dashed var(--line);border-radius:20px;padding:6px 13px;font-size:12.5px;color:var(--text-dim);}
+  .suggest-chip:hover{border-color:var(--amber-line);color:var(--amber);}
+
+  .query-list{display:flex;flex-direction:column;gap:2px;max-height:340px;overflow-y:auto;margin-bottom:6px;}
+  .query-row{display:flex;align-items:center;gap:12px;padding:11px 10px;border-radius:8px;flex-wrap:wrap;}
+  .query-row:hover{background:var(--ink-2);}
+  .query-row input[type=checkbox]{accent-color:var(--amber);width:15px;height:15px;}
+  .query-text{flex:1;font-size:13.5px;}
+  .tag{font-size:10.5px;padding:3px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.04em;font-weight:600;white-space:nowrap;}
+  .tag-comparison{background:rgba(108,142,245,0.15);color:var(--gemini);}
+  .tag-best-of{background:rgba(255,200,87,0.15);color:var(--amber);}
+  .tag-direct{background:rgba(74,222,128,0.15);color:var(--good);}
+  .tag-how-to{background:rgba(63,191,143,0.15);color:var(--gpt);}
+
+  /* ---------- Scanning screen ---------- */
+  #screen-scanning{width:100%;align-items:center;justify-content:center;flex-direction:column;gap:26px;}
+  .scan-wrap{width:100%;max-width:480px;text-align:center;}
+  .scan-wrap h2{font-size:19px;margin:22px 0 6px;}
+  .scan-status{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--amber);min-height:18px;margin-bottom:22px;}
+  .progress-outer{height:5px;background:var(--ink-2);border-radius:6px;overflow:hidden;border:1px solid var(--line-soft);}
+  .progress-inner{height:100%;width:0%;background:var(--amber);transition:width .4s linear;}
+
+  /* ---------- App shell ---------- */
+  #screen-app{width:100%;}
+  .app-shell{display:flex;width:100%;min-height:100vh;}
+  .sidebar{
+    width:212px;flex-shrink:0;background:var(--ink-2);border-right:1px solid var(--line);
+    padding:22px 14px;display:flex;flex-direction:column;justify-content:space-between;
+  }
+  .sidebar-top .brand-mark{padding:0 8px;margin-bottom:30px;}
+  .nav-item{
+    display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;color:var(--text-dim);
+    font-size:13px;margin-bottom:2px;border:none;background:none;width:100%;text-align:left;
+  }
+  .nav-item:hover{background:var(--surface);color:var(--text);}
+  .nav-item.active{background:var(--amber-soft);color:var(--amber);font-weight:600;}
+  .nav-item .ic{width:16px;text-align:center;opacity:.85;}
+  .sidebar-bottom{font-size:11.5px;color:var(--text-faint);padding:0 8px;}
+
+  .main{flex:1;padding:30px 40px;overflow-x:hidden;}
+  .main-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:26px;}
+  .main-top h1{font-size:20px;font-weight:600;margin:0;}
+  .main-top .meta{color:var(--text-faint);font-size:12.5px;margin-top:3px;}
+  .header-right{display:flex;align-items:center;gap:14px;}
+  .rescan-btn{display:inline-flex;align-items:center;gap:8px;}
+  .rescan-icon{display:inline-block;transition:transform .5s;}
+  .rescan-btn.spinning .rescan-icon{animation:spin 0.9s linear infinite;}
+  @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  .cards-row{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:16px;margin-bottom:22px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px 22px;}
+  .card .label{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);margin-bottom:10px;}
+  .score-big{font-family:'JetBrains Mono',monospace;font-size:38px;font-weight:600;color:var(--amber);line-height:1;}
+  .score-delta{font-size:12px;color:var(--good);margin-top:8px;}
+  .model-score-row{display:flex;align-items:center;justify-content:space-between;margin-top:2px;}
+  .model-score{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:600;}
+  .model-tag-row{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);margin-top:10px;}
+  .model-dot{width:7px;height:7px;border-radius:50%;}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:22px 24px;margin-bottom:18px;}
+  .panel h3{margin:0 0 4px;font-size:14.5px;font-weight:600;}
+  .panel .sub{color:var(--text-faint);font-size:12px;margin:0 0 18px;}
+
+  svg.sparkline{width:100%;height:80px;}
+
+  table{width:100%;border-collapse:collapse;font-size:12.8px;}
+  thead th{
+    text-align:left;color:var(--text-faint);font-weight:500;font-size:11px;text-transform:uppercase;
+    letter-spacing:.04em;padding:0 12px 10px;border-bottom:1px solid var(--line);
+  }
+  tbody td{padding:12px;border-bottom:1px solid var(--line-soft);}
+  tbody tr:last-child td{border-bottom:none;}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:500;}
+  .pill-yes{background:rgba(74,222,128,0.13);color:var(--good);}
+  .pill-no{background:rgba(248,113,113,0.13);color:var(--bad);}
+  .sent-pos{color:var(--good);}
+  .sent-neu{color:var(--text-dim);}
+  .sent-neg{color:var(--bad);}
+
+  .filter-row{display:flex;gap:8px;margin-bottom:16px;}
+  .filter-chip{
+    border:1px solid var(--line);background:transparent;border-radius:20px;padding:6px 14px;
+    font-size:12px;color:var(--text-dim);
+  }
+  .filter-chip.active{background:var(--amber-soft);border-color:var(--amber-line);color:var(--amber);}
+
+  .sov-bar{height:34px;border-radius:6px;overflow:hidden;display:flex;border:1px solid var(--line-soft);}
+  .sov-seg{display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;color:#0A0E16;}
+  .sov-legend{display:flex;gap:22px;margin-top:14px;flex-wrap:wrap;}
+  .sov-legend-item{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-dim);}
+  .sov-legend-swatch{width:10px;height:10px;border-radius:3px;}
+
+  .audit-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .audit-item{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;background:var(--ink-2);border:1px solid var(--line-soft);border-radius:8px;margin-bottom:8px;}
+  .audit-item .name{font-size:13px;}
+  .badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;}
+  .badge-ok{background:rgba(74,222,128,0.13);color:var(--good);}
+  .badge-warn{background:rgba(255,200,87,0.13);color:var(--amber);}
+  .badge-bad{background:rgba(248,113,113,0.13);color:var(--bad);}
+  .issue-list{margin:6px 0 0;padding-left:18px;color:var(--text-dim);font-size:12.8px;line-height:1.9;}
+
+  .rec-card{
+    display:flex;gap:16px;padding:17px 18px;background:var(--ink-2);border:1px solid var(--line-soft);
+    border-radius:10px;margin-bottom:10px;transition:opacity .2s;
+  }
+  .rec-card.done{opacity:0.42;}
+  .rec-card.done .rec-text{text-decoration:line-through;}
+  .rec-check{margin-top:2px;width:17px;height:17px;accent-color:var(--amber);flex-shrink:0;}
+  .rec-body{flex:1;}
+  .rec-text{font-size:13.5px;margin-bottom:9px;}
+  .rec-tags{display:flex;gap:7px;flex-wrap:wrap;}
+  .rec-tag{font-size:10.5px;padding:3px 9px;border-radius:20px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;}
+  .rec-cat-technical{background:rgba(108,142,245,0.15);color:var(--gemini);}
+  .rec-cat-content{background:rgba(255,200,87,0.15);color:var(--amber);}
+  .rec-cat-off-site{background:rgba(63,191,143,0.15);color:var(--gpt);}
+  .rec-effort{background:var(--ink);color:var(--text-faint);border:1px solid var(--line);}
+  .rec-impact-high{background:rgba(74,222,128,0.13);color:var(--good);}
+  .rec-impact-medium{background:rgba(255,200,87,0.13);color:var(--amber);}
+  .rec-progress{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
+  .rec-progress-bar{flex:1;height:6px;background:var(--ink-2);border-radius:6px;overflow:hidden;border:1px solid var(--line-soft);}
+  .rec-progress-fill{height:100%;background:var(--good);transition:width .3s;}
+
+  .report-row{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;background:var(--ink-2);border:1px solid var(--line-soft);border-radius:8px;margin-bottom:8px;}
+  .report-row .r-left{display:flex;flex-direction:column;gap:4px;}
+  .report-row .r-date{font-size:13px;font-weight:500;}
+  .report-row .r-meta{font-size:12px;color:var(--text-faint);}
+  .report-row .r-score{font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--amber);margin-right:18px;}
+
+  .plan-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;align-items:stretch;}
+  .plan-card{background:var(--ink-2);border:1px solid var(--line);border-radius:12px;padding:24px 20px;display:flex;flex-direction:column;}
+  .plan-card.current{border-color:var(--amber-line);background:var(--amber-soft);}
+  .plan-name{font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;}
+  .current-badge{background:var(--amber);color:#1A1305;font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;}
+  .plan-price{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;margin-bottom:2px;}
+  .plan-price span{font-size:11.5px;color:var(--text-faint);font-weight:400;font-family:'Inter',sans-serif;}
+  .plan-desc{font-size:12px;color:var(--text-dim);margin:6px 0 18px;line-height:1.5;}
+  .plan-features{list-style:none;padding:0;margin:0 0 20px;flex:1;}
+  .plan-features li{font-size:12.3px;color:var(--text-dim);padding:8px 0;border-bottom:1px solid var(--line-soft);}
+  .plan-features li:last-child{border-bottom:none;}
+  .plan-features li::before{content:"— ";color:var(--text-faint);}
+
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--amber);color:#1A1305;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;font-family:'Space Grotesk',sans-serif;flex-shrink:0;}
+  .avatar-lg{width:68px;height:68px;font-size:24px;}
+  .header-user{display:flex;align-items:center;gap:10px;position:relative;cursor:pointer;padding:6px 8px 6px 6px;border-radius:10px;}
+  .header-user:hover{background:var(--surface);}
+  .header-user-info{display:flex;flex-direction:column;line-height:1.3;}
+  .header-user-info .name{font-size:13px;font-weight:600;}
+  .header-user-info .role{font-size:11px;color:var(--text-faint);}
+  .header-user-caret{color:var(--text-faint);font-size:10px;margin-left:2px;}
+  .header-user-menu{
+    position:absolute;top:calc(100% + 8px);right:0;background:var(--surface);border:1px solid var(--line);
+    border-radius:10px;padding:6px;min-width:180px;display:none;flex-direction:column;
+    box-shadow:0 14px 34px rgba(0,0,0,0.45);z-index:30;
+  }
+  .header-user-menu.open{display:flex;}
+  .header-user-menu button{background:none;border:none;color:var(--text-dim);text-align:left;padding:9px 12px;border-radius:7px;font-size:13px;width:100%;}
+  .header-user-menu button:hover{background:var(--ink-2);color:var(--text);}
+  .header-user-menu hr{border:none;border-top:1px solid var(--line-soft);margin:5px 2px;width:calc(100% - 4px);}
+
+  .app-footer{
+    margin-top:36px;padding-top:18px;border-top:1px solid var(--line-soft);
+    display:flex;align-items:center;justify-content:space-between;color:var(--text-faint);font-size:12px;flex-wrap:wrap;gap:10px;
+  }
+  .app-footer a{color:var(--text-dim);text-decoration:none;}
+  .app-footer a:hover{color:var(--amber);}
+  .app-footer .foot-links{display:flex;gap:18px;}
+
+  .avatar-edit-row{display:flex;align-items:center;gap:18px;margin-bottom:22px;}
+  .avatar-edit-row .avatar-btns{display:flex;gap:8px;}
+
+  .tag-lang{background:rgba(255,255,255,0.05);color:var(--text-dim);border:1px solid var(--line);}
+
+  .benchmark-row{display:flex;align-items:center;gap:16px;margin-top:6px;}
+  .benchmark-track{flex:1;height:10px;background:var(--ink-2);border-radius:6px;border:1px solid var(--line-soft);position:relative;overflow:visible;}
+  .benchmark-fill-you{position:absolute;left:0;top:0;bottom:0;background:var(--amber);border-radius:6px;}
+  .benchmark-marker{position:absolute;top:-5px;width:2px;height:20px;background:var(--text-dim);}
+  .benchmark-marker::after{content:attr(data-label);position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:10.5px;color:var(--text-faint);white-space:nowrap;}
+  .benchmark-legend{display:flex;gap:22px;margin-top:26px;font-size:12px;color:var(--text-dim);}
+  .benchmark-legend-item{display:flex;align-items:center;gap:7px;}
+  .benchmark-swatch{width:10px;height:10px;border-radius:3px;}
+
+  .snippet-box{
+    display:none;margin-top:12px;background:var(--ink);border:1px solid var(--line);border-radius:8px;
+    padding:14px 16px;position:relative;
+  }
+  .snippet-box.open{display:block;}
+  .snippet-box pre{margin:0;font-family:'JetBrains Mono',monospace;font-size:11.8px;color:var(--text-dim);white-space:pre-wrap;line-height:1.6;padding-right:70px;}
+  .snippet-copy-btn{position:absolute;top:12px;right:12px;font-size:11px;padding:5px 10px;}
+  .rec-actions{display:flex;gap:8px;margin-top:10px;}
+  .rec-snippet-toggle{font-size:11.5px;padding:5px 11px;}
+
+  .connect-btn{font-size:11.5px;padding:5px 12px;}
+  .connect-btn.connected{border-color:rgba(74,222,128,0.4);color:var(--good);}
+
+  .free-check-link{margin-top:14px;font-size:12.5px;color:var(--text-dim);text-align:center;}
+  .free-check-link button{background:none;border:none;color:var(--amber);font-weight:600;text-decoration:underline;padding:0;font-size:inherit;}
+
+  /* ---------- Workspace (All Brands) ---------- */
+  .workspace-wrap{width:100%;padding:44px 52px;}
+  .workspace-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  .workspace-heading{margin:30px 0 2px;}
+  .workspace-heading h1{font-size:23px;font-weight:600;margin:0;}
+  .workspace-heading .sub{color:var(--text-dim);font-size:13.5px;margin:6px 0 0;}
+  .workspace-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:26px;}
+  .brand-card{
+    background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px 22px 20px;
+    cursor:pointer;transition:border-color .15s, transform .1s;
+  }
+  .brand-card:hover{border-color:var(--amber-line);transform:translateY(-2px);}
+  .brand-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;}
+  .brand-card-name{font-size:15px;font-weight:600;}
+  .tag-role{font-size:10px;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em;font-weight:600;white-space:nowrap;}
+  .tag-owner{background:rgba(255,200,87,0.15);color:var(--amber);}
+  .tag-client{background:rgba(108,142,245,0.15);color:var(--gemini);}
+  .brand-card-cat{font-size:12px;color:var(--text-faint);margin-bottom:18px;}
+  .brand-card-score{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:600;color:var(--amber);line-height:1;}
+  .brand-card-meta{font-size:11.5px;color:var(--text-faint);margin-top:10px;}
+  .brand-card-models{display:flex;gap:14px;margin-top:12px;font-size:11.5px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
+  .brand-card-models span{display:inline-flex;align-items:center;gap:5px;}
+  .add-brand-card{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+    border:1px dashed var(--line);background:transparent;color:var(--text-dim);min-height:178px;
+  }
+  .add-brand-card:hover{border-color:var(--amber-line);color:var(--amber);}
+  .add-icon{font-size:26px;}
+
+  .brand-switch{
+    position:relative;display:flex;align-items:center;justify-content:space-between;gap:6px;
+    padding:10px 11px;border-radius:9px;cursor:pointer;margin-bottom:16px;
+    border:1px solid var(--line-soft);background:var(--surface);
+  }
+  .brand-switch:hover{border-color:var(--amber-line);}
+  .brand-switch-name{font-size:12.8px;font-weight:600;}
+  .brand-switch-sub{font-size:10.5px;color:var(--text-faint);margin-top:1px;}
+  .brand-switch-menu{left:0;right:auto;top:calc(100% + 6px);width:100%;min-width:210px;}
+
+  @media (max-width:900px){
+    .workspace-grid{grid-template-columns:1fr;}
+    .workspace-wrap{padding:28px 20px;}
+    .header-user-info{display:none;}
+    .plan-grid{grid-template-columns:1fr 1fr;}
+    .login-shell{flex-direction:column;}
+    .cards-row{grid-template-columns:1fr 1fr;}
+    .audit-grid{grid-template-columns:1fr;}
+    .sidebar{width:64px;}
+    .sidebar .nav-item span.label-text{display:none;}
+    .sidebar-bottom, .brand-mark span{display:none;}
+    .main{padding:24px 18px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= SCREEN 1: LOGIN ================= -->
+<div class="screen active" id="screen-login">
+  <div class="login-shell">
+    <div class="login-side">
+      <div class="brand-mark"><span class="dot"></span><span>Signal</span></div>
+      <div class="login-copy">
+        <h1>See what AI recommends<br>before your customers do.</h1>
+        <p>Signal tracks how Claude, ChatGPT, and Gemini answer real buying questions about your category — and tells you exactly what to fix so they recommend you.</p>
+        <div class="scanner">
+          <div class="scanner-row">
+            <span class="scanner-label">Live scan</span>
+            <span class="scanner-label mono">3 models · continuous</span>
+          </div>
+          <div class="scanner-track">
+            <div class="scanner-grid"></div>
+            <div class="scanner-sweep"></div>
+            <div class="scanner-ticks">
+              <div class="scanner-tick"><span class="tick-dot" style="background:var(--claude);color:var(--claude);"></span><span class="tick-label">CLAUDE</span></div>
+              <div class="scanner-tick"><span class="tick-dot" style="background:var(--gpt);color:var(--gpt);"></span><span class="tick-label">GPT</span></div>
+              <div class="scanner-tick"><span class="tick-dot" style="background:var(--gemini);color:var(--gemini);"></span><span class="tick-label">GEMINI</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div></div>
+    </div>
+    <div class="login-form-side">
+      <div class="login-form">
+        <h2>Welcome back</h2>
+        <p class="sub">Log in to your visibility dashboard.</p>
+        <form onsubmit="return false;">
+          <div class="field">
+            <label for="email">Work email</label>
+            <input type="email" id="email" placeholder="you@company.com">
+          </div>
+          <div class="field">
+            <label for="pass">Password</label>
+            <input type="password" id="pass" placeholder="••••••••••">
+          </div>
+          <button class="btn btn-primary btn-block" onclick="showScreen('workspace')">Log in →</button>
+        </form>
+        <div class="divider-row">or</div>
+        <button class="btn btn-block" onclick="showScreen('workspace')">Continue with Google</button>
+        <p class="foot-note">New here? <button onclick="showScreen('brand')">Create an account</button></p>
+        <p class="free-check-link">Not ready to sign up? <button onclick="showScreen('brand')">Get your free AI visibility score →</button></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SCREEN: WORKSPACE (ALL BRANDS) ================= -->
+<div class="screen" id="screen-workspace">
+  <div class="workspace-wrap">
+    <div class="workspace-top">
+      <div class="brand-mark"><span class="dot"></span><span>Signal</span></div>
+      <div class="header-right">
+        <button class="btn btn-primary" onclick="showScreen('brand')">+ Add brand</button>
+        <div class="header-user" onclick="toggleUserMenu(event,'user-menu-ws')">
+          <div class="avatar">AK</div>
+          <div class="header-user-info">
+            <span class="name">Aijaz Khan</span>
+            <span class="role">Owner</span>
+          </div>
+          <span class="header-user-caret">▾</span>
+          <div class="header-user-menu" id="user-menu-ws">
+            <button onclick="event.stopPropagation(); goToProfileSettingsFromWorkspace();">Profile settings</button>
+            <hr>
+            <button onclick="event.stopPropagation(); showScreen('login');">Log out</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="workspace-heading">
+      <h1>Your brands</h1>
+      <p class="sub">Switch between brands you own, or brands you manage for clients.</p>
+    </div>
+
+    <div class="workspace-grid">
+      <div class="brand-card" onclick="openBrand('Verdant Skincare','Owner')">
+        <div class="brand-card-top">
+          <div class="brand-card-name">Verdant Skincare</div>
+          <span class="tag-role tag-owner">Owner</span>
+        </div>
+        <div class="brand-card-cat">Skincare & Personal Care</div>
+        <div class="brand-card-score">58</div>
+        <div class="brand-card-meta">Last scanned 2 hours ago · 8 queries</div>
+        <div class="brand-card-models">
+          <span><span class="model-dot" style="background:var(--claude);"></span>64</span>
+          <span><span class="model-dot" style="background:var(--gpt);"></span>55</span>
+          <span><span class="model-dot" style="background:var(--gemini);"></span>49</span>
+        </div>
+      </div>
+
+      <div class="brand-card" onclick="openBrand('Sole & Stitch Footwear','Owner')">
+        <div class="brand-card-top">
+          <div class="brand-card-name">Sole & Stitch Footwear</div>
+          <span class="tag-role tag-owner">Owner</span>
+        </div>
+        <div class="brand-card-cat">Footwear & Accessories</div>
+        <div class="brand-card-score">71</div>
+        <div class="brand-card-meta">Last scanned 1 day ago · 12 queries</div>
+        <div class="brand-card-models">
+          <span><span class="model-dot" style="background:var(--claude);"></span>75</span>
+          <span><span class="model-dot" style="background:var(--gpt);"></span>70</span>
+          <span><span class="model-dot" style="background:var(--gemini);"></span>68</span>
+        </div>
+      </div>
+
+      <div class="brand-card" onclick="openBrand('GlowNest Retail','Client')">
+        <div class="brand-card-top">
+          <div class="brand-card-name">GlowNest Retail</div>
+          <span class="tag-role tag-client">Client</span>
+        </div>
+        <div class="brand-card-cat">Skincare & Personal Care</div>
+        <div class="brand-card-score">44</div>
+        <div class="brand-card-meta">Last scanned 6 hours ago · 10 queries</div>
+        <div class="brand-card-models">
+          <span><span class="model-dot" style="background:var(--claude);"></span>48</span>
+          <span><span class="model-dot" style="background:var(--gpt);"></span>41</span>
+          <span><span class="model-dot" style="background:var(--gemini);"></span>43</span>
+        </div>
+      </div>
+
+      <button class="brand-card add-brand-card" onclick="showScreen('brand')">
+        <span class="add-icon">+</span>
+        <span>Add a brand</span>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="screen" id="screen-brand">
+  <div class="onb-shell">
+    <div class="onb-topbar">
+      <div class="brand-mark"><span class="dot"></span><span>Signal</span></div>
+      <button class="btn btn-ghost" onclick="showScreen('login')">Exit setup</button>
+    </div>
+    <div class="onb-topbar" style="margin-bottom:24px;">
+      <div class="stepper">
+        <div class="step active"><span class="num">1</span>Brand</div>
+        <div class="step-line"></div>
+        <div class="step"><span class="num">2</span>Competitors</div>
+        <div class="step-line"></div>
+        <div class="step"><span class="num">3</span>Queries</div>
+      </div>
+    </div>
+    <div class="onb-card">
+      <h2>Tell us about your brand</h2>
+      <p class="sub">This is what Signal will look for inside AI answers.</p>
+      <div class="onb-grid">
+        <div class="field" style="grid-column:1/-1;">
+          <label>Brand name</label>
+          <input type="text" value="Verdant Skincare">
+        </div>
+        <div class="field" style="grid-column:1/-1;">
+          <label>Website</label>
+          <input type="text" value="verdantskincare.in">
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <select>
+            <option>Skincare & Personal Care</option>
+            <option>SaaS</option>
+            <option>Fintech</option>
+            <option>Home & Kitchen</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Primary market</label>
+          <select>
+            <option>India</option>
+            <option>India + Global</option>
+          </select>
+        </div>
+      </div>
+      <div class="onb-actions">
+        <button class="btn btn-ghost" onclick="showScreen('login')">Back</button>
+        <button class="btn btn-primary" onclick="showScreen('competitors')">Continue →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SCREEN 3: ONBOARDING — COMPETITORS ================= -->
+<div class="screen" id="screen-competitors">
+  <div class="onb-shell">
+    <div class="onb-topbar">
+      <div class="brand-mark"><span class="dot"></span><span>Signal</span></div>
+      <button class="btn btn-ghost" onclick="showScreen('login')">Exit setup</button>
+    </div>
+    <div class="onb-topbar" style="margin-bottom:24px;">
+      <div class="stepper">
+        <div class="step done"><span class="num">✓</span>Brand</div>
+        <div class="step-line"></div>
+        <div class="step active"><span class="num">2</span>Competitors</div>
+        <div class="step-line"></div>
+        <div class="step"><span class="num">3</span>Queries</div>
+      </div>
+    </div>
+    <div class="onb-card">
+      <h2>Who are you up against?</h2>
+      <p class="sub">Signal will track their visibility alongside yours in every answer.</p>
+      <div class="chip-row" id="competitor-chips">
+        <span class="chip">GlowNest <button onclick="this.parentElement.remove()">×</button></span>
+        <span class="chip">PureHerb Co. <button onclick="this.parentElement.remove()">×</button></span>
+      </div>
+      <div class="add-row">
+        <input type="text" id="competitor-input" placeholder="Add a competitor name…">
+        <button class="btn" onclick="addCompetitor()">Add</button>
+      </div>
+      <div class="suggested-label">Suggested — mentioned alongside you in early scans</div>
+      <div class="chip-row">
+        <button class="suggest-chip" onclick="addSuggested(this,'Nourish Botanics')">+ Nourish Botanics</button>
+        <button class="suggest-chip" onclick="addSuggested(this,'Sattva Naturals')">+ Sattva Naturals</button>
+      </div>
+      <div class="onb-actions">
+        <button class="btn btn-ghost" onclick="showScreen('brand')">Back</button>
+        <button class="btn btn-primary" onclick="showScreen('queries')">Continue →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SCREEN 4: ONBOARDING — QUERIES ================= -->
+<div class="screen" id="screen-queries">
+  <div class="onb-shell">
+    <div class="onb-topbar">
+      <div class="brand-mark"><span class="dot"></span><span>Signal</span></div>
+      <button class="btn btn-ghost" onclick="showScreen('login')">Exit setup</button>
+    </div>
+    <div class="onb-topbar" style="margin-bottom:24px;">
+      <div class="stepper">
+        <div class="step done"><span class="num">✓</span>Brand</div>
+        <div class="step-line"></div>
+        <div class="step done"><span class="num">✓</span>Competitors</div>
+        <div class="step-line"></div>
+        <div class="step active"><span class="num">3</span>Queries</div>
+      </div>
+    </div>
+    <div class="onb-card">
+      <h2>Pick what to track</h2>
+      <p class="sub">We generated these from your category. Uncheck any that don't fit, or add your own below.</p>
+      <div class="query-list">
+        <label class="query-row"><input type="checkbox" checked><span class="query-text">Best skincare brand for oily skin India</span><span class="tag tag-lang">EN</span><span class="tag tag-best-of">Best-of</span></label>
+        <label class="query-row"><input type="checkbox" checked><span class="query-text">Verdant Skincare vs GlowNest</span><span class="tag tag-lang">EN</span><span class="tag tag-comparison">Comparison</span></label>
+        <label class="query-row"><input type="checkbox" checked><span class="query-text">Sasta vitamin C serum kaunsa best hai</span><span class="tag tag-lang">HI-EN</span><span class="tag tag-best-of">Best-of</span></label>
+        <label class="query-row"><input type="checkbox" checked><span class="query-text">Top Indian skincare startups 2026</span><span class="tag tag-lang">EN</span><span class="tag tag-best-of">Best-of</span></label>
+        <label class="query-row"><input type="checkbox" checked><span class="query-text">Is Verdant Skincare good?</span><span class="tag tag-lang">EN</span><span class="tag tag-direct">Direct</span></label>
+        <label class="query-row"><input type="checkbox" checked><span class="query-text">Oily skin ke liye kaunsa brand accha rahega</span><span class="tag tag-lang">HI-EN</span><span class="tag tag-direct">Direct</span></label>
+        <label class="query-row"><input type="checkbox" checked><span class="query-text">Affordable vitamin C serum India</span><span class="tag tag-lang">EN</span><span class="tag tag-best-of">Best-of</span></label>
+        <label class="query-row"><input type="checkbox"><span class="query-text">How to choose a skincare brand for sensitive skin</span><span class="tag tag-lang">EN</span><span class="tag tag-how-to">How-to</span></label>
+        <label class="query-row"><input type="checkbox" checked><span class="query-text">GlowNest vs PureHerb Co.</span><span class="tag tag-lang">EN</span><span class="tag tag-comparison">Comparison</span></label>
+        <label class="query-row"><input type="checkbox" checked><span class="query-text">Best niacinamide serum under ₹500</span><span class="tag tag-lang">EN</span><span class="tag tag-best-of">Best-of</span></label>
+        <label class="query-row"><input type="checkbox" checked><span class="query-text">Verdant Skincare reviews</span><span class="tag tag-lang">EN</span><span class="tag tag-direct">Direct</span></label>
+        <label class="query-row"><input type="checkbox"><span class="query-text">Cruelty-free skincare brands India</span><span class="tag tag-lang">EN</span><span class="tag tag-best-of">Best-of</span></label>
+      </div>
+      <p class="sub" style="margin:12px 0 0;">Includes Hinglish queries real Indian customers actually type — not just English translations.</p>
+      <div class="add-row" style="margin-top:8px;">
+        <input type="text" placeholder="Add a custom query…">
+        <button class="btn">Add</button>
+      </div>
+      <div class="onb-actions">
+        <button class="btn btn-ghost" onclick="showScreen('competitors')">Back</button>
+        <button class="btn btn-primary" onclick="startScan()">Run first scan →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SCREEN 5: SCANNING ================= -->
+<div class="screen" id="screen-scanning">
+  <div class="scan-wrap">
+    <div class="scanner">
+      <div class="scanner-row">
+        <span class="scanner-label">Scanning</span>
+        <span class="scanner-label mono" id="scan-count">0 / 8 queries</span>
+      </div>
+      <div class="scanner-track">
+        <div class="scanner-grid"></div>
+        <div class="scanner-sweep"></div>
+        <div class="scanner-ticks">
+          <div class="scanner-tick"><span class="tick-dot" style="background:var(--claude);color:var(--claude);"></span><span class="tick-label">CLAUDE</span></div>
+          <div class="scanner-tick"><span class="tick-dot" style="background:var(--gpt);color:var(--gpt);"></span><span class="tick-label">GPT</span></div>
+          <div class="scanner-tick"><span class="tick-dot" style="background:var(--gemini);color:var(--gemini);"></span><span class="tick-label">GEMINI</span></div>
+        </div>
+      </div>
+    </div>
+    <h2>Running your first scan</h2>
+    <div class="scan-status" id="scan-status">Querying Claude…</div>
+    <div class="progress-outer"><div class="progress-inner" id="scan-progress"></div></div>
+  </div>
+</div>
+
+<!-- ================= SCREEN 6: APP SHELL ================= -->
+<div class="screen" id="screen-app">
+  <div class="app-shell">
+    <div class="sidebar">
+      <div class="sidebar-top">
+        <div class="brand-mark"><span class="dot"></span><span>Signal</span></div>
+        <div class="brand-switch" onclick="toggleUserMenu(event,'brand-menu')">
+          <div>
+            <div class="brand-switch-name js-current-brand-name">Verdant Skincare</div>
+            <div class="brand-switch-sub js-current-brand-role">Owner</div>
+          </div>
+          <span class="header-user-caret">▾</span>
+          <div class="header-user-menu brand-switch-menu" id="brand-menu">
+            <button onclick="event.stopPropagation(); showScreen('workspace');">◂ All brands</button>
+            <hr>
+            <button onclick="event.stopPropagation(); openBrand('Verdant Skincare','Owner');">Verdant Skincare</button>
+            <button onclick="event.stopPropagation(); openBrand('Sole &amp; Stitch Footwear','Owner');">Sole & Stitch Footwear</button>
+            <button onclick="event.stopPropagation(); openBrand('GlowNest Retail','Client');">GlowNest Retail (Client)</button>
+            <hr>
+            <button onclick="event.stopPropagation(); showScreen('brand');">+ Add brand</button>
+          </div>
+        </div>
+        <button class="nav-item active" data-tab="overview" onclick="showTab('overview',this)"><span class="ic">◆</span><span class="label-text">Overview</span></button>
+        <button class="nav-item" data-tab="mentions" onclick="showTab('mentions',this)"><span class="ic">▤</span><span class="label-text">Mentions</span></button>
+        <button class="nav-item" data-tab="competitors" onclick="showTab('competitors',this)"><span class="ic">▦</span><span class="label-text">Competitors</span></button>
+        <button class="nav-item" data-tab="audit" onclick="showTab('audit',this)"><span class="ic">⚙</span><span class="label-text">Website audit</span></button>
+        <button class="nav-item" data-tab="recommendations" onclick="showTab('recommendations',this)"><span class="ic">✓</span><span class="label-text">Recommendations</span></button>
+        <button class="nav-item" data-tab="reports" onclick="showTab('reports',this)"><span class="ic">▥</span><span class="label-text">Reports</span></button>
+        <button class="nav-item" data-tab="settings" onclick="showTab('settings',this)"><span class="ic">⚙</span><span class="label-text">Settings</span></button>
+        <button class="nav-item" data-tab="pricing" onclick="showTab('pricing',this)"><span class="ic">₹</span><span class="label-text">Pricing</span></button>
+      </div>
+      <div class="sidebar-bottom">
+        <div class="js-current-brand-name" style="margin-bottom:6px;">Verdant Skincare</div>
+        <div>Starter plan · 8 queries</div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="main-top">
+        <div>
+          <h1 id="main-title">Overview</h1>
+          <div class="meta" id="last-scanned-meta">Verdant Skincare · Last scanned 2 hours ago</div>
+        </div>
+        <div class="header-right">
+          <button class="btn rescan-btn" id="rescan-btn" onclick="rescanNow()"><span class="rescan-icon">↻</span> Re-scan now</button>
+          <div class="header-user" onclick="toggleUserMenu(event)">
+            <div class="avatar">AK</div>
+            <div class="header-user-info">
+              <span class="name">Aijaz Khan</span>
+              <span class="role">Owner</span>
+            </div>
+            <span class="header-user-caret">▾</span>
+            <div class="header-user-menu" id="user-menu">
+              <button onclick="event.stopPropagation(); goToProfileSettings();">Profile settings</button>
+              <button onclick="event.stopPropagation(); showTab('settings', document.querySelector('[data-tab=settings]'));">Brand settings</button>
+              <hr>
+              <button onclick="event.stopPropagation(); showScreen('login');">Log out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: OVERVIEW -->
+      <div class="tab-panel active" id="tab-overview">
+        <div class="cards-row">
+          <div class="card">
+            <div class="label">Blended visibility score</div>
+            <div class="score-big">58</div>
+            <div class="score-delta">▲ 16 pts since last scan (was 42)</div>
+          </div>
+          <div class="card">
+            <div class="label">Claude</div>
+            <div class="model-score" style="color:var(--claude);">64</div>
+            <div class="model-tag-row"><span class="model-dot" style="background:var(--claude);"></span>mentioned in 6/8</div>
+          </div>
+          <div class="card">
+            <div class="label">GPT</div>
+            <div class="model-score" style="color:var(--gpt);">55</div>
+            <div class="model-tag-row"><span class="model-dot" style="background:var(--gpt);"></span>mentioned in 5/8</div>
+          </div>
+          <div class="card">
+            <div class="label">Gemini</div>
+            <div class="model-score" style="color:var(--gemini);">49</div>
+            <div class="model-tag-row"><span class="model-dot" style="background:var(--gemini);"></span>mentioned in 4/8</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Visibility trend</h3>
+          <p class="sub">Blended score across all tracked models, last 6 scans</p>
+          <svg class="sparkline" viewBox="0 0 600 80" preserveAspectRatio="none">
+            <polyline points="0,64 100,58 200,52 300,44 400,36 500,20 600,14" fill="none" stroke="#FFC857" stroke-width="2.5"/>
+            <circle cx="600" cy="14" r="4" fill="#FFC857"/>
+          </svg>
+        </div>
+
+        <div class="panel">
+          <h3>Category benchmark</h3>
+          <p class="sub">How you compare to other skincare D2C brands Signal tracks — anonymized, aggregated</p>
+          <div class="benchmark-row">
+            <span class="mono" style="font-size:12px;color:var(--text-faint);width:30px;">0</span>
+            <div class="benchmark-track">
+              <div class="benchmark-fill-you" style="width:58%;"></div>
+              <div class="benchmark-marker" style="left:45%;" data-label="Category avg · 45"></div>
+            </div>
+            <span class="mono" style="font-size:12px;color:var(--text-faint);width:30px;">100</span>
+          </div>
+          <div class="benchmark-legend">
+            <div class="benchmark-legend-item"><span class="benchmark-swatch" style="background:var(--amber);"></span>You · 58</div>
+            <div class="benchmark-legend-item"><span class="benchmark-swatch" style="background:var(--text-dim);"></span>Skincare category average · 45</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Where you stand right now</h3>
+          <p class="sub">Based on this week's scan across 8 tracked queries</p>
+          <p style="color:var(--text-dim);line-height:1.7;font-size:13.3px;">
+            You're now showing up in more than half of tracked answers, up sharply from last month. Claude is your strongest surface; Gemini rarely surfaces you in comparison-style queries where <strong style="color:var(--text);">GlowNest</strong> currently leads. The audit and recommendations tabs explain exactly why — and what to fix first.
+          </p>
+        </div>
+      </div>
+
+      <!-- TAB: MENTIONS -->
+      <div class="tab-panel" id="tab-mentions">
+        <div class="filter-row">
+          <button class="filter-chip active">All models</button>
+          <button class="filter-chip">Claude</button>
+          <button class="filter-chip">GPT</button>
+          <button class="filter-chip">Gemini</button>
+          <button class="filter-chip">Google AI Overview</button>
+          <button class="filter-chip">Meta AI</button>
+        </div>
+        <div class="panel" style="padding:8px 24px 20px;">
+          <table>
+            <thead><tr><th>Query</th><th>Model</th><th>Mentioned</th><th>Position</th><th>Sentiment</th><th>Last checked</th></tr></thead>
+            <tbody>
+              <tr><td>Best skincare brand for oily skin India</td><td>Claude</td><td><span class="pill pill-yes">Yes</span></td><td>#1</td><td class="sent-pos">Positive</td><td class="mono">2h ago</td></tr>
+              <tr><td>Best skincare brand for oily skin India</td><td>Gemini</td><td><span class="pill pill-no">No</span></td><td>—</td><td class="sent-neu">—</td><td class="mono">2h ago</td></tr>
+              <tr><td>Verdant Skincare vs GlowNest</td><td>GPT</td><td><span class="pill pill-yes">Yes</span></td><td>#2</td><td class="sent-neu">Neutral</td><td class="mono">2h ago</td></tr>
+              <tr><td>Top Indian skincare startups 2026</td><td>Claude</td><td><span class="pill pill-yes">Yes</span></td><td>#3</td><td class="sent-pos">Positive</td><td class="mono">2h ago</td></tr>
+              <tr><td>Is Verdant Skincare good?</td><td>GPT</td><td><span class="pill pill-yes">Yes</span></td><td>#1</td><td class="sent-pos">Positive</td><td class="mono">2h ago</td></tr>
+              <tr><td>Affordable vitamin C serum India</td><td>Gemini</td><td><span class="pill pill-yes">Yes</span></td><td>#4</td><td class="sent-neu">Neutral</td><td class="mono">2h ago</td></tr>
+              <tr><td>GlowNest vs PureHerb Co.</td><td>Claude</td><td><span class="pill pill-no">No</span></td><td>—</td><td class="sent-neu">—</td><td class="mono">2h ago</td></tr>
+              <tr><td>Best niacinamide serum under ₹500</td><td>GPT</td><td><span class="pill pill-no">No</span></td><td>—</td><td class="sent-neu">—</td><td class="mono">2h ago</td></tr>
+              <tr><td>Sasta vitamin C serum kaunsa best hai</td><td>Google AI Overview</td><td><span class="pill pill-yes">Yes</span></td><td>#2</td><td class="sent-pos">Positive</td><td class="mono">5h ago</td></tr>
+              <tr><td>Oily skin ke liye kaunsa brand accha rahega</td><td>Meta AI</td><td><span class="pill pill-no">No</span></td><td>—</td><td class="sent-neu">—</td><td class="mono">5h ago</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB: COMPETITORS -->
+      <div class="tab-panel" id="tab-competitors">
+        <div class="panel">
+          <h3>Share of voice</h3>
+          <p class="sub">Of all tracked mentions this week, who's actually showing up</p>
+          <div class="sov-bar">
+            <div class="sov-seg" style="width:38%;background:#FFC857;">Verdant · 38%</div>
+            <div class="sov-seg" style="width:41%;background:#D97757;color:#0A0E16;">GlowNest · 41%</div>
+            <div class="sov-seg" style="width:21%;background:#3A4256;color:#E9ECF3;">PureHerb Co. · 21%</div>
+          </div>
+          <div class="sov-legend">
+            <div class="sov-legend-item"><span class="sov-legend-swatch" style="background:#FFC857;"></span>Verdant Skincare (you)</div>
+            <div class="sov-legend-item"><span class="sov-legend-swatch" style="background:#D97757;"></span>GlowNest</div>
+            <div class="sov-legend-item"><span class="sov-legend-swatch" style="background:#3A4256;"></span>PureHerb Co.</div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Head-to-head</h3>
+          <p class="sub">GlowNest edges you out specifically in comparison-style queries — worth a closer look on the Recommendations tab.</p>
+          <table>
+            <thead><tr><th>Competitor</th><th>Mention rate</th><th>Avg. position</th><th>Trend</th></tr></thead>
+            <tbody>
+              <tr><td>GlowNest</td><td>72%</td><td>#1.8</td><td class="sent-pos">▲ rising</td></tr>
+              <tr><td>Verdant Skincare (you)</td><td>63%</td><td>#2.2</td><td class="sent-pos">▲ rising</td></tr>
+              <tr><td>PureHerb Co.</td><td>38%</td><td>#3.1</td><td class="sent-neu">flat</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB: AUDIT -->
+      <div class="tab-panel" id="tab-audit">
+        <div class="cards-row" style="grid-template-columns:1fr 3fr;">
+          <div class="card">
+            <div class="label">Audit health</div>
+            <div class="score-big">58</div>
+            <div class="score-delta" style="color:var(--text-faint);">out of 100</div>
+          </div>
+          <div class="card">
+            <div class="label">What's holding you back</div>
+            <ul class="issue-list">
+              <li>No dedicated comparison page vs. named competitors</li>
+              <li>FAQPage schema missing on all product pages</li>
+              <li>Google-Extended crawler currently blocked in robots.txt</li>
+            </ul>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Crawler access</h3>
+          <p class="sub">Whether AI crawlers can even read your site</p>
+          <div class="audit-grid">
+            <div class="audit-item"><span class="name">GPTBot (OpenAI)</span><span class="badge badge-ok">Allowed</span></div>
+            <div class="audit-item"><span class="name">ClaudeBot (Anthropic)</span><span class="badge badge-ok">Allowed</span></div>
+            <div class="audit-item"><span class="name">Google-Extended (Gemini)</span><span class="badge badge-bad">Blocked</span></div>
+            <div class="audit-item"><span class="name">llms.txt file</span><span class="badge badge-warn">Not found</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Structured data</h3>
+          <p class="sub">Schema.org markup found on your site</p>
+          <div class="audit-grid">
+            <div class="audit-item"><span class="name">Product schema</span><span class="badge badge-ok">Found</span></div>
+            <div class="audit-item"><span class="name">Organization schema</span><span class="badge badge-ok">Found</span></div>
+            <div class="audit-item"><span class="name">FAQPage schema</span><span class="badge badge-bad">Missing</span></div>
+            <div class="audit-item"><span class="name">Review schema</span><span class="badge badge-warn">Partial</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Off-site footprint</h3>
+          <p class="sub">Third-party sources AI models cite heavily alongside your own site</p>
+          <div class="audit-grid">
+            <div class="audit-item"><span class="name">Reddit presence</span><span class="badge badge-bad">Not found</span></div>
+            <div class="audit-item"><span class="name">Quora presence</span><span class="badge badge-ok">Found</span></div>
+            <div class="audit-item"><span class="name">Nykaa / Mouthshut reviews</span><span class="badge badge-warn">Sparse</span></div>
+            <div class="audit-item"><span class="name">Wikipedia</span><span class="badge badge-bad">Not found</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Marketplace listing readability</h3>
+          <p class="sub">AI shopping assistants pull product data straight from these listings — not just your website</p>
+          <div class="audit-grid">
+            <div class="audit-item"><span class="name">Amazon listing</span><span class="badge badge-warn">Bullet points too vague</span></div>
+            <div class="audit-item"><span class="name">Flipkart listing</span><span class="badge badge-bad">Key attributes missing</span></div>
+            <div class="audit-item"><span class="name">Nykaa listing</span><span class="badge badge-ok">Well structured</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: RECOMMENDATIONS -->
+      <div class="tab-panel" id="tab-recommendations">
+        <div class="panel">
+          <h3>Prioritized action list</h3>
+          <p class="sub">Generated from this week's audit and mention data. Mark items done as you ship them — we'll re-score on next scan.</p>
+          <div class="rec-progress">
+            <div class="rec-progress-bar"><div class="rec-progress-fill" id="rec-fill" style="width:0%;"></div></div>
+            <span class="mono" id="rec-count" style="font-size:12.5px;color:var(--text-dim);">0 / 6 done</span>
+          </div>
+
+          <div class="rec-card" data-rec>
+            <input type="checkbox" class="rec-check" onchange="toggleRec(this)">
+            <div class="rec-body">
+              <div class="rec-text">Unblock Google-Extended in robots.txt so Gemini can crawl your site</div>
+              <div class="rec-tags">
+                <span class="rec-tag rec-cat-technical">Technical</span>
+                <span class="rec-tag rec-effort">Low effort</span>
+                <span class="rec-tag rec-impact-high">High impact</span>
+              </div>
+              <div class="rec-actions">
+                <button class="btn rec-snippet-toggle" onclick="toggleSnippet('snippet-robots')">Generate fix</button>
+              </div>
+              <div class="snippet-box" id="snippet-robots">
+                <button class="btn snippet-copy-btn" onclick="copySnippet(this)">Copy</button>
+                <pre>User-agent: Google-Extended
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /</pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="rec-card" data-rec>
+            <input type="checkbox" class="rec-check" onchange="toggleRec(this)">
+            <div class="rec-body">
+              <div class="rec-text">Publish an llms.txt with a clear, structured summary of what Verdant Skincare sells</div>
+              <div class="rec-tags">
+                <span class="rec-tag rec-cat-technical">Technical</span>
+                <span class="rec-tag rec-effort">Low effort</span>
+                <span class="rec-tag rec-impact-medium">Medium impact</span>
+              </div>
+              <div class="rec-actions">
+                <button class="btn rec-snippet-toggle" onclick="toggleSnippet('snippet-llms')">Generate fix</button>
+              </div>
+              <div class="snippet-box" id="snippet-llms">
+                <button class="btn snippet-copy-btn" onclick="copySnippet(this)">Copy</button>
+                <pre># Verdant Skincare
+> Indian D2C skincare brand specializing in vitamin C and niacinamide serums for oily and sensitive skin.
+
+## Products
+- Vitamin C Brightening Serum — ₹499
+- Niacinamide 10% Serum — ₹449
+
+## Key facts
+- Cruelty-free, dermatologist-tested
+- Ships across India
+- Founded 2023, based in India</pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="rec-card" data-rec>
+            <input type="checkbox" class="rec-check" onchange="toggleRec(this)">
+            <div class="rec-body">
+              <div class="rec-text">Add FAQPage schema to your top 10 product pages</div>
+              <div class="rec-tags">
+                <span class="rec-tag rec-cat-content">Content</span>
+                <span class="rec-tag rec-effort">Medium effort</span>
+                <span class="rec-tag rec-impact-high">High impact</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="rec-card" data-rec>
+            <input type="checkbox" class="rec-check" onchange="toggleRec(this)">
+            <div class="rec-body">
+              <div class="rec-text">Publish a direct "Verdant Skincare vs. GlowNest" comparison page</div>
+              <div class="rec-tags">
+                <span class="rec-tag rec-cat-content">Content</span>
+                <span class="rec-tag rec-effort">Medium effort</span>
+                <span class="rec-tag rec-impact-high">High impact</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="rec-card" data-rec>
+            <input type="checkbox" class="rec-check" onchange="toggleRec(this)">
+            <div class="rec-body">
+              <div class="rec-text">Collect 20+ genuine reviews on Nykaa and Mouthshut</div>
+              <div class="rec-tags">
+                <span class="rec-tag rec-cat-off-site">Off-site</span>
+                <span class="rec-tag rec-effort">High effort</span>
+                <span class="rec-tag rec-impact-high">High impact</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="rec-card" data-rec>
+            <input type="checkbox" class="rec-check" onchange="toggleRec(this)">
+            <div class="rec-body">
+              <div class="rec-text">Build a genuine presence in relevant skincare subreddits</div>
+              <div class="rec-tags">
+                <span class="rec-tag rec-cat-off-site">Off-site</span>
+                <span class="rec-tag rec-effort">High effort</span>
+                <span class="rec-tag rec-impact-medium">Medium impact</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: REPORTS -->
+      <div class="tab-panel" id="tab-reports">
+        <div class="panel">
+          <h3>Generate a report</h3>
+          <p class="sub">A shareable snapshot of your visibility score, mentions, and open recommendations</p>
+          <div class="onb-actions" style="border-top:none;padding-top:0;margin-top:0;">
+            <span class="mono" style="color:var(--text-dim);font-size:12.5px;">Auto-emailed every Monday, 9:00 AM</span>
+            <button class="btn btn-primary">Generate report now</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Report history</h3>
+          <p class="sub">Past scans, ready to download or share with your team</p>
+
+          <div class="report-row">
+            <div class="r-left">
+              <span class="r-date">Week of 21 Jul 2026</span>
+              <span class="r-meta">8 queries · 3 models · auto-generated</span>
+            </div>
+            <span class="r-score">58</span>
+            <button class="btn">Download PDF</button>
+          </div>
+          <div class="report-row">
+            <div class="r-left">
+              <span class="r-date">Week of 14 Jul 2026</span>
+              <span class="r-meta">8 queries · 3 models · auto-generated</span>
+            </div>
+            <span class="r-score">49</span>
+            <button class="btn">Download PDF</button>
+          </div>
+          <div class="report-row">
+            <div class="r-left">
+              <span class="r-date">Week of 07 Jul 2026</span>
+              <span class="r-meta">6 queries · 2 models · auto-generated</span>
+            </div>
+            <span class="r-score">44</span>
+            <button class="btn">Download PDF</button>
+          </div>
+          <div class="report-row">
+            <div class="r-left">
+              <span class="r-date">Week of 30 Jun 2026</span>
+              <span class="r-meta">6 queries · 2 models · auto-generated</span>
+            </div>
+            <span class="r-score">42</span>
+            <button class="btn">Download PDF</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Sharing</h3>
+          <p class="sub">Send this report to teammates or your agency contact</p>
+          <div class="add-row">
+            <input type="text" placeholder="Add an email to share future reports with…">
+            <button class="btn">Add</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: SETTINGS -->
+      <div class="tab-panel" id="tab-settings">
+        <div class="panel" id="profile-settings-panel">
+          <h3>Your profile</h3>
+          <p class="sub">Personal account details — separate from your brand's public info</p>
+          <div class="avatar-edit-row">
+            <div class="avatar avatar-lg">AK</div>
+            <div class="avatar-btns">
+              <button class="btn">Upload photo</button>
+              <button class="btn btn-ghost">Remove</button>
+            </div>
+          </div>
+          <div class="onb-grid">
+            <div class="field">
+              <label>Full name</label>
+              <input type="text" value="Aijaz Khan">
+            </div>
+            <div class="field">
+              <label>Email</label>
+              <input type="email" value="aijaz@verdantskincare.in">
+            </div>
+            <div class="field">
+              <label>New password</label>
+              <input type="password" placeholder="Leave blank to keep current">
+            </div>
+            <div class="field">
+              <label>Confirm new password</label>
+              <input type="password" placeholder="••••••••••">
+            </div>
+          </div>
+          <div class="onb-actions" style="border-top:none;padding-top:6px;margin-top:0;">
+            <span></span>
+            <button class="btn btn-primary">Save profile</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Brand profile</h3>
+          <p class="sub">Basic details Signal uses to match mentions</p>
+          <div class="onb-grid">
+            <div class="field">
+              <label>Brand name</label>
+              <input type="text" value="Verdant Skincare">
+            </div>
+            <div class="field">
+              <label>Website</label>
+              <input type="text" value="verdantskincare.in">
+            </div>
+            <div class="field">
+              <label>Category</label>
+              <select>
+                <option>Skincare & Personal Care</option>
+                <option>SaaS</option>
+                <option>Fintech</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Primary market</label>
+              <select>
+                <option>India</option>
+                <option>India + Global</option>
+              </select>
+            </div>
+          </div>
+          <div class="onb-actions" style="border-top:none;padding-top:6px;margin-top:6px;">
+            <span></span>
+            <button class="btn btn-primary">Save changes</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Competitors tracked</h3>
+          <p class="sub">Add or remove who Signal compares you against</p>
+          <div class="chip-row">
+            <span class="chip">GlowNest <button onclick="this.parentElement.remove()">×</button></span>
+            <span class="chip">PureHerb Co. <button onclick="this.parentElement.remove()">×</button></span>
+          </div>
+          <div class="add-row">
+            <input type="text" placeholder="Add a competitor name…">
+            <button class="btn">Add</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Scan schedule</h3>
+          <p class="sub">How often Signal re-runs your tracked queries</p>
+          <div class="audit-grid">
+            <div class="audit-item"><span class="name">Scan frequency</span>
+              <select style="width:auto;padding:6px 10px;">
+                <option>Weekly</option>
+                <option selected>Daily</option>
+                <option>Monthly</option>
+              </select>
+            </div>
+            <div class="audit-item"><span class="name">Runs per query per model</span>
+              <select style="width:auto;padding:6px 10px;">
+                <option>1 run</option>
+                <option selected>3 runs</option>
+                <option>5 runs</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Models & platforms tracked</h3>
+          <p class="sub">Turn providers on or off for this brand</p>
+          <div class="audit-grid">
+            <div class="audit-item"><span class="name"><span class="model-dot" style="background:var(--claude);display:inline-block;margin-right:8px;"></span>Claude</span><span class="badge badge-ok">On</span></div>
+            <div class="audit-item"><span class="name"><span class="model-dot" style="background:var(--gpt);display:inline-block;margin-right:8px;"></span>GPT</span><span class="badge badge-ok">On</span></div>
+            <div class="audit-item"><span class="name"><span class="model-dot" style="background:var(--gemini);display:inline-block;margin-right:8px;"></span>Gemini</span><span class="badge badge-ok">On</span></div>
+            <div class="audit-item"><span class="name">Google AI Overview</span><span class="badge badge-ok">On</span></div>
+            <div class="audit-item"><span class="name">Meta AI (WhatsApp/Instagram)</span><span class="badge badge-warn">Upgrade to enable</span></div>
+            <div class="audit-item"><span class="name">Perplexity</span><span class="badge badge-warn">Upgrade to enable</span></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Language & region</h3>
+          <p class="sub">Track queries the way Indian customers actually type them — not just English</p>
+          <div class="audit-grid">
+            <div class="audit-item"><span class="name">English queries</span><span class="badge badge-ok">On</span></div>
+            <div class="audit-item"><span class="name">Hinglish queries</span><span class="badge badge-ok">On</span></div>
+            <div class="audit-item"><span class="name">Hindi (Devanagari) queries</span><span class="badge badge-warn">Upgrade to enable</span></div>
+            <div class="audit-item"><span class="name">Tamil / Bengali queries</span><span class="badge badge-warn">Upgrade to enable</span></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Notifications</h3>
+          <p class="sub">Where Signal sends your weekly digest and alerts</p>
+          <div class="field">
+            <label>Digest email</label>
+            <input type="email" value="aijaz@verdantskincare.in">
+          </div>
+          <div class="audit-item" style="margin-top:6px;">
+            <span class="name">Score drop / spike alerts</span><span class="badge badge-ok">Enabled</span>
+          </div>
+          <div class="audit-item">
+            <span class="name">WhatsApp digest — reply to mark recommendations done</span>
+            <button class="btn connect-btn" id="whatsapp-connect-btn" onclick="toggleWhatsappConnect(this)">Connect</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Plan & billing</h3>
+          <p class="sub">Starter plan · 8 queries tracked · renews monthly</p>
+          <div class="onb-actions" style="border-top:none;padding-top:6px;margin-top:0;">
+            <span class="mono" style="color:var(--text-dim);font-size:12.5px;">Next invoice on the 4th</span>
+            <button class="btn">Manage plan</button>
+          </div>
+        </div>
+
+        <div class="panel" style="border-color:rgba(248,113,113,0.3);">
+          <h3 style="color:var(--bad);">Danger zone</h3>
+          <p class="sub">Remove this brand and all its scan history — this can't be undone.</p>
+          <button class="btn" style="border-color:rgba(248,113,113,0.4);color:var(--bad);">Delete brand</button>
+        </div>
+      </div>
+
+      <!-- TAB: PRICING -->
+      <div class="tab-panel" id="tab-pricing">
+        <div class="panel">
+          <h3>Plans</h3>
+          <p class="sub">You're currently on Starter. Upgrade any time — changes apply from your next scan.</p>
+          <div class="plan-grid">
+            <div class="plan-card">
+              <div class="plan-name">Free</div>
+              <div class="plan-price">₹0<span> /mo</span></div>
+              <div class="plan-desc">See the problem before you commit to fixing it.</div>
+              <ul class="plan-features">
+                <li>3 tracked queries</li>
+                <li>1 run per query</li>
+                <li>Monthly scan</li>
+                <li>Claude + GPT only</li>
+                <li>No recommendations</li>
+              </ul>
+              <button class="btn btn-block">Downgrade</button>
+            </div>
+
+            <div class="plan-card current">
+              <div class="plan-name">Starter <span class="current-badge">Current</span></div>
+              <div class="plan-price">₹1,499<span> /mo</span></div>
+              <div class="plan-desc">For solo founders and small D2C teams.</div>
+              <ul class="plan-features">
+                <li>15 tracked queries</li>
+                <li>3 runs per query</li>
+                <li>Weekly scan</li>
+                <li>Claude + GPT + Gemini</li>
+                <li>Recommendations included</li>
+                <li>Weekly email report</li>
+              </ul>
+              <button class="btn btn-block" disabled>Current plan</button>
+            </div>
+
+            <div class="plan-card">
+              <div class="plan-name">Growth</div>
+              <div class="plan-price">₹5,999<span> /mo</span></div>
+              <div class="plan-desc">For funded startups and growing D2C brands.</div>
+              <ul class="plan-features">
+                <li>50 tracked queries</li>
+                <li>3 runs per query</li>
+                <li>Daily scan option</li>
+                <li>All models + Perplexity</li>
+                <li>Competitor share-of-voice</li>
+                <li>WhatsApp digest</li>
+              </ul>
+              <button class="btn btn-primary btn-block">Upgrade</button>
+            </div>
+
+            <div class="plan-card">
+              <div class="plan-name">Agency</div>
+              <div class="plan-price">Custom</div>
+              <div class="plan-desc">Manage visibility across multiple client brands.</div>
+              <ul class="plan-features">
+                <li>Multi-brand workspace</li>
+                <li>White-label reports</li>
+                <li>Daily scans</li>
+                <li>Priority support</li>
+                <li>Dedicated onboarding</li>
+              </ul>
+              <button class="btn btn-block">Talk to sales</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="app-footer">
+        <span>© 2026 Signal · AI Visibility Tracking</span>
+        <div class="foot-links">
+          <a href="#" onclick="return false;">Help center</a>
+          <a href="#" onclick="return false;">Status</a>
+          <a href="#" onclick="return false;">Privacy</a>
+          <a href="#" onclick="return false;">Contact</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  function showScreen(id){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById('screen-'+id).classList.add('active');
+    window.scrollTo(0,0);
+  }
+
+  function addCompetitor(){
+    const input = document.getElementById('competitor-input');
+    const val = input.value.trim();
+    if(!val) return;
+    const wrap = document.getElementById('competitor-chips');
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = val + ' <button onclick="this.parentElement.remove()">×</button>';
+    wrap.appendChild(chip);
+    input.value = '';
+  }
+
+  function addSuggested(btn, name){
+    const wrap = document.getElementById('competitor-chips');
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = name + ' <button onclick="this.parentElement.remove()">×</button>';
+    wrap.appendChild(chip);
+    btn.disabled = true;
+    btn.style.opacity = '0.35';
+  }
+
+  function toggleUserMenu(e, menuId){
+    e.stopPropagation();
+    document.getElementById(menuId || 'user-menu').classList.toggle('open');
+  }
+  document.addEventListener('click', function(){
+    document.querySelectorAll('.header-user-menu.open').forEach(m=>m.classList.remove('open'));
+  });
+  function goToProfileSettings(){
+    showTab('settings', document.querySelector('[data-tab=settings]'));
+    setTimeout(()=>{
+      const panel = document.getElementById('profile-settings-panel');
+      if(panel) panel.scrollIntoView({behavior:'smooth', block:'start'});
+    }, 50);
+  }
+  function goToProfileSettingsFromWorkspace(){
+    openBrand('Verdant Skincare','Owner');
+    setTimeout(goToProfileSettings, 60);
+  }
+  function openBrand(name, role){
+    document.querySelectorAll('.header-user-menu.open').forEach(m=>m.classList.remove('open'));
+    document.querySelectorAll('.js-current-brand-name').forEach(el=>el.textContent=name);
+    document.querySelectorAll('.js-current-brand-role').forEach(el=>el.textContent=role);
+    const meta = document.getElementById('last-scanned-meta');
+    if(meta) meta.textContent = name + ' · Last scanned just now';
+    showScreen('app');
+  }
+
+  function showTab(tab, btn){
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    document.getElementById('tab-'+tab).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    btn.classList.add('active');
+    const titles = {overview:'Overview', mentions:'Mentions', competitors:'Competitors', audit:'Website audit', recommendations:'Recommendations', reports:'Reports', settings:'Settings', pricing:'Pricing'};
+    document.getElementById('main-title').textContent = titles[tab];
+  }
+
+  function toggleSnippet(id){
+    document.getElementById(id).classList.toggle('open');
+  }
+  function copySnippet(btn){
+    const pre = btn.nextElementSibling;
+    const text = pre.textContent;
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(text).catch(()=>{});
+    }
+    const original = btn.textContent;
+    btn.textContent = 'Copied ✓';
+    setTimeout(()=>{ btn.textContent = original; }, 1500);
+  }
+  function toggleWhatsappConnect(btn){
+    const connected = btn.classList.toggle('connected');
+    btn.textContent = connected ? 'Connected ✓' : 'Connect';
+  }
+
+  function toggleRec(cb){
+    const card = cb.closest('.rec-card');
+    card.classList.toggle('done', cb.checked);
+    const total = document.querySelectorAll('[data-rec]').length;
+    const done = document.querySelectorAll('[data-rec] .rec-check:checked').length;
+    document.getElementById('rec-count').textContent = done + ' / ' + total + ' done';
+    document.getElementById('rec-fill').style.width = (done/total*100) + '%';
+  }
+
+  const scanSteps = [
+    'Querying Claude…','Querying GPT…','Querying Gemini…',
+    'Detecting brand mentions…','Scoring competitor share of voice…',
+    'Auditing website signals…','Compiling recommendations…','Done.'
+  ];
+  function startScan(){
+    showScreen('scanning');
+    let i = 0;
+    const statusEl = document.getElementById('scan-status');
+    const progEl = document.getElementById('scan-progress');
+    const countEl = document.getElementById('scan-count');
+    statusEl.textContent = scanSteps[0];
+    const interval = setInterval(()=>{
+      i++;
+      if(i >= scanSteps.length){
+        clearInterval(interval);
+        const meta = document.getElementById('last-scanned-meta');
+        if(meta) meta.textContent = 'Verdant Skincare · Last scanned just now';
+        const btn = document.getElementById('rescan-btn');
+        if(btn){
+          btn.classList.remove('spinning');
+          btn.disabled = false;
+          btn.innerHTML = '<span class="rescan-icon">↻</span> Re-scan now';
+        }
+        setTimeout(()=>showScreen('app'), 500);
+        return;
+      }
+      statusEl.textContent = scanSteps[i];
+      countEl.textContent = Math.min(i+1, 8) + ' / 8 queries';
+      progEl.style.width = ((i+1)/scanSteps.length*100) + '%';
+    }, 550);
+  }
+
+  function rescanNow(){
+    const btn = document.getElementById('rescan-btn');
+    if(btn){
+      btn.classList.add('spinning');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="rescan-icon">↻</span> Scanning…';
+    }
+    startScan();
+  }
+</script>
+</body>
+</html>

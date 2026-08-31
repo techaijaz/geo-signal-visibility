@@ -1,0 +1,35 @@
+# Ignore node_modules (forces fresh install inside Docker image)
+node_modules
+**/node_modules
+
+# Ignore build artifacts
+dist
+**/dist
+build
+**/build
+
+# Ignore git and IDE configurations
+.git
+.gitignore
+.dockerignore
+.vscode
+.idea
+.husky
+
+# Ignore environment & secret files
+.env
+.env.*
+!.env.docker.example
+
+# Ignore logs & temp files
+logs
+**/logs
+*.log
+npm-debug.log*
+
+# Ignore documentation & markdown
+*.md
+docs/
+
+# Ignore Docker compose files
+docker-compose*.yml

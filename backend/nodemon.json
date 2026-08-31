@@ -1,0 +1,5 @@
+{
+    "ext": "ts",
+    "ignore": ["node_modules/**/*", "build/**/*"],
+    "delay": 1000
+}

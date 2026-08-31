@@ -333,6 +333,7 @@ export default function AdminModels() {
                   <option value="Anthropic">Anthropic (Claude)</option>
                   <option value="Perplexity">Perplexity</option>
                   <option value="OmniRoute">OmniRoute</option>
+                  <option value="OpenRouter">OpenRouter Gateway</option>
                   <option value="Other">Other</option>
                 </select>
               </div>

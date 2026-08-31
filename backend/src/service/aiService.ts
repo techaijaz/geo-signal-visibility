@@ -249,6 +249,39 @@ const aiService = {
     },
 
     /**
+     * Call OpenRouter API
+     */
+    callOpenRouter: async (prompt: string, modelName: string): Promise<string | null> => {
+        const apiKey = await databseService.getDecryptedApiKey('OPENROUTER')
+        if (!apiKey) return null
+        try {
+            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                    'HTTP-Referer': config.FRONTEND_URL || 'http://localhost:5173',
+                    'X-Title': 'GEO Dashboard'
+                },
+                body: JSON.stringify({
+                    model: modelName,
+                    messages: [
+                        { role: 'system', content: 'You are an AI search engine assistant providing authoritative recommendations for brands, products, software, and services.' },
+                        { role: 'user', content: prompt }
+                    ],
+                    max_tokens: 400
+                })
+            })
+            if (!response.ok) return null
+            const data = (await response.json()) as IOpenAiChatResponse
+            return data.choices?.[0]?.message?.content || null
+        } catch (error) {
+            logger.error('OpenRouter API Error:', { meta: error })
+            return null
+        }
+    },
+
+    /**
      * Parse raw AI answer to extract mention presence, rank position, and sentiment
      */
     parseMentionFromText: (
@@ -349,39 +382,45 @@ const aiService = {
             ? brand.queries.map(q => q.text)
             : defaultQueries
 
-        const trackedModels = ['DeepSeek (v4 Flash)', 'DeepSeek (v4 Pro)', 'Claude', 'GPT', 'Gemini', 'Google AI Overview', 'Meta AI']
+        const aiModel = (await import('../model/aiModel')).default
+        const activeModels = await aiModel.find({ isActive: true })
+        const modelsToRun = activeModels.length > 0 ? activeModels : [
+            { name: 'GPT-4o Mini', modelId: 'openai/gpt-4o-mini', provider: 'OpenRouter' },
+            { name: 'Gemini 1.5 Flash', modelId: 'google/gemini-1.5-flash', provider: 'OpenRouter' }
+        ]
+
         const results: IAiScanResult[] = []
 
         for (let idx = 0; idx < queries.length; idx++) {
             const queryText = queries[idx]
-            for (let mIdx = 0; mIdx < trackedModels.length; mIdx++) {
-                const modelName = trackedModels[mIdx]
+            
+            // Process all active models in parallel for this query
+            const promises = modelsToRun.map(async (model) => {
                 let rawText: string | null = null
 
-                // Try calling live AI APIs if key is available
-                if (modelName === 'DeepSeek (v4 Flash)') {
-                    rawText = await aiService.callDeepSeek(queryText, 'deepseek-v4-flash')
-                } else if (modelName === 'DeepSeek (v4 Pro)') {
-                    rawText = await aiService.callDeepSeek(queryText, 'deepseek-v4-pro')
-                } else if (modelName === 'DeepSeek') {
-                    rawText = await aiService.callDeepSeek(queryText)
-                } else if (modelName === 'GPT') {
+                if (model.provider === 'OpenRouter') {
+                    rawText = await aiService.callOpenRouter(queryText, model.modelId)
+                } else if (model.provider === 'OpenAI') {
                     rawText = await aiService.callOpenAI(queryText)
-                } else if (modelName === 'Gemini' || modelName === 'Google AI Overview') {
-                    rawText = await aiService.callGemini(queryText)
-                } else if (modelName === 'Claude') {
+                } else if (model.provider === 'Google') {
+                    rawText = await aiService.callGemini(queryText, model.modelId)
+                } else if (model.provider === 'Anthropic') {
                     rawText = await aiService.callClaude(queryText)
-                } else if (modelName === 'OmniRoute') {
-                    rawText = await aiService.callOmniRoute(queryText)
+                } else if (model.provider === 'DeepSeek') {
+                    rawText = await aiService.callDeepSeek(queryText, model.modelId)
+                } else if (model.provider === 'OmniRoute') {
+                    rawText = await aiService.callOmniRoute(queryText, model.modelId)
+                } else {
+                    // Fallback to OpenAI if provider unknown
+                    rawText = await aiService.callOpenAI(queryText)
                 }
 
                 if (rawText) {
-                    // Real AI Response received!
                     const parsed = aiService.parseMentionFromText(rawText, brandName)
                     results.push({
                         brandId,
                         queryText,
-                        model: modelName,
+                        model: model.name,
                         mentioned: parsed.mentioned,
                         position: parsed.position,
                         sentiment: parsed.sentiment,
@@ -389,11 +428,10 @@ const aiService = {
                         extractedAt: new Date()
                     })
                 } else {
-                    // No live API response available or key not configured
                     results.push({
                         brandId,
                         queryText,
-                        model: modelName,
+                        model: model.name,
                         mentioned: false,
                         position: null,
                         sentiment: 'Neutral',
@@ -401,7 +439,9 @@ const aiService = {
                         extractedAt: new Date()
                     })
                 }
-            }
+            })
+
+            await Promise.all(promises)
         }
 
         await mentionModel.deleteMany({ brandId })

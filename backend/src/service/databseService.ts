@@ -741,54 +741,32 @@ const databseService = {
     seedDefaultAiModels: async () => {
         const defaultModels: Array<Partial<IAiModel>> = [
             {
-                name: 'OpenAI GPT-4o',
-                modelId: 'gpt-4o',
-                provider: 'OpenAI',
-                description: 'Flagship OpenAI multimodal AI model',
+                name: 'GPT-4o Mini (OpenRouter)',
+                modelId: 'openai/gpt-4o-mini',
+                provider: 'OpenRouter',
+                description: 'Fast and cost-efficient OpenAI model via OpenRouter',
                 isActive: true,
                 isDefault: true,
-                inputCostPer1k: 0.005,
-                outputCostPer1k: 0.015,
-                maxTokens: 4096
-            },
-            {
-                name: 'OpenAI GPT-4o Mini',
-                modelId: 'gpt-4o-mini',
-                provider: 'OpenAI',
-                description: 'Fast and cost-efficient OpenAI model',
-                isActive: true,
-                isDefault: false,
                 inputCostPer1k: 0.00015,
                 outputCostPer1k: 0.0006,
                 maxTokens: 4096
             },
             {
-                name: 'DeepSeek v4 Flash',
-                modelId: 'deepseek-v4-flash',
-                provider: 'DeepSeek',
-                description: 'Ultra-fast DeepSeek reasoning & chat model',
+                name: 'Claude 3.5 Sonnet (OpenRouter)',
+                modelId: 'anthropic/claude-3.5-sonnet',
+                provider: 'OpenRouter',
+                description: 'State of the art reasoning & writing model via OpenRouter',
                 isActive: true,
                 isDefault: false,
-                inputCostPer1k: 0.0001,
-                outputCostPer1k: 0.0002,
+                inputCostPer1k: 0.003,
+                outputCostPer1k: 0.015,
                 maxTokens: 4096
             },
             {
-                name: 'DeepSeek v4 Pro',
-                modelId: 'deepseek-v4-pro',
-                provider: 'DeepSeek',
-                description: 'High precision DeepSeek search & evaluation model',
-                isActive: true,
-                isDefault: false,
-                inputCostPer1k: 0.0005,
-                outputCostPer1k: 0.0015,
-                maxTokens: 8192
-            },
-            {
-                name: 'Google Gemini 2.0 Flash',
-                modelId: 'gemini-2.0-flash',
-                provider: 'Google',
-                description: 'Google next-gen fast multimodal model',
+                name: 'Gemini 1.5 Flash (OpenRouter)',
+                modelId: 'google/gemini-1.5-flash',
+                provider: 'OpenRouter',
+                description: 'Fast multimodal model via OpenRouter',
                 isActive: true,
                 isDefault: false,
                 inputCostPer1k: 0.0001,
@@ -796,36 +774,14 @@ const databseService = {
                 maxTokens: 8192
             },
             {
-                name: 'Google Gemini 1.5 Pro',
-                modelId: 'gemini-1.5-pro',
-                provider: 'Google',
-                description: 'Complex reasoning & long context Gemini model',
+                name: 'DeepSeek Chat (OpenRouter)',
+                modelId: 'deepseek/deepseek-chat',
+                provider: 'OpenRouter',
+                description: 'High precision DeepSeek search model via OpenRouter',
                 isActive: true,
                 isDefault: false,
-                inputCostPer1k: 0.00125,
-                outputCostPer1k: 0.005,
-                maxTokens: 8192
-            },
-            {
-                name: 'Anthropic Claude 3.5 Sonnet',
-                modelId: 'claude-3-5-sonnet-20241022',
-                provider: 'Anthropic',
-                description: 'State of the art reasoning & writing model',
-                isActive: true,
-                isDefault: false,
-                inputCostPer1k: 0.003,
-                outputCostPer1k: 0.015,
-                maxTokens: 4096
-            },
-            {
-                name: 'Perplexity Sonar Pro',
-                modelId: 'sonar-pro',
-                provider: 'Perplexity',
-                description: 'Search-grounded online model with web citations',
-                isActive: true,
-                isDefault: false,
-                inputCostPer1k: 0.003,
-                outputCostPer1k: 0.015,
+                inputCostPer1k: 0.00014,
+                outputCostPer1k: 0.00028,
                 maxTokens: 4096
             }
         ]
@@ -901,13 +857,14 @@ const databseService = {
             DEEPSEEK: config.AI_KEYS.DEEPSEEK,
             GEMINI: config.AI_KEYS.GEMINI,
             ANTHROPIC: config.AI_KEYS.ANTHROPIC,
-            OMNIROUTE: config.AI_KEYS.OMNIROUTE
+            OMNIROUTE: config.AI_KEYS.OMNIROUTE,
+            OPENROUTER: config.AI_KEYS.OPENROUTER
         }
         return envKeyMap[uppercaseProvider] || ''
     },
 
     getAllApiKeysStatus: async () => {
-        const providers = ['OPENAI', 'DEEPSEEK', 'GEMINI', 'ANTHROPIC', 'PERPLEXITY', 'OMNIROUTE']
+        const providers = ['OPENAI', 'DEEPSEEK', 'GEMINI', 'ANTHROPIC', 'PERPLEXITY', 'OMNIROUTE', 'OPENROUTER']
         const dbRecords = await apiKeyModel.find().lean()
 
         const statusList = providers.map((prov) => {
@@ -917,6 +874,7 @@ const databseService = {
                 : prov === 'GEMINI' ? config.AI_KEYS.GEMINI
                 : prov === 'ANTHROPIC' ? config.AI_KEYS.ANTHROPIC
                 : prov === 'OMNIROUTE' ? config.AI_KEYS.OMNIROUTE
+                : prov === 'OPENROUTER' ? config.AI_KEYS.OPENROUTER
                 : ''
 
             const isConfigured = !!(match?.maskedKey || envValue)

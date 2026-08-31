@@ -7,7 +7,6 @@ import quiker from '../util/quiker'
 export default {
     self: (req: Request, res: Response, next: NextFunction) => {
         try {
-            //throw new Error('this is error')
             httpResponse(req, res, 200, responceseMessage.SUCCESS, null)
         } catch (error) {
             httpError(next, error, req, 500)

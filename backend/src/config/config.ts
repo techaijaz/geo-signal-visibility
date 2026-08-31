@@ -46,7 +46,8 @@ export default {
         OPENAI: process.env.OPENAI_API_KEY || '',
         GEMINI: process.env.GEMINI_API_KEY || '',
         ANTHROPIC: process.env.ANTHROPIC_API_KEY || '',
-        OMNIROUTE: process.env.OMNIROUTE_API_KEY || ''
+        OMNIROUTE: process.env.OMNIROUTE_API_KEY || '',
+        OPENROUTER: process.env.OPENROUTER_API_KEY || ''
     },
 
     //AI Model Variant Selection

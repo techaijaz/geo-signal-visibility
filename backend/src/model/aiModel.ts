@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose'
 export interface IAiModel extends Document {
     name: string
     modelId: string
-    provider: 'OpenAI' | 'DeepSeek' | 'Google' | 'Anthropic' | 'Perplexity' | 'OmniRoute' | 'Other'
+    provider: 'OpenAI' | 'DeepSeek' | 'Google' | 'Anthropic' | 'Perplexity' | 'OmniRoute' | 'OpenRouter' | 'Other'
     description?: string
     isActive: boolean
     isDefault: boolean
@@ -30,7 +30,7 @@ const aiModelSchema = new Schema<IAiModel>(
         provider: {
             type: String,
             required: true,
-            enum: ['OpenAI', 'DeepSeek', 'Google', 'Anthropic', 'Perplexity', 'OmniRoute', 'Other'],
+            enum: ['OpenAI', 'DeepSeek', 'Google', 'Anthropic', 'Perplexity', 'OmniRoute', 'OpenRouter', 'Other'],
             default: 'Other'
         },
         description: {

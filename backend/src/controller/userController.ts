@@ -159,7 +159,6 @@ export default {
     confirmation: async (req: Request, res: Response, next: NextFunction) => {
         try {
             const { params, query } = req as IConfirmRequest
-            //Todo
             // * confirm user by token and code
             const user = await databseService.findUserByConfirmationTokenAndCode(params.token, query.code)
             if (!user) {
@@ -228,8 +227,6 @@ export default {
     },
     login: async (req: Request, res: Response, next: NextFunction) => {
         try {
-            // TODO
-            // * validate and parse body
             const { body } = req as ILoginRequest
             const { error, value } = validateJoiSchema<ILoginRequestBody>(validationLoginBody, body)
             if (error) {

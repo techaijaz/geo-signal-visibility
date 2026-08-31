@@ -7,7 +7,6 @@ import {
     IChangePasswordRequestBody,
     IUpdateProfileRequestBody
 } from '../types/userTypes'
-import { ICreateOrgRequestBody } from '../types/orgTypes'
 import { EBrandRole, ICreateBrandRequestBody, IUpdateBrandRequestBody } from '../types/brandTypes'
 
 export const validationRegisterBody = Joi.object<IRegisterRequestBody>({
@@ -39,11 +38,6 @@ export const validationChangePasswordBody = Joi.object<IChangePasswordRequestBod
 export const validationUpdateProfileBody = Joi.object<IUpdateProfileRequestBody>({
     name: Joi.string().min(2).max(72).optional().trim(),
     phone: Joi.string().optional().allow('').trim()
-})
-
-export const validationCreateOrgBody = Joi.object<ICreateOrgRequestBody>({
-    name: Joi.string().required().min(2).max(100).trim(),
-    whiteLabelEnabled: Joi.boolean().optional()
 })
 
 const competitorJoiSchema = Joi.object({

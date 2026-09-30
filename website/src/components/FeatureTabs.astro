@@ -1,0 +1,216 @@
+---
+// Interactive product tour. Each panel is a small HTML mock of a real dashboard screen.
+const tabs = [
+  { id: 'trend', label: 'Visibility over time', title: 'Know if you are gaining or slipping', body: 'Every scan adds a point. See your share of AI answers move week by week, per AI, and spot the day a competitor overtook you.' },
+  { id: 'sov', label: 'Competitor share of voice', title: 'See who AI recommends instead of you', body: 'For every question you track, see which brands AI names and how often. Your competitors are named for you, not guessed.' },
+  { id: 'audit', label: 'AI crawler audit', title: 'Make sure AI can read your store', body: 'We check robots.txt for GPTBot, ClaudeBot, Google-Extended, PerplexityBot and Bytespider, look for llms.txt, and test the product, FAQ, review and organisation schema on your site.' },
+  { id: 'recs', label: 'Recommendations', title: 'Get a short list of what to fix', body: 'Plain-language fixes ranked by impact: unblock a crawler, add FAQ schema to product pages, publish a comparison page for the questions you lose.' }
+]
+// Illustrative trend data (share of answers mentioning the brand, %)
+const trend = [18, 21, 20, 24, 27, 26, 31, 34, 33, 38, 41, 44]
+const W = 520, H = 200, P = 20
+const x = (i: number) => P + (i * (W - 2 * P)) / (trend.length - 1)
+const y = (v: number) => H - P - (v / 50) * (H - 2 * P)
+const path = trend.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+const area = `${path} L${x(trend.length - 1)},${H - P} L${x(0)},${H - P} Z`
+const sov = [
+  { name: 'Glowleaf', pct: 38 },
+  { name: 'Kesar & Co. (you)', pct: 27, you: true },
+  { name: 'DermaDaily', pct: 21 },
+  { name: 'Suncrest', pct: 14 }
+]
+const audit = [
+  { name: 'GPTBot (ChatGPT)', ok: true },
+  { name: 'ClaudeBot (Claude)', ok: true },
+  { name: 'Google-Extended (Gemini)', ok: false, note: 'Blocked in robots.txt' },
+  { name: 'PerplexityBot', ok: true },
+  { name: 'llms.txt', ok: false, note: 'Not found' },
+  { name: 'Product schema', ok: true },
+  { name: 'FAQPage schema', ok: false, note: 'Missing on product pages' }
+]
+const recs = [
+  { impact: 'High', text: 'Allow Google-Extended in robots.txt so Gemini can read your product pages.' },
+  { impact: 'High', text: 'Add FAQPage schema to your top 10 product pages.' },
+  { impact: 'Medium', text: 'Publish a comparison page for “sunscreen for oily skin under ₹500”, where you lose to Glowleaf.' },
+  { impact: 'Low', text: 'Add an llms.txt file that lists your key collections.' }
+]
+---
+<div class="tour" data-tour>
+  <div class="tablist" role="tablist" aria-label="Product features">
+    {tabs.map((t, i) => (
+      <button type="button" role="tab" id={`tab-${t.id}`} aria-controls={`panel-${t.id}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1}>
+        {t.label}
+      </button>
+    ))}
+  </div>
+
+  {tabs.map((t, i) => (
+    <section class="panel" role="tabpanel" id={`panel-${t.id}`} aria-labelledby={`tab-${t.id}`} hidden={i !== 0}>
+      <div class="panel-copy">
+        <h3>{t.title}</h3>
+        <p>{t.body}</p>
+      </div>
+      <div class="mock">
+        {t.id === 'trend' && (
+          <figure class="chart" data-chart>
+            <figcaption><span>Share of AI answers mentioning you</span><b data-readout>{trend[trend.length - 1]}%</b></figcaption>
+            <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Illustrative line chart rising from 18% to 44% over 12 weeks">
+              {[0, 25, 50].map((g) => <line x1={P} x2={W - P} y1={y(g)} y2={y(g)} class="grid" />)}
+              <path d={area} class="area" />
+              <path d={path} class="line" pathLength="1" />
+              {trend.map((v, i) => <circle cx={x(i)} cy={y(v)} r="4" class="pt" data-i={i} data-v={v} />)}
+              <line class="guide" x1="0" x2="0" y1={P} y2={H - P} />
+            </svg>
+            <p class="axis"><span>12 weeks ago</span><span>This week</span></p>
+          </figure>
+        )}
+        {t.id === 'sov' && (
+          <ul class="sov">
+            {sov.map((s) => (
+              <li class:list={{ you: s.you }}>
+                <span class="sov-name">{s.name}</span>
+                <span class="sov-bar"><span style={`--w:${s.pct}%`}></span></span>
+                <span class="sov-pct num">{s.pct}%</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {t.id === 'audit' && (
+          <ul class="audit">
+            {audit.map((a) => (
+              <li>
+                <span class:list={['tick', a.ok ? 'ok' : 'bad']} aria-hidden="true">{a.ok ? '✓' : '✕'}</span>
+                <span>{a.name}</span>
+                <span class="audit-note">{a.ok ? 'Allowed' : a.note}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {t.id === 'recs' && (
+          <ol class="recs">
+            {recs.map((r) => (
+              <li><span class:list={['impact', `impact--${r.impact.toLowerCase()}`]}>{r.impact}</span><span>{r.text}</span></li>
+            ))}
+          </ol>
+        )}
+        <p class="mock-note">Example data</p>
+      </div>
+    </section>
+  ))}
+</div>
+
+<style>
+  .tour { display: grid; gap: 28px; }
+  .tablist { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--rule); }
+  [role='tab'] {
+    font: 600 var(--t-base)/1.2 var(--font); color: var(--slate); background: none; border: 0; cursor: pointer;
+    padding: 12px 14px; margin-bottom: -1px; border-bottom: 3px solid transparent; transition: color .15s, border-color .25s;
+  }
+  [role='tab']:hover { color: var(--ink); }
+  [role='tab'][aria-selected='true'] { color: var(--ink); border-bottom-color: var(--marker); }
+
+  .panel { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: clamp(24px, 4vw, 56px); align-items: center; }
+  .panel:not([hidden]) { animation: panel-in .35s var(--ease-out); }
+  @keyframes panel-in { from { opacity: 0; transform: translateY(6px); } }
+  .panel-copy { display: grid; gap: 14px; }
+  .panel-copy h3 { font-size: var(--t-lg); }
+  .panel-copy p { color: var(--slate); max-width: 44ch; }
+
+  .mock { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r-sheet); padding: clamp(16px, 2.5vw, 28px); display: grid; gap: 12px; min-height: 300px; align-content: start; }
+  .mock-note { font-size: var(--t-sm); color: var(--slate); }
+
+  .chart { margin: 0; display: grid; gap: 8px; }
+  .chart figcaption { display: flex; justify-content: space-between; align-items: baseline; color: var(--slate); font-size: var(--t-sm); }
+  .chart figcaption b { font-size: var(--t-xl); color: var(--ink); font-variant-numeric: tabular-nums; }
+  .chart svg { width: 100%; height: auto; overflow: visible; touch-action: none; }
+  .grid { stroke: var(--rule-soft); stroke-width: 1; }
+  .area { fill: var(--marker); opacity: .18; }
+  .line { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 0; }
+  .panel:not([hidden]) .line { animation: draw 1.1s var(--ease-out); }
+  @keyframes draw { from { stroke-dashoffset: 1; } }
+  .pt { fill: var(--sheet); stroke: var(--ink); stroke-width: 2; opacity: 0; transition: opacity .15s; }
+  .pt.on { opacity: 1; fill: var(--marker); }
+  .guide { stroke: var(--ink); stroke-dasharray: 3 3; opacity: 0; }
+  .guide.on { opacity: .35; }
+  .axis { display: flex; justify-content: space-between; font-size: var(--t-sm); color: var(--slate); }
+
+  .sov { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+  .sov li { display: grid; grid-template-columns: 150px 1fr 48px; gap: 12px; align-items: center; }
+  .sov-name { font-weight: 500; }
+  .sov .you .sov-name { font-weight: 700; }
+  .sov-bar { height: 12px; background: var(--rule-soft); border-radius: 6px; overflow: hidden; }
+  .sov-bar span { display: block; height: 100%; width: var(--w); background: #9FB0B2; border-radius: 6px; transform-origin: left; }
+  .sov .you .sov-bar span { background: var(--marker); }
+  .panel:not([hidden]) .sov-bar span { animation: grow .8s var(--ease-out) both; }
+  .panel:not([hidden]) .sov li:nth-child(2) .sov-bar span { animation-delay: .06s; }
+  .panel:not([hidden]) .sov li:nth-child(3) .sov-bar span { animation-delay: .12s; }
+  .panel:not([hidden]) .sov li:nth-child(4) .sov-bar span { animation-delay: .18s; }
+  @keyframes grow { from { transform: scaleX(0); } }
+  .sov-pct { text-align: right; font-weight: 600; }
+
+  .audit { list-style: none; margin: 0; padding: 0; display: grid; }
+  .audit li { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--rule-soft); }
+  .audit li:last-child { border-bottom: 0; }
+  .tick { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; }
+  .tick.ok { background: #DDF1E6; color: var(--found); }
+  .tick.bad { background: #F8E1DE; color: var(--miss); }
+  .audit-note { font-size: var(--t-sm); color: var(--slate); text-align: right; }
+
+  .recs { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; counter-reset: rec; }
+  .recs li { display: grid; grid-template-columns: 76px 1fr; gap: 12px; align-items: start; }
+  .impact { font-size: var(--t-sm); font-weight: 700; padding: 3px 8px; border-radius: 6px; text-align: center; }
+  .impact--high { background: var(--marker); color: var(--ink); }
+  .impact--medium { background: var(--rule-soft); color: var(--ink); }
+  .impact--low { border: 1px solid var(--rule); color: var(--slate); }
+
+  @media (max-width: 860px) {
+    .panel { grid-template-columns: 1fr; }
+    .sov li { grid-template-columns: 110px 1fr 42px; }
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-tour]').forEach((tour) => {
+    const tabs = [...tour.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+    const panels = [...tour.querySelectorAll<HTMLElement>('[role="tabpanel"]')]
+    const select = (i: number, focus = false) => {
+      tabs.forEach((t, j) => {
+        t.setAttribute('aria-selected', String(i === j))
+        t.tabIndex = i === j ? 0 : -1
+      })
+      panels.forEach((p, j) => (p.hidden = i !== j))
+      if (focus) tabs[i].focus()
+    }
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', () => select(i))
+      t.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight') select((i + 1) % tabs.length, true)
+        if (e.key === 'ArrowLeft') select((i - 1 + tabs.length) % tabs.length, true)
+      })
+    })
+
+    // Chart: follow the pointer and read out the nearest week
+    const chart = tour.querySelector<HTMLElement>('[data-chart]')
+    if (!chart) return
+    const svg = chart.querySelector('svg')!
+    const pts = [...svg.querySelectorAll<SVGCircleElement>('.pt')]
+    const guide = svg.querySelector<SVGLineElement>('.guide')!
+    const readout = chart.querySelector<HTMLElement>('[data-readout]')!
+    const last = pts[pts.length - 1].dataset.v
+    const show = (clientX: number) => {
+      const box = svg.getBoundingClientRect()
+      const vx = ((clientX - box.left) / box.width) * svg.viewBox.baseVal.width
+      let best = 0
+      pts.forEach((p, i) => { if (Math.abs(+p.getAttribute('cx')! - vx) < Math.abs(+pts[best].getAttribute('cx')! - vx)) best = i })
+      pts.forEach((p, i) => p.classList.toggle('on', i === best))
+      const cx = pts[best].getAttribute('cx')!
+      guide.setAttribute('x1', cx); guide.setAttribute('x2', cx); guide.classList.add('on')
+      const weeksAgo = pts.length - 1 - best
+      readout.textContent = `${pts[best].dataset.v}%${weeksAgo ? ` (${weeksAgo} wk ago)` : ''}`
+    }
+    svg.addEventListener('pointermove', (e) => show(e.clientX))
+    svg.addEventListener('pointerleave', () => {
+      pts.forEach((p) => p.classList.remove('on')); guide.classList.remove('on'); readout.textContent = `${last}%`
+    })
+  })
+</script>

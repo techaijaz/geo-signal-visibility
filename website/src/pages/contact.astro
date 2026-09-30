@@ -1,0 +1,124 @@
+---
+import Base from '../layouts/Base.astro'
+import { company } from '../config/site'
+
+const topics = [
+  { value: 'sales', label: 'Plans and pricing', to: company.salesEmail },
+  { value: 'agency', label: 'Agency plan', to: company.salesEmail },
+  { value: 'support', label: 'Help with my account', to: company.supportEmail },
+  { value: 'billing', label: 'Billing or refund', to: company.supportEmail },
+  { value: 'other', label: 'Something else', to: company.email }
+]
+---
+<Base title="Contact us" description="Contact the Signal AI team about plans, the Agency plan, billing or help with your account.">
+  <section class="band">
+    <div class="wrap grid">
+      <div class="side">
+        <h1>Contact us</h1>
+        <p class="lede">Questions about plans, an agency setup or your account. Write to us and a person on the team will reply.</p>
+        <dl>
+          <div><dt>Sales and Agency plan</dt><dd><a href={`mailto:${company.salesEmail}`}>{company.salesEmail}</a></dd></div>
+          <div><dt>Support and billing</dt><dd><a href={`mailto:${company.supportEmail}`}>{company.supportEmail}</a></dd></div>
+          <div><dt>Registered office</dt><dd>{company.legalName}<br />{company.address}</dd></div>
+        </dl>
+      </div>
+
+      <form class="form" data-contact novalidate>
+        <div class="field">
+          <label for="c-name">Your name</label>
+          <input id="c-name" name="name" type="text" autocomplete="name" required />
+        </div>
+        <div class="field">
+          <label for="c-email">Work email</label>
+          <input id="c-email" name="email" type="email" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="c-site">Store or website <span class="opt">(optional)</span></label>
+          <input id="c-site" name="site" type="text" inputmode="url" placeholder="yourstore.com" />
+        </div>
+        <fieldset class="field">
+          <legend>What is it about?</legend>
+          <div class="topics">
+            {topics.map((t, i) => (
+              <label class="topic"><input type="radio" name="topic" value={t.value} data-to={t.to} checked={i === 0} /><span>{t.label}</span></label>
+            ))}
+          </div>
+        </fieldset>
+        <div class="field">
+          <label for="c-msg">Message</label>
+          <textarea id="c-msg" name="message" rows="6" required></textarea>
+        </div>
+        <p class="error" role="alert" data-error></p>
+        <button class="btn btn--marker" type="submit">Write email</button>
+        <p class="hint">This opens your email app with your message filled in, addressed to the right team.</p>
+      </form>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .grid { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: clamp(32px, 6vw, 88px); align-items: start; }
+  .side { display: grid; gap: 24px; }
+  .side h1 { font-size: var(--t-2xl); }
+  dl { margin: 0; display: grid; gap: 18px; }
+  dt { font-size: var(--t-sm); color: var(--slate); }
+  dd { margin: 2px 0 0; font-weight: 600; }
+  dd a { text-decoration-color: var(--marker); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+
+  .form { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r-sheet); padding: clamp(20px, 3vw, 36px); display: grid; gap: 20px; }
+  .field { display: grid; gap: 8px; border: 0; margin: 0; padding: 0; min-width: 0; }
+  label, legend { font-weight: 600; padding: 0; }
+  .opt { font-weight: 400; color: var(--slate); }
+  input[type='text'], input[type='email'], textarea {
+    width: 100%; font: 400 var(--t-base)/1.4 var(--font); color: var(--ink);
+    padding: 12px 14px; border: 1px solid var(--rule); border-radius: var(--r-control); background: var(--porcelain);
+    transition: border-color .15s, background-color .15s;
+  }
+  input:focus, textarea:focus { outline: none; border-color: var(--ink); background: var(--sheet); }
+  [aria-invalid='true'] { border-color: var(--miss) !important; }
+  textarea { resize: vertical; }
+  .topics { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .topic { position: relative; font-weight: 500; }
+  .topic input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .topic span { display: inline-block; padding: 9px 14px; border: 1px solid var(--rule); border-radius: 999px; font-size: var(--t-sm); transition: background-color .15s, color .15s, border-color .15s; }
+  .topic input:checked + span { background: var(--ink); color: var(--porcelain); border-color: var(--ink); }
+  .topic input:focus-visible + span { outline: 3px solid var(--marker-deep); outline-offset: 2px; }
+  .error { color: var(--miss); font-weight: 600; min-height: 0; }
+  .error:empty { display: none; }
+  .form .btn { justify-self: start; }
+  .hint { font-size: var(--t-sm); color: var(--slate); margin-top: -8px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+</style>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('[data-contact]')!
+  const error = form.querySelector<HTMLElement>('[data-error]')!
+  form.addEventListener('submit', (e) => {
+    e.preventDefault()
+    const data = new FormData(form)
+    const required: [string, string][] = [['name', 'your name'], ['email', 'your email'], ['message', 'a message']]
+    const missing = required.filter(([k]) => !String(data.get(k) || '').trim())
+    const email = String(data.get('email') || '')
+    form.querySelectorAll('[aria-invalid]').forEach((el) => el.removeAttribute('aria-invalid'))
+    missing.forEach(([k]) => form.querySelector(`[name="${k}"]`)?.setAttribute('aria-invalid', 'true'))
+    if (missing.length) {
+      const names = missing.map(([, l]) => l)
+      const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0]
+      error.textContent = `Add ${list} to continue.`
+      form.querySelector<HTMLElement>(`[name="${missing[0][0]}"]`)?.focus()
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      form.querySelector('[name="email"]')?.setAttribute('aria-invalid', 'true')
+      error.textContent = 'Enter an email address like name@yourstore.com.'
+      return
+    }
+    error.textContent = ''
+    const topic = form.querySelector<HTMLInputElement>('input[name="topic"]:checked')!
+    const subject = `${topic.parentElement!.textContent!.trim()}: ${data.get('name')}`
+    const body = [`Name: ${data.get('name')}`, `Email: ${email}`, data.get('site') ? `Website: ${data.get('site')}` : '', '', String(data.get('message'))]
+      .filter((l, i) => l !== '' || i === 3)
+      .join('\n')
+    window.location.href = `mailto:${topic.dataset.to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  })
+</script>

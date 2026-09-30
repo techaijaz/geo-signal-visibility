@@ -1,0 +1,29 @@
+---
+import { links } from '../config/site'
+interface Props { title?: string; body?: string }
+const {
+  title = 'Find out what AI says about your brand today',
+  body = 'The Free plan checks 3 questions on ChatGPT, Gemini and Claude every week. No card needed.'
+} = Astro.props
+---
+<section class="band band--ink cta">
+  <div class="wrap inner">
+    <div class="text">
+      <h2>{title}</h2>
+      <p>{body}</p>
+    </div>
+    <div class="actions">
+      <a class="btn btn--marker" href={links.signup}>Check my brand free</a>
+      <a class="btn btn--ghost" href="/pricing">See pricing</a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .inner { display: grid; grid-template-columns: minmax(0, 1.4fr) auto; gap: 32px; align-items: end; }
+  .text { display: grid; gap: 16px; }
+  h2 { max-width: 18ch; }
+  p { color: #A9BDBF; font-size: var(--t-md); max-width: 46ch; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+  @media (max-width: 760px) { .inner { grid-template-columns: 1fr; } }
+</style>

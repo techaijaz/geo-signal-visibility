@@ -1,0 +1,76 @@
+---
+import Base from '../layouts/Base.astro'
+import CompareTable from '../components/CompareTable.astro'
+import CtaBand from '../components/CtaBand.astro'
+
+const reasons = [
+  { title: 'Built around Indian D2C shoppers', body: 'Question suggestions are written for how Indians shop, including Hinglish questions like “sabse accha sunscreen kaunsa hai”. Global tools start from US search behaviour.' },
+  { title: 'Five AIs from the first paid plan', body: 'Starter covers ChatGPT, Gemini, Claude, Grok and DeepSeek. Several tools cover one to three AIs at entry level and sell the rest as add-ons.' },
+  { title: 'Priced and billed in rupees', body: 'Pay in INR with UPI, cards or netbanking and get an INR invoice. No dollar pricing, no foreign transaction fees.' },
+  { title: 'Fixes, not just charts', body: 'Every plan includes an AI crawler and schema audit, and paid plans add ranked recommendations, so you know what to change next.' },
+  { title: 'Honest numbers', body: 'If an AI provider is down during a scan, that answer is skipped rather than counted as “not mentioned”, so outages never look like a drop in visibility.' },
+  { title: 'A real free plan', body: 'Track 3 questions on ChatGPT, Gemini and Claude every week for free, without a card and without a trial clock.' }
+]
+---
+<Base title="How we compare" description="Signal AI compared with Otterly.ai, Peec AI, Profound and AthenaHQ on price, questions tracked, AI engines and billing currency.">
+  <section class="band intro">
+    <div class="wrap">
+      <div class="section-head">
+        <h1>How Signal AI is different</h1>
+        <p>We are not the only AI visibility tool. Here is what we do differently, and a straight price comparison so you can judge for yourself.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <ul class="reasons">
+        {reasons.map((r) => (
+          <li>
+            <h2>{r.title}</h2>
+            <p>{r.body}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="band band--sheet">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Price comparison</h2>
+        <p>Where a vendor does not publish a number, we say so rather than guess. Otterly Lite is cheaper than our Starter plan; it tracks the same number of questions on four AIs, billed in dollars.</p>
+      </div>
+      <CompareTable />
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap fit">
+      <div>
+        <h2>When another tool may suit you better</h2>
+      </div>
+      <ul>
+        <li>You need Microsoft Copilot or Google AI Overviews tracked today. We don’t track those yet.</li>
+        <li>You are a large enterprise that needs SSO, custom contracts and dozens of AI models. Enterprise-focused tools are built for that.</li>
+        <li>Your customers are mostly in the US or Europe and you want tooling built around those markets.</li>
+      </ul>
+    </div>
+  </section>
+
+  <CtaBand title="Try it on your own brand before you decide" />
+</Base>
+
+<style>
+  .intro { padding-bottom: 32px; }
+  .intro h1 { font-size: var(--t-2xl); }
+  .reasons { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 44px 40px; }
+  .reasons li { display: grid; gap: 10px; align-content: start; padding-top: 18px; border-top: 2px solid var(--ink); }
+  .reasons h2 { font-size: var(--t-md); font-variation-settings: 'wdth' 95; letter-spacing: -0.01em; line-height: 1.25; }
+  .reasons p { color: var(--slate); }
+  .fit { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: clamp(24px, 5vw, 72px); }
+  .fit h2 { font-size: var(--t-xl); }
+  .fit ul { margin: 0; padding-left: 1.2em; display: grid; gap: 14px; color: var(--slate); }
+  @media (max-width: 900px) { .reasons { grid-template-columns: 1fr 1fr; } .fit { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .reasons { grid-template-columns: 1fr; } }
+</style>

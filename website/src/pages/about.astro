@@ -1,0 +1,65 @@
+---
+import Base from '../layouts/Base.astro'
+import CtaBand from '../components/CtaBand.astro'
+
+const beliefs = [
+  { title: 'Show the real answer', body: 'A score is only useful if you can see what it is made of. Every number in Signal AI links back to the AI answers behind it.' },
+  { title: 'Never fake a drop', body: 'When an AI provider fails during a scan we skip that answer instead of recording “not mentioned”. A chart that moves because of an outage is worse than no chart.' },
+  { title: 'Priced for Indian founders', body: 'We price in rupees and keep a genuinely free plan, because the brands that most need to be found are rarely the ones with dollar budgets.' },
+  { title: 'Tell you what to do next', body: 'Tracking alone doesn’t move anything. Every audit ends with changes you can make this week.' }
+]
+---
+<Base title="About us" description="Why we built Signal AI: helping Indian Shopify and D2C brands get recommended by AI assistants like ChatGPT and Gemini.">
+  <section class="band intro">
+    <div class="wrap story">
+      <h1>We help Indian brands get found by AI, not just by Google</h1>
+      <div class="story-body">
+        <p>For twenty years, being found online meant ranking on Google. Founders learned SEO, bought ads and fought for the first page.</p>
+        <p>That is changing. More shoppers now open ChatGPT or Gemini and ask what to buy: the best sunscreen for oily skin, a cold brew that isn’t bitter, running shoes for flat feet. The assistant answers with a handful of brands. The shopper rarely looks further.</p>
+        <p>We built Signal AI because most Indian D2C brands have no idea whether they are in those answers. The tools that exist are priced in dollars for large US teams. We wanted something a founder in Jaipur or Kochi could set up in five minutes, pay for with UPI and act on the same week.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band--sheet">
+    <div class="wrap">
+      <div class="section-head"><h2>What we believe</h2></div>
+      <ul class="beliefs">
+        {beliefs.map((b) => (
+          <li><h3>{b.title}</h3><p>{b.body}</p></li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap who">
+      <h2>Who we build for</h2>
+      <div>
+        <p>Shopify and D2C founders selling skincare, food and beverage, fashion, fitness, home and wellness products, and the agencies that grow them. Signal AI works for any website, whichever platform you sell on.</p>
+        <p class="muted">Want to talk to us? <a href="/contact">Write to the team</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <CtaBand />
+</Base>
+
+<style>
+  .story { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(32px, 6vw, 88px); align-items: start; }
+  .story h1 { font-size: var(--t-2xl); max-width: 14ch; position: sticky; top: 96px; }
+  .story-body { display: grid; gap: 20px; font-size: var(--t-md); line-height: 1.55; max-width: 56ch; }
+  .story-body p:first-child { color: var(--slate); }
+  .beliefs { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px 56px; }
+  .beliefs li { display: grid; gap: 10px; align-content: start; padding-top: 18px; border-top: 2px solid var(--ink); }
+  .beliefs p { color: var(--slate); max-width: 52ch; }
+  .who { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: clamp(24px, 5vw, 72px); }
+  .who h2 { font-size: var(--t-xl); }
+  .who div { display: grid; gap: 14px; max-width: 60ch; }
+  .who a { font-weight: 600; text-decoration-color: var(--marker); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  @media (max-width: 860px) {
+    .story, .who { grid-template-columns: 1fr; }
+    .story h1 { position: static; }
+    .beliefs { grid-template-columns: 1fr; }
+  }
+</style>

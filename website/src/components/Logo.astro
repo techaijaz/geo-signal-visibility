@@ -1,0 +1,24 @@
+---
+interface Props { tone?: 'ink' | 'light' }
+const { tone = 'ink' } = Astro.props
+---
+<a href="/" class:list={['logo', `logo--${tone}`]} aria-label="Signal AI home">
+  <svg viewBox="0 0 28 22" width="28" height="22" aria-hidden="true">
+    <rect class="bar b1" x="0" y="13" width="6" height="9" rx="2" />
+    <rect class="bar b2" x="11" y="7" width="6" height="15" rx="2" />
+    <rect class="bar b3" x="22" y="0" width="6" height="22" rx="2" />
+  </svg>
+  <span>Signal AI</span>
+</a>
+
+<style>
+  .logo { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 800; font-size: 1.2rem; letter-spacing: -0.02em; font-variation-settings: 'wdth' 85; }
+  .logo--ink { color: var(--ink); }
+  .logo--light { color: var(--porcelain); }
+  .bar { fill: var(--marker); transform-box: fill-box; transform-origin: bottom; }
+  .logo--ink .b1, .logo--ink .b2 { fill: var(--ink); }
+  .logo:hover .bar { animation: pulse .9s var(--ease-out); }
+  .logo:hover .b2 { animation-delay: .08s; }
+  .logo:hover .b3 { animation-delay: .16s; }
+  @keyframes pulse { 40% { transform: scaleY(.45); } }
+</style>

@@ -1,0 +1,87 @@
+---
+import Base from '../layouts/Base.astro'
+import PricingPlans from '../components/PricingPlans.astro'
+import Faq from '../components/Faq.astro'
+import CtaBand from '../components/CtaBand.astro'
+import { plans, engines, inr } from '../config/site'
+
+const rows: { label: string; get: (p: (typeof plans)[number]) => string }[] = [
+  { label: 'Brands', get: (p) => p.brands },
+  { label: 'Questions tracked', get: (p) => p.queries },
+  { label: 'Automatic scans', get: (p) => p.scans },
+  { label: 'On-demand re-scans', get: (p) => (p.id === 'free' ? 'Not included' : p.manual) },
+  { label: 'AI engines', get: (p) => p.engines.map((e) => engines.find((x) => x.id === e)!.name).join(', ') },
+  { label: 'AI crawler and schema audit', get: () => 'Included' },
+  { label: 'AI recommendations', get: (p) => (p.id === 'free' ? 'Not included' : 'Included') },
+  { label: 'Competitor share of voice', get: (p) => (p.id === 'growth' || p.id === 'agency' ? 'Included' : 'Not included') },
+  { label: 'Price per year', get: (p) => (p.yearly === null ? 'Custom' : p.yearly === 0 ? 'Free' : `${inr(p.yearly)} (2 months free)`) }
+]
+
+const faqs = [
+  { q: 'Are prices inclusive of GST?', a: 'Yes. The price you see is the price you pay, and your invoice shows the GST included in it.' },
+  { q: 'How do I pay?', a: 'Through Razorpay with UPI, debit or credit cards and netbanking, or by card through Stripe. Payments are processed by the payment provider; we never see your full card details.' },
+  { q: 'Is this an auto-debit subscription?', a: 'No. You pay for a month or a year up front. When the period ends, renew from Billing to keep your plan; if you don’t, your account moves to the Free plan and your history is kept. See the cancellation and refund policy for details.' },
+  { q: 'What counts as a question?', a: 'One question is one thing a shopper might ask, such as “best sunscreen for oily skin under ₹500”. Each scan asks every AI on your plan that question.' },
+  { q: 'What happens if I go over my re-scan limit?', a: 'On-demand re-scans reset every day at midnight IST. Your automatic scans keep running regardless.' },
+  { q: 'Do you offer an agency plan?', a: 'Yes. Agency covers up to 25 brands with 100 questions each, all six AIs including Perplexity and scans twice a day. Pricing depends on your client list, so write to our sales team.' }
+]
+---
+<Base title="Pricing" description="Signal AI pricing in INR, GST included: Free, Starter ₹2,999/month and Growth ₹9,999/month. Track your brand in ChatGPT, Gemini, Claude, Grok and DeepSeek answers.">
+  <section class="band intro">
+    <div class="wrap">
+      <div class="section-head">
+        <h1>Simple plans, billed in rupees</h1>
+        <p>Start free. Pay for a month or a year up front, with no auto-debit. All prices include GST.</p>
+      </div>
+      <PricingPlans />
+    </div>
+  </section>
+
+  <section class="band band--sheet">
+    <div class="wrap">
+      <div class="section-head"><h2>Compare plans</h2></div>
+      <div class="scroll" tabindex="0" role="region" aria-label="Plan comparison">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col"><span class="sr-only">Feature</span></th>
+              {plans.map((p) => <th scope="col">{p.name}<span class="th-price">{p.monthly === null ? 'Custom' : `${inr(p.monthly)}/mo`}</span></th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr>
+                <th scope="row">{r.label}</th>
+                {plans.map((p) => {
+                  const v = r.get(p)
+                  return <td class:list={{ no: v === 'Not included' }}>{v}</td>
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="section-head"><h2>Billing questions</h2></div>
+      <Faq items={faqs} />
+    </div>
+  </section>
+
+  <CtaBand />
+</Base>
+
+<style>
+  .intro h1 { font-size: var(--t-2xl); }
+  .scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: var(--r-sheet); background: var(--sheet); }
+  table { width: 100%; min-width: 820px; border-collapse: collapse; font-size: var(--t-sm); }
+  th, td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  thead th { font-size: var(--t-base); background: var(--porcelain); }
+  .th-price { display: block; font-weight: 500; color: var(--slate); font-size: var(--t-sm); }
+  tbody th { font-weight: 600; width: 22%; }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+  td.no { color: var(--slate); }
+</style>

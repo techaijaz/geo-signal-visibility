@@ -1,0 +1,57 @@
+---
+import Post from '../../layouts/Post.astro'
+const example = `User-agent: GPTBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /`
+const allow = `User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /`
+---
+<Post slug="can-chatgpt-read-your-store">
+  <p>If an AI assistant can’t read your site, it can only describe your brand from whatever it picked up elsewhere. The first thing to check is your <code>robots.txt</code>, the small file that tells crawlers what they may visit. It takes five minutes.</p>
+
+  <h2>Step 1: open your robots.txt</h2>
+  <p>Visit <code>yourstore.com/robots.txt</code> in a browser. You’ll see a list of <code>User-agent</code> lines followed by <code>Allow</code> or <code>Disallow</code> rules.</p>
+
+  <h2>Step 2: look for AI crawlers</h2>
+  <p>These are the names to search for. Each AI company publishes its crawlers; check their documentation for the latest list.</p>
+  <ul>
+    <li><strong>GPTBot</strong> and <strong>OAI-SearchBot</strong> (OpenAI). GPTBot collects content for training; OAI-SearchBot is used for search results inside ChatGPT.</li>
+    <li><strong>ClaudeBot</strong> (Anthropic).</li>
+    <li><strong>Google-Extended</strong> (Google). This controls whether your content is used for Gemini. It does not affect your ranking in Google Search.</li>
+    <li><strong>PerplexityBot</strong> (Perplexity).</li>
+    <li><strong>Bytespider</strong> (ByteDance).</li>
+  </ul>
+  <p>A block looks like this:</p>
+  <pre><code>{example}</code></pre>
+  <p><code>Disallow: /</code> under a crawler’s name means it may not read any page on your site.</p>
+
+  <h2>Step 3: decide what you want</h2>
+  <p>Blocking AI crawlers is a legitimate choice for some businesses, for example to keep content out of training data. But if you want AI assistants to recommend your products, the crawlers they use to read the web need access to your product and collection pages.</p>
+  <p>If you decide to allow them, the rules look like this:</p>
+  <pre><code>{allow}</code></pre>
+
+  <h2>Changing robots.txt on Shopify</h2>
+  <p>Shopify generates <code>robots.txt</code> automatically. To change it, go to <strong>Online Store › Themes › Edit code</strong>, add a new template called <code>robots.txt.liquid</code>, and edit the rules there. Shopify’s help centre documents the template; keep its default rules and only add or remove what you need.</p>
+  <p>Also check any SEO or security apps you have installed. Some add their own crawler rules.</p>
+
+  <h2>Step 4: check the rest of the basics</h2>
+  <ul>
+    <li><strong>llms.txt</strong>: an emerging convention where a site lists its most important pages for AI. It is not required, but it’s cheap to add.</li>
+    <li><strong>Schema</strong>: product, FAQ, review and organisation schema help machines understand what you sell.</li>
+  </ul>
+  <p>On every plan, including Free, Signal AI checks your robots.txt for GPTBot, ClaudeBot, Google-Extended, PerplexityBot and Bytespider, looks for llms.txt and tests your schema, then flags anything that stops an AI from reading your store.</p>
+</Post>

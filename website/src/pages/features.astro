@@ -1,0 +1,103 @@
+---
+import Base from '../layouts/Base.astro'
+import FeatureTabs from '../components/FeatureTabs.astro'
+import CtaBand from '../components/CtaBand.astro'
+import { engines } from '../config/site'
+
+const groups = [
+  {
+    title: 'Track what AI says',
+    items: [
+      { name: 'Mention check per AI', body: 'For every question, see whether ChatGPT, Gemini, Claude, Grok and DeepSeek named your brand. Perplexity is included on the Agency plan.' },
+      { name: 'Position in the answer', body: 'Being named first is not the same as being named fifth. We record where in the answer you appear.' },
+      { name: 'Tone', body: 'Each mention is read as positive, neutral or negative, so you notice when an AI starts describing you badly.' },
+      { name: 'History you can trust', body: 'Every scan is kept. If a provider has an outage, that answer is skipped, not counted as “not mentioned”, so your trend line does not fake a drop.' }
+    ]
+  },
+  {
+    title: 'Understand the competition',
+    items: [
+      { name: 'Share of voice', body: 'Across all your questions, how often each competitor is named compared with you.' },
+      { name: 'Questions you lose', body: 'The exact questions where a competitor is named and you are not. These are your best content opportunities.' },
+      { name: 'Multiple brands', body: 'Growth tracks 3 brands and Agency up to 25, each with its own questions and competitors.' }
+    ]
+  },
+  {
+    title: 'Fix your site for AI',
+    items: [
+      { name: 'AI crawler access', body: 'We read your robots.txt and tell you if GPTBot, ClaudeBot, Google-Extended, PerplexityBot or Bytespider are blocked.' },
+      { name: 'llms.txt check', body: 'We check whether your site publishes an llms.txt file that points AI to your key pages.' },
+      { name: 'Schema audit', body: 'We look for organisation, product, FAQ and review schema, the structured data AI uses to understand products.' },
+      { name: 'Ranked recommendations', body: 'A short list of changes, ranked by impact, written for founders rather than developers.' }
+    ]
+  },
+  {
+    title: 'Work with it every day',
+    items: [
+      { name: 'Scheduled scans', body: 'Weekly on Free, daily on Starter, three times a day on Growth. Nothing to remember.' },
+      { name: 'On-demand re-scans', body: 'Changed a product page? Re-scan the same day to check the effect (1 a day on Starter, 3 on Growth).' },
+      { name: 'PDF reports', body: 'Download a report to share with your team, investors or clients.' },
+      { name: 'Questions in your customers’ words', body: 'Track questions in English or Hinglish, exactly as shoppers type them.' }
+    ]
+  }
+]
+---
+<Base title="Features" description="Track your brand in ChatGPT, Gemini, Claude, Grok and DeepSeek answers, see competitor share of voice, audit AI crawler access and schema, and get ranked fixes.">
+  <section class="band intro">
+    <div class="wrap">
+      <div class="section-head">
+        <h1>See your brand the way AI sees it</h1>
+        <p>Signal AI reads what five AI assistants say about your category every day, shows where you stand against competitors, and tells you what to change on your site.</p>
+      </div>
+      <ul class="engine-row" aria-label="AI engines tracked">
+        {engines.map((e) => (
+          <li><span class="engine-dot" style={`background:${e.color}`}></span>{e.name}{e.id === 'perplexity' && <span class="tag">Agency</span>}</li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="band band--sheet">
+    <div class="wrap"><FeatureTabs /></div>
+  </section>
+
+  <section class="band">
+    <div class="wrap groups">
+      {groups.map((g) => (
+        <div class="group">
+          <h2>{g.title}</h2>
+          <dl>
+            {g.items.map((i) => (
+              <div class="item">
+                <dt>{i.name}</dt>
+                <dd>{i.body}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <CtaBand />
+</Base>
+
+<style>
+  .intro { padding-bottom: 48px; }
+  .intro h1 { font-size: var(--t-2xl); max-width: 16ch; }
+  .engine-row { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px 26px; font-weight: 600; }
+  .engine-row li { display: inline-flex; align-items: center; gap: 8px; }
+  .tag { font-size: var(--t-sm); font-weight: 500; color: var(--slate); border: 1px solid var(--rule); border-radius: 6px; padding: 1px 7px; }
+  .groups { display: grid; gap: clamp(48px, 7vw, 88px); }
+  .group { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); gap: clamp(24px, 5vw, 72px); }
+  .group h2 { font-size: var(--t-xl); position: sticky; top: 96px; align-self: start; }
+  dl { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 32px 40px; }
+  .item { display: grid; gap: 8px; align-content: start; padding-top: 16px; border-top: 2px solid var(--ink); }
+  dt { font-weight: 700; font-size: var(--t-md); line-height: 1.3; }
+  dd { margin: 0; color: var(--slate); }
+  @media (max-width: 860px) {
+    .group { grid-template-columns: 1fr; }
+    .group h2 { position: static; }
+  }
+  @media (max-width: 560px) { dl { grid-template-columns: 1fr; } }
+</style>

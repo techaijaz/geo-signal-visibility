@@ -1,0 +1,84 @@
+---
+import Logo from './Logo.astro'
+import { nav, links } from '../config/site'
+const path = Astro.url.pathname.replace(/\/$/, '') || '/'
+---
+<header class="site-header">
+  <div class="wrap bar">
+    <Logo />
+    <nav class="primary" aria-label="Main">
+      <ul id="site-menu">
+        {nav.map((item) => (
+          <li><a href={item.href} aria-current={path.startsWith(item.href) ? 'page' : undefined}>{item.label}</a></li>
+        ))}
+        <li class="menu-auth"><a href={links.login}>Log in</a></li>
+        <li class="menu-auth"><a class="btn btn--marker" href={links.signup}>Start free</a></li>
+      </ul>
+    </nav>
+    <div class="auth">
+      <a class="login" href={links.login}>Log in</a>
+      <a class="btn btn--marker btn--sm" href={links.signup}>Start free</a>
+    </div>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-menu">
+      <span class="sr-only">Menu</span>
+      <span class="burger" aria-hidden="true"></span>
+    </button>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    position: sticky; top: 0; z-index: 50;
+    background: var(--porcelain);
+    border-bottom: 1px solid transparent;
+    transition: border-color .2s;
+  }
+  :global(html.scrolled) .site-header { border-bottom-color: var(--rule); }
+  .bar { display: flex; align-items: center; gap: 28px; height: 68px; }
+  .primary { margin-left: 12px; }
+  .primary ul { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; }
+  .primary a { display: block; padding: 8px 12px; border-radius: 6px; text-decoration: none; color: var(--slate); font-weight: 500; }
+  .primary a:hover { color: var(--ink); }
+  .primary a[aria-current='page'] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--marker); border-radius: 0; }
+  .menu-auth { display: none; }
+  .auth { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .login { padding: 8px 12px; text-decoration: none; font-weight: 600; }
+  .login:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .menu-toggle { display: none; }
+
+  @media (max-width: 900px) {
+    .auth { display: none; }
+    .menu-toggle {
+      display: grid; place-items: center; margin-left: auto;
+      width: 44px; height: 44px; border: 1px solid var(--rule); border-radius: var(--r-control);
+      background: var(--sheet); cursor: pointer;
+    }
+    .burger, .burger::before, .burger::after { width: 18px; height: 2px; background: var(--ink); border-radius: 2px; display: block; content: ''; position: relative; transition: transform .25s var(--ease-out), opacity .2s; }
+    .burger::before { position: absolute; top: -6px; }
+    .burger::after { position: absolute; top: 6px; }
+    .menu-toggle[aria-expanded='true'] .burger { background: transparent; }
+    .menu-toggle[aria-expanded='true'] .burger::before { transform: translateY(6px) rotate(45deg); }
+    .menu-toggle[aria-expanded='true'] .burger::after { transform: translateY(-6px) rotate(-45deg); }
+
+    .primary { position: absolute; inset: 68px 0 auto 0; margin: 0; background: var(--porcelain); border-bottom: 1px solid var(--rule); clip-path: inset(0 0 100% 0); visibility: hidden; transition: clip-path .3s var(--ease-out), visibility 0s .3s; }
+    .primary.open { clip-path: inset(0 0 0 0); visibility: visible; transition: clip-path .3s var(--ease-out); }
+    .primary ul { flex-direction: column; padding: 12px var(--gutter) 20px; gap: 2px; }
+    .primary a { padding: 12px 4px; font-size: var(--t-md); color: var(--ink); }
+    .primary a[aria-current='page'] { box-shadow: none; text-decoration: underline; text-decoration-color: var(--marker); text-decoration-thickness: 3px; text-underline-offset: 6px; }
+    .menu-auth { display: block; }
+    .menu-auth .btn { display: flex; justify-content: center; margin-top: 10px; padding: 0 22px; width: 100%; color: var(--ink); }
+  }
+</style>
+
+<script>
+  const toggle = document.querySelector<HTMLButtonElement>('.menu-toggle')
+  const menu = document.querySelector<HTMLElement>('.primary')
+  toggle?.addEventListener('click', () => {
+    const open = toggle.getAttribute('aria-expanded') !== 'true'
+    toggle.setAttribute('aria-expanded', String(open))
+    menu?.classList.toggle('open', open)
+  })
+  const onScroll = () => document.documentElement.classList.toggle('scrolled', window.scrollY > 8)
+  onScroll()
+  window.addEventListener('scroll', onScroll, { passive: true })
+</script>

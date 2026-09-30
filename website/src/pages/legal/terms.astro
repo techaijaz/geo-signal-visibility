@@ -1,0 +1,65 @@
+---
+import Legal from '../../layouts/Legal.astro'
+import { company } from '../../config/site'
+---
+<Legal title="Terms of service" description="The terms that apply when you use Signal AI." updated="2026-10-01">
+  <p>These terms are an agreement between you and {company.legalName} (“Signal AI”, “we”, “us”) for the use of the Signal AI website and service. By creating an account or using the service you agree to them. If you use Signal AI for a company, you confirm you can accept these terms on its behalf.</p>
+
+  <h2>1. The service</h2>
+  <p>Signal AI sends questions you choose to third-party AI assistants (such as ChatGPT, Gemini, Claude, Grok, DeepSeek and Perplexity), analyses their answers for mentions of your brand and competitors, audits your website for AI crawler access and structured data, and gives recommendations. Features and limits depend on your plan, as described on our <a href="/pricing">pricing page</a>.</p>
+
+  <h2>2. Your account</h2>
+  <ul>
+    <li>You must give accurate information and keep your login details secure.</li>
+    <li>You are responsible for activity under your account.</li>
+    <li>You must be at least 18 years old and able to enter a binding contract under Indian law.</li>
+  </ul>
+
+  <h2>3. Plans, payment and renewal</h2>
+  <ul>
+    <li>Paid plans are prepaid for a month or a year. Prices are in Indian rupees and include GST.</li>
+    <li>Payments are processed by Razorpay or Stripe. We do not store your full card details.</li>
+    <li>There is no automatic debit. When a paid period ends, you can renew it; if you don’t, your account moves to the Free plan and your data is kept.</li>
+    <li>We may change prices for future periods. A change never affects a period you have already paid for.</li>
+    <li>Refunds are covered by our <a href="/legal/refund">cancellation and refund policy</a>.</li>
+  </ul>
+
+  <h2>4. Fair use and limits</h2>
+  <p>Each plan includes limits on brands, questions, automatic scans and daily on-demand re-runs. These limits keep the service fast and affordable for everyone. You must not try to get around them, for example by creating multiple free accounts for the same brand or automating requests to our systems.</p>
+
+  <h2>5. Acceptable use</h2>
+  <p>You must not use Signal AI to:</p>
+  <ul>
+    <li>break any law, or infringe anyone’s intellectual property or privacy;</li>
+    <li>track or submit questions containing other people’s personal data;</li>
+    <li>probe, overload or disrupt our systems or those of the AI providers;</li>
+    <li>resell or white-label the service without a written agreement with us.</li>
+  </ul>
+
+  <h2>6. AI answers and no guarantee</h2>
+  <p>AI assistants are operated by third parties and their answers can change from one request to the next. We report what they said at the time of each scan. We do not control those answers and we do not guarantee that any AI will mention or recommend your brand. Recommendations are suggestions; you decide whether to act on them.</p>
+
+  <h2>7. Your data and content</h2>
+  <p>You keep ownership of the brand information, questions and other content you add. You allow us to use it to provide the service, including sending your questions to AI providers. Our handling of personal data is described in our <a href="/legal/privacy">privacy policy</a>.</p>
+
+  <h2>8. Our property</h2>
+  <p>The Signal AI software, design and brand belong to us. These terms give you the right to use the service during your subscription, not ownership of it.</p>
+
+  <h2>9. Availability and changes</h2>
+  <p>We work to keep Signal AI available but do not promise uninterrupted service. Scans can be delayed when AI providers or our infrastructure have problems. We may change or improve features; if we remove a core feature of a paid plan, we will tell you in advance.</p>
+
+  <h2>10. Suspension and termination</h2>
+  <p>You can stop using Signal AI at any time and ask us to delete your account. We may suspend or close an account that breaks these terms, after notice where reasonable.</p>
+
+  <h2>11. Liability</h2>
+  <p>To the extent the law allows, Signal AI is provided “as is”. We are not liable for indirect or consequential losses such as lost sales or profits. Our total liability for any claim is limited to the amount you paid us in the 12 months before the claim.</p>
+
+  <h2>12. Governing law</h2>
+  <p>These terms are governed by the laws of India. Courts in {company.jurisdiction} have exclusive jurisdiction.</p>
+
+  <h2>13. Changes to these terms</h2>
+  <p>We may update these terms. We will post the new version here with a new date and, for material changes, notify you by email before they take effect.</p>
+
+  <h2>14. Contact</h2>
+  <p>{company.legalName}, {company.address}. Email <a href={`mailto:${company.supportEmail}`}>{company.supportEmail}</a>.</p>
+</Legal>

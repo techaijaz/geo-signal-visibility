@@ -1,0 +1,64 @@
+---
+import Legal from '../../layouts/Legal.astro'
+import { company } from '../../config/site'
+---
+<Legal title="Privacy policy" description="How Signal AI collects, uses and protects your personal data, and your rights under India’s Digital Personal Data Protection Act, 2023." updated="2026-10-01">
+  <p>This policy explains how {company.legalName} (“Signal AI”, “we”) handles personal data when you visit our website or use our service. We process personal data in line with the Digital Personal Data Protection Act, 2023 and other applicable Indian law.</p>
+
+  <h2>1. Data we collect</h2>
+  <ul>
+    <li><strong>Account data</strong>: your name, email address and password (stored as a secure hash).</li>
+    <li><strong>Business data</strong>: your brand name, website, category, competitors and the questions you track. This is mostly business information, not personal data.</li>
+    <li><strong>Payment data</strong>: plan, amount, invoice details and payment references. Card, UPI and bank details are collected by Razorpay or Stripe, not by us.</li>
+    <li><strong>Usage data</strong>: log records such as IP address, browser type and actions in the app, used for security and to fix problems.</li>
+    <li><strong>Messages</strong>: anything you send us by email.</li>
+  </ul>
+
+  <h2>2. Why we use it</h2>
+  <ul>
+    <li>To create and run your account and provide the service you signed up for.</li>
+    <li>To process payments and issue invoices.</li>
+    <li>To send service emails such as account confirmation, password reset and scan results.</li>
+    <li>To keep the service secure and prevent abuse.</li>
+    <li>To meet legal obligations such as tax and accounting records.</li>
+  </ul>
+  <p>We do not sell your personal data and we do not use it for third-party advertising.</p>
+
+  <h2>3. Who we share it with</h2>
+  <ul>
+    <li><strong>AI providers</strong>: the questions you track are sent to the AI assistants on your plan (such as OpenAI, Google, Anthropic, xAI, DeepSeek and Perplexity) to get their answers. These providers may process data outside India under their own terms. Do not put personal data in the questions you track.</li>
+    <li><strong>Payment processors</strong>: Razorpay and Stripe, to take payments.</li>
+    <li><strong>Infrastructure providers</strong>: hosting, database and email services that run Signal AI for us, under contracts that require them to protect your data.</li>
+    <li><strong>Authorities</strong>: when the law requires it.</li>
+  </ul>
+
+  <h2>4. How long we keep it</h2>
+  <p>We keep account and business data while your account is open. When you ask us to delete your account, we delete or anonymise your personal data within 30 days, except records we must keep by law (such as invoices), which we keep for the period the law requires.</p>
+
+  <h2>5. Your rights</h2>
+  <p>Under the Digital Personal Data Protection Act, 2023 you can:</p>
+  <ul>
+    <li>ask for a summary of the personal data we hold about you and how we use it;</li>
+    <li>ask us to correct, complete or update it;</li>
+    <li>ask us to erase it, subject to legal retention requirements;</li>
+    <li>withdraw consent where we rely on it;</li>
+    <li>nominate another person to exercise your rights if you die or become incapable;</li>
+    <li>raise a grievance with us, and then with the Data Protection Board of India if you are not satisfied.</li>
+  </ul>
+  <p>Write to <a href={`mailto:${company.supportEmail}`}>{company.supportEmail}</a> to use any of these rights.</p>
+
+  <h2>6. Cookies</h2>
+  <p>The Signal AI app uses cookies that are needed to keep you logged in. This marketing website does not set advertising cookies.</p>
+
+  <h2>7. Security</h2>
+  <p>We use encryption in transit, hashed passwords, encrypted storage of API keys and access controls to protect data. No system is perfectly secure; if a breach affects your personal data we will notify you and the authorities as the law requires.</p>
+
+  <h2>8. Children</h2>
+  <p>Signal AI is a business service and is not meant for anyone under 18. We do not knowingly collect children’s personal data.</p>
+
+  <h2>9. Grievance officer</h2>
+  <p>{company.grievanceOfficer}, {company.legalName}, {company.address}. Email <a href={`mailto:${company.supportEmail}`}>{company.supportEmail}</a>. We respond to grievances within the time required by law.</p>
+
+  <h2>10. Changes</h2>
+  <p>We may update this policy. We will post the new version here with a new date and tell you by email about material changes.</p>
+</Legal>

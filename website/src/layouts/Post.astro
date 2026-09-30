@@ -1,0 +1,76 @@
+---
+import Base from './Base.astro'
+import CtaBand from '../components/CtaBand.astro'
+import { posts, formatDate } from '../config/posts'
+
+interface Props { slug: string }
+const meta = posts.find((p) => p.slug === Astro.props.slug)!
+const others = posts.filter((p) => p.slug !== meta.slug).slice(0, 2)
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'BlogPosting',
+  headline: meta.title,
+  description: meta.description,
+  datePublished: meta.date,
+  author: { '@type': 'Organization', name: 'Signal AI' },
+  publisher: { '@type': 'Organization', name: 'Signal AI' }
+}
+---
+<Base title={meta.title} description={meta.description} ogType="article">
+  <script type="application/ld+json" slot="head" set:html={JSON.stringify(schema)} />
+  <article class="band post">
+    <div class="wrap">
+      <header>
+        <a class="back" href="/blog">Blog</a>
+        <h1>{meta.title}</h1>
+        <p class="meta"><time datetime={meta.date}>{formatDate(meta.date)}</time>, {meta.minutes} minute read</p>
+      </header>
+      <div class="prose">
+        <slot />
+      </div>
+    </div>
+  </article>
+
+  <section class="band band--sheet">
+    <div class="wrap">
+      <h2 class="more-title">Keep reading</h2>
+      <ul class="more">
+        {others.map((p) => (
+          <li><a href={`/blog/${p.slug}`}><span class="t">{p.title}</span><span class="d">{p.description}</span></a></li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <CtaBand />
+</Base>
+
+<style>
+  .post header { max-width: 760px; display: grid; gap: 16px; margin-bottom: 40px; }
+  .back { justify-self: start; color: var(--slate); font-weight: 600; text-decoration: none; }
+  .back::before { content: '‹ '; }
+  .back:hover { color: var(--ink); }
+  .post h1 { font-size: var(--t-2xl); }
+  .meta { color: var(--slate); }
+
+  .prose { max-width: 68ch; font-size: 1.125rem; line-height: 1.7; }
+  .prose :global(p), .prose :global(ul), .prose :global(ol), .prose :global(pre), .prose :global(blockquote) { margin: 0 0 1.2em; }
+  .prose :global(h2) { font-size: var(--t-lg); margin: 1.8em 0 .6em; }
+  .prose :global(h3) { margin: 1.4em 0 .4em; }
+  .prose :global(ul), .prose :global(ol) { padding-left: 1.3em; }
+  .prose :global(li) { margin-bottom: .4em; }
+  .prose :global(a) { text-decoration-color: var(--marker); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  .prose :global(code) { font-size: .92em; background: var(--rule-soft); padding: .1em .35em; border-radius: 4px; }
+  .prose :global(pre) { background: var(--ink); color: #E3ECEC; padding: 18px 20px; border-radius: 10px; overflow-x: auto; font-size: .95rem; line-height: 1.55; }
+  .prose :global(pre code) { background: none; padding: 0; color: inherit; }
+  .prose :global(blockquote) { border-left: 4px solid var(--marker); padding-left: 18px; color: var(--slate); }
+  .prose :global(.mark) { font-weight: 600; }
+
+  .more-title { font-size: var(--t-xl); margin-bottom: 24px; }
+  .more { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .more a { display: grid; gap: 8px; align-content: start; text-decoration: none; padding-top: 16px; border-top: 2px solid var(--ink); }
+  .more .t { font-weight: 700; font-size: var(--t-md); line-height: 1.3; }
+  .more a:hover .t { text-decoration: underline; text-decoration-color: var(--marker); text-decoration-thickness: 3px; text-underline-offset: 5px; }
+  .more .d { color: var(--slate); }
+  @media (max-width: 700px) { .more { grid-template-columns: 1fr; } }
+</style>

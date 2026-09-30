@@ -1,0 +1,19 @@
+---
+import Legal from '../../layouts/Legal.astro'
+import { company } from '../../config/site'
+---
+<Legal title="Service delivery policy" description="How and when Signal AI plans are delivered after payment." updated="2026-10-01">
+  <p>Signal AI is an online software service. Nothing is shipped physically.</p>
+
+  <h2>1. When your plan starts</h2>
+  <p>Your plan is activated in your account as soon as the payment provider confirms your payment, usually within a few minutes. You receive an invoice by email and in the Billing section of your dashboard.</p>
+
+  <h2>2. First results</h2>
+  <p>After you add a brand, the first scan and site audit run in the background. Results usually appear within an hour, depending on the number of questions and on AI provider response times.</p>
+
+  <h2>3. Where the service is delivered</h2>
+  <p>You use Signal AI through your web browser from anywhere. Access is tied to your account login.</p>
+
+  <h2>4. If something goes wrong</h2>
+  <p>If your plan is not active 24 hours after a successful payment, email <a href={`mailto:${company.supportEmail}`}>{company.supportEmail}</a> with your payment reference. If we cannot fix it within 48 hours, you get a full refund under our <a href="/legal/refund">cancellation and refund policy</a>.</p>
+</Legal>

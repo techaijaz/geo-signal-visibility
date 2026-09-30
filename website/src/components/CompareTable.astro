@@ -1,0 +1,78 @@
+---
+import { competitorsEntry, competitorsMid, plans, inr, USD_TO_INR, COMPARE_CHECKED, type Competitor } from '../config/site'
+
+interface Props { tier?: 'entry' | 'mid' | 'both' }
+const { tier = 'both' } = Astro.props
+const starter = plans.find((p) => p.id === 'starter')!
+const growth = plans.find((p) => p.id === 'growth')!
+const groups = [
+  { id: 'entry', title: 'Entry plans', ours: { tier: 'Starter', price: starter.monthly!, questions: '15 questions', engines: '5', frequency: 'Daily' }, rows: competitorsEntry },
+  { id: 'mid', title: 'Growing brands', ours: { tier: 'Growth', price: growth.monthly!, questions: '90 questions (3 brands × 30)', engines: '5', frequency: '3 times a day' }, rows: competitorsMid }
+].filter((g) => tier === 'both' || g.id === tier)
+const rupees = (c: Competitor) => inr(Math.round(c.usd * USD_TO_INR))
+---
+<div class="compare">
+  {groups.map((g) => (
+    <div class="group">
+      {tier === 'both' && <h3>{g.title}</h3>}
+      <div class="scroll" tabindex="0" role="region" aria-label={`${g.title} price comparison`}>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Tool and plan</th>
+              <th scope="col">Price per month</th>
+              <th scope="col">Questions tracked</th>
+              <th scope="col">AI engines</th>
+              <th scope="col">How often</th>
+              <th scope="col">Billed in</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="ours">
+              <th scope="row">Signal AI {g.ours.tier}</th>
+              <td class="num"><b>{inr(g.ours.price)}</b></td>
+              <td>{g.ours.questions}</td>
+              <td>{g.ours.engines}</td>
+              <td>{g.ours.frequency}</td>
+              <td>INR (UPI, cards, netbanking)</td>
+            </tr>
+            {g.rows.map((c) => (
+              <tr>
+                <th scope="row">{c.name} {c.tier}</th>
+                <td class="num">{rupees(c)} <span class="usd">(${c.usd})</span></td>
+                <td>{c.questions}</td>
+                <td>{c.engines}</td>
+                <td>{c.frequency ?? <span class="na">Not published</span>}</td>
+                <td>USD</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ))}
+  <p class="source">
+    Competitor prices are their public list prices as checked in {COMPARE_CHECKED}, converted at $1 = ₹{USD_TO_INR}.
+    Prices change; check each vendor's pricing page before deciding.
+  </p>
+</div>
+
+<style>
+  .compare { display: grid; gap: 36px; }
+  .group { display: grid; gap: 14px; }
+  h3 { font-size: var(--t-md); }
+  .scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: var(--r-sheet); background: var(--sheet); }
+  table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: var(--t-sm); }
+  th, td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  thead th { color: var(--slate); font-weight: 600; background: var(--porcelain); }
+  tbody th { font-weight: 600; }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+  tbody tr { transition: background-color .15s; }
+  tbody tr:hover { background: #F7F9F8; }
+  .ours { background: #FFFBEF; }
+  .ours th { box-shadow: inset 4px 0 0 var(--marker); }
+  .ours:hover { background: #FFF6DC; }
+  .usd { color: var(--slate); }
+  .na { color: var(--slate); font-style: italic; }
+  .source { font-size: var(--t-sm); color: var(--slate); max-width: 72ch; }
+</style>

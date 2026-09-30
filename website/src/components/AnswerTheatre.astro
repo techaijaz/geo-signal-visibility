@@ -1,0 +1,274 @@
+---
+import { links, engines } from '../config/site'
+import { demoQuestions } from './hero-data'
+
+const demoEngines = engines.filter((e) => e.id !== 'perplexity')
+const DEFAULT_BRAND = 'Kesar & Co.'
+const first = demoQuestions[0]
+const fill = (s: string) => s.replace('{brand}', DEFAULT_BRAND)
+const rankOf = (engineId: string) => {
+  const a = first.answers.find((x) => x.engine === engineId)!
+  const i = a.picks.findIndex((p) => p.name.includes('{brand}'))
+  return i === -1 ? null : i + 1
+}
+const firstAnswer = first.answers[0]
+---
+<section class="hero">
+  <div class="wrap grid">
+    <div class="copy">
+      <h1>When shoppers ask AI what to buy, does your brand come up?</h1>
+      <p class="lede">
+        Signal AI asks ChatGPT, Gemini, Claude, Grok and DeepSeek the questions your customers ask, every day, and shows you
+        where your brand appears, where competitors beat you, and what to fix.
+      </p>
+      <div class="ctas">
+        <a class="btn btn--marker" href={links.signup}>Check my brand free</a>
+        <a class="btn btn--ghost" href="/features">How it works</a>
+      </div>
+      <label class="try">
+        <span>Try the demo with your brand name</span>
+        <input id="demo-brand" type="text" maxlength="28" value={DEFAULT_BRAND} autocomplete="off" spellcheck="false" />
+      </label>
+    </div>
+
+    <div class="theatre" data-theatre>
+      <div class="ask">
+        <span class="ask-label">A shopper asks</span>
+        <p class="query" data-query>{first.query}</p>
+      </div>
+
+      <div class="chips" role="group" aria-label="Pick a question">
+        {demoQuestions.map((q, i) => (
+          <button type="button" class="chip" data-question={i} aria-pressed={i === 0 ? 'true' : 'false'}>{q.chip}</button>
+        ))}
+      </div>
+
+      <ul class="engines" role="tablist" aria-label="AI answers">
+        {demoEngines.map((e, i) => {
+          const rank = rankOf(e.id)
+          return (
+            <li>
+              <button type="button" role="tab" class="engine" data-engine={i} aria-selected={i === 0 ? 'true' : 'false'} style={`--dot:${e.color}`}>
+                <span class="engine-name"><span class="engine-dot" style={`background:${e.color}`}></span>{e.name}</span>
+                <span class:list={['status', rank ? 'status--found' : 'status--miss']} data-status>{rank ? `#${rank}` : 'Not named'}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+
+      <article class="answer" role="tabpanel" aria-live="polite" data-answer>
+        <p class="intro">{fill(firstAnswer.intro)}</p>
+        <ol>
+          {firstAnswer.picks.map((p) => (
+            <li>
+              {p.name.includes('{brand}')
+                ? <><strong><span class="mark on" data-brand>{DEFAULT_BRAND}</span>{p.name.replace('{brand}', '')}</strong> <span class="why">{p.why}</span></>
+                : <><strong>{p.name}</strong> <span class="why">{p.why}</span></>}
+            </li>
+          ))}
+        </ol>
+      </article>
+
+      <p class="tally" data-tally>Mentioned by <b>3 of 5</b> AIs. Best position <b>#1</b> on Claude.</p>
+      <p class="note">Illustrative answers with made-up brands. Your dashboard shows the real answers for your store.</p>
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero { padding: clamp(40px, 7vw, 88px) 0 clamp(64px, 9vw, 112px); }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr); gap: clamp(32px, 5vw, 72px); align-items: start; }
+  .copy { display: grid; gap: 28px; padding-top: clamp(0px, 3vw, 32px); }
+  h1 { max-width: 13ch; }
+  .ctas { display: flex; flex-wrap: wrap; gap: 12px; }
+  .try { display: grid; gap: 8px; max-width: 340px; font-size: var(--t-sm); color: var(--slate); }
+  .try input {
+    font: 600 var(--t-md)/1.2 var(--font); color: var(--ink);
+    padding: 10px 0; border: 0; border-bottom: 2px solid var(--ink); background: transparent;
+    border-radius: 0;
+  }
+  .try input:focus { outline: none; border-bottom-color: var(--marker-deep); }
+
+  .theatre {
+    background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r-sheet);
+    padding: clamp(18px, 2.4vw, 28px); display: grid; gap: 18px;
+    box-shadow: 0 1px 0 var(--rule-soft), 0 24px 48px -32px rgba(15, 38, 41, .35);
+  }
+  .ask { display: grid; gap: 6px; }
+  .ask-label { font-size: var(--t-sm); color: var(--slate); }
+  .query { font-size: var(--t-md); font-weight: 600; line-height: 1.35; min-height: 2.7em; }
+  .query.typing::after { content: ''; display: inline-block; width: 2px; height: 1.05em; margin-left: 2px; vertical-align: -0.15em; background: var(--ink); animation: caret .8s steps(1) infinite; }
+  @keyframes caret { 50% { opacity: 0; } }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font: 500 var(--t-sm)/1 var(--font); color: var(--ink); cursor: pointer;
+    padding: 9px 13px; border-radius: 999px; border: 1px solid var(--rule); background: var(--porcelain);
+    transition: background-color .15s, border-color .15s;
+  }
+  .chip:hover { border-color: var(--ink); }
+  .chip[aria-pressed='true'] { background: var(--ink); color: var(--porcelain); border-color: var(--ink); }
+
+  .engines { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid var(--rule-soft); border-bottom: 1px solid var(--rule-soft); }
+  .engine {
+    width: 100%; display: grid; gap: 4px; justify-items: start; padding: 12px 8px 11px; cursor: pointer;
+    background: none; border: 0; border-bottom: 2px solid transparent; font: inherit; color: var(--ink); text-align: left;
+    transition: border-color .2s;
+  }
+  .engine[aria-selected='true'] { border-bottom-color: var(--ink); }
+  .engine-name { display: inline-flex; align-items: center; gap: 6px; font-size: var(--t-sm); font-weight: 600; }
+  .status { font-size: var(--t-sm); white-space: nowrap; font-variant-numeric: tabular-nums; transition: opacity .25s, transform .25s var(--ease-out); }
+  .status--found { color: var(--found); font-weight: 700; }
+  .status--miss { color: var(--miss); }
+  .status.pending { opacity: 0; transform: translateY(4px); }
+
+  .answer { min-height: 196px; }
+  /* Answer markup is re-rendered by the script, so these selectors must be global */
+  .answer :global(.intro) { color: var(--slate); margin-bottom: 10px; }
+  .answer :global(ol) { margin: 0; padding-left: 1.3em; display: grid; gap: 8px; }
+  .answer :global(li) { padding-left: 4px; }
+  .answer :global(li::marker) { color: var(--slate); font-weight: 600; }
+  .answer :global(.why) { color: var(--slate); }
+  .answer :global(.why::before) { content: '– '; }
+  .answer :global(.mark) { background-size: 0% 100%; transition: background-size .55s var(--ease-out); }
+  .answer :global(.mark.on) { background-size: 100% 100%; }
+  .answer :global(.word) { opacity: 0; }
+  .answer :global(.word.in) { opacity: 1; transition: opacity .18s; }
+
+  .tally { padding-top: 14px; border-top: 1px solid var(--rule-soft); font-size: var(--t-base); }
+  .tally :global(b) { font-variant-numeric: tabular-nums; }
+  .note { font-size: var(--t-sm); color: var(--slate); }
+
+  @media (max-width: 980px) {
+    .grid { grid-template-columns: 1fr; }
+    h1 { max-width: 16ch; }
+  }
+  @media (max-width: 560px) {
+    .engines { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .engine { padding: 10px 6px; }
+  }
+</style>
+
+<script>
+  import { demoQuestions } from './hero-data'
+  import { engines } from '../config/site'
+
+  const demoEngines = engines.filter((e) => e.id !== 'perplexity')
+  const root = document.querySelector<HTMLElement>('[data-theatre]')!
+  const queryEl = root.querySelector<HTMLElement>('[data-query]')!
+  const answerEl = root.querySelector<HTMLElement>('[data-answer]')!
+  const tallyEl = root.querySelector<HTMLElement>('[data-tally]')!
+  const chipEls = [...root.querySelectorAll<HTMLButtonElement>('[data-question]')]
+  const engineEls = [...root.querySelectorAll<HTMLButtonElement>('[data-engine]')]
+  const brandInput = document.querySelector<HTMLInputElement>('#demo-brand')!
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  let q = 0
+  let engine = 0
+  let run = 0 // bumps on every new sequence so stale timers stop
+  const brand = () => brandInput.value.trim() || 'Your brand'
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, reduce ? 0 : ms))
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
+
+  const answerFor = (qi: number, ei: number) => demoQuestions[qi].answers.find((a) => a.engine === demoEngines[ei].id)!
+  const rank = (qi: number, ei: number) => {
+    const i = answerFor(qi, ei).picks.findIndex((p) => p.name.includes('{brand}'))
+    return i === -1 ? null : i + 1
+  }
+
+  const tally = (qi: number) => {
+    const ranks = demoEngines.map((_, ei) => rank(qi, ei))
+    const hits = ranks.filter((r) => r !== null).length
+    const best = Math.min(...ranks.map((r) => r ?? 99))
+    const bestEngine = demoEngines[ranks.findIndex((r) => r === best)]?.name
+    tallyEl.innerHTML = hits
+      ? `Mentioned by <b>${hits} of ${demoEngines.length}</b> AIs. Best position <b>#${best}</b> on ${bestEngine}.`
+      : `Not mentioned by any of the ${demoEngines.length} AIs yet.`
+  }
+
+  const setStatuses = async (qi: number, id: number) => {
+    engineEls.forEach((el) => el.querySelector('[data-status]')!.classList.add('pending'))
+    for (let ei = 0; ei < engineEls.length; ei++) {
+      await wait(160)
+      if (id !== run) return
+      const s = engineEls[ei].querySelector<HTMLElement>('[data-status]')!
+      const r = rank(qi, ei)
+      s.textContent = r ? `#${r}` : 'Not named'
+      s.className = `status ${r ? 'status--found' : 'status--miss'}`
+    }
+  }
+
+  const renderAnswer = async (qi: number, ei: number, id: number, stream: boolean) => {
+    const a = answerFor(qi, ei)
+    const b = esc(brand())
+    const words = (s: string) => esc(s).split(' ').map((w) => `<span class="word">${w}</span>`).join(' ')
+    const pick = (p: { name: string; why: string }) => {
+      const name = p.name.includes('{brand}')
+        ? `<span class="mark" data-brand>${b}</span>${esc(p.name.replace('{brand}', ''))}`
+        : words(p.name)
+      return `<li><strong>${name}</strong> <span class="why">${words(p.why)}</span></li>`
+    }
+    answerEl.innerHTML = `<p class="intro">${words(a.intro.replace('{brand}', brand()))}</p><ol>${a.picks.map(pick).join('')}</ol>`
+    const items = [...answerEl.querySelectorAll<HTMLElement>('.word, [data-brand]')]
+    for (const el of items) {
+      if (stream) await wait(el.matches('[data-brand]') ? 90 : 26)
+      if (id !== run) return
+      el.classList.add(el.matches('[data-brand]') ? 'on' : 'in')
+    }
+  }
+
+  const selectEngine = (ei: number, stream = true) => {
+    engine = ei
+    engineEls.forEach((el, i) => el.setAttribute('aria-selected', String(i === ei)))
+    const id = ++run
+    renderAnswer(q, ei, id, stream && !reduce)
+  }
+
+  const play = async (qi: number) => {
+    q = qi
+    const id = ++run
+    chipEls.forEach((c, i) => c.setAttribute('aria-pressed', String(i === qi)))
+    const text = demoQuestions[qi].query
+    if (!reduce) {
+      queryEl.classList.add('typing')
+      queryEl.textContent = ''
+      for (let i = 1; i <= text.length; i++) {
+        await wait(22)
+        if (id !== run) return
+        queryEl.textContent = text.slice(0, i)
+      }
+      queryEl.classList.remove('typing')
+    } else {
+      queryEl.textContent = text
+    }
+    await setStatuses(qi, id)
+    if (id !== run) return
+    tally(qi)
+    engine = 0
+    engineEls.forEach((el, i) => el.setAttribute('aria-selected', String(i === 0)))
+    await renderAnswer(qi, 0, id, !reduce)
+  }
+
+  chipEls.forEach((c, i) => c.addEventListener('click', () => play(i)))
+  engineEls.forEach((el, i) => el.addEventListener('click', () => selectEngine(i)))
+  root.querySelector('[role="tablist"]')!.addEventListener('keydown', (e) => {
+    const k = (e as KeyboardEvent).key
+    if (k !== 'ArrowRight' && k !== 'ArrowLeft') return
+    const next = (engine + (k === 'ArrowRight' ? 1 : -1) + engineEls.length) % engineEls.length
+    engineEls[next].focus()
+    selectEngine(next)
+  })
+  brandInput.addEventListener('input', () => {
+    root.querySelectorAll<HTMLElement>('[data-brand]').forEach((el) => (el.textContent = brand()))
+  })
+
+  // One orchestrated moment on load, only once the demo is on screen
+  const io = new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting)) {
+      io.disconnect()
+      play(0)
+    }
+  }, { threshold: 0.35 })
+  io.observe(root)
+</script>

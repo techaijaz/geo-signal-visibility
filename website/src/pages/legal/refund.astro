@@ -1,0 +1,33 @@
+---
+import Legal from '../../layouts/Legal.astro'
+import { company } from '../../config/site'
+---
+<Legal title="Cancellation and refund policy" description="How cancellation, renewals and refunds work for Signal AI plans." updated="2026-10-01">
+  <p>Signal AI plans are prepaid for a month or a year and never renew automatically. This policy explains how to stop a plan and when you can get your money back.</p>
+
+  <h2>1. Cancelling</h2>
+  <p>Because there is no auto-debit, you don’t need to cancel anything to stop paying. When your paid period ends and you don’t renew, your account moves to the Free plan. Your brands, questions and scan history are kept, and you can upgrade again at any time.</p>
+  <p>If you want your account and data deleted instead, write to <a href={`mailto:${company.supportEmail}`}>{company.supportEmail}</a>.</p>
+
+  <h2>2. Refund on your first payment</h2>
+  <p>If Signal AI is not right for you, ask for a refund within 7 days of your first paid purchase and we will refund it in full. This applies once per customer and brand.</p>
+
+  <h2>3. Renewals and later payments</h2>
+  <p>Renewals and payments after your first purchase are not refundable, except in the cases below.</p>
+
+  <h2>4. When we always refund</h2>
+  <ul>
+    <li>You were charged twice for the same plan and period.</li>
+    <li>You paid but your plan was not activated, and we could not fix it within 48 hours of you telling us.</li>
+    <li>We stop offering a paid plan before your paid period ends. We refund the unused part.</li>
+  </ul>
+
+  <h2>5. How to request a refund</h2>
+  <p>Email <a href={`mailto:${company.supportEmail}`}>{company.supportEmail}</a> from your account email with your invoice number. We reply within 2 working days.</p>
+
+  <h2>6. How refunds are paid</h2>
+  <p>Approved refunds go back to the original payment method through Razorpay or Stripe. We start the refund within 5 working days of approval; your bank may take a further 5 to 10 working days to show it.</p>
+
+  <h2>7. Downgrades</h2>
+  <p>Moving from a paid plan to Free during a paid period is not refunded; you keep your paid features until the period ends.</p>
+</Legal>

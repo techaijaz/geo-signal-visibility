@@ -1,0 +1,52 @@
+---
+import Base from '../../layouts/Base.astro'
+import { posts, formatDate } from '../../config/posts'
+const sorted = [...posts].sort((a, b) => b.date.localeCompare(a.date))
+const [lead, ...rest] = sorted
+---
+<Base title="Blog" description="Practical guides on getting your Shopify or D2C brand recommended by ChatGPT, Gemini and other AI assistants.">
+  <section class="band">
+    <div class="wrap">
+      <div class="section-head">
+        <h1>Blog</h1>
+        <p>Practical guides on getting your brand recommended by AI assistants. No hype, just what to check and change.</p>
+      </div>
+
+      <a class="lead" href={`/blog/${lead.slug}`}>
+        <p class="date"><time datetime={lead.date}>{formatDate(lead.date)}</time>, {lead.minutes} minute read</p>
+        <h2>{lead.title}</h2>
+        <p class="desc">{lead.description}</p>
+        <span class="read">Read the guide</span>
+      </a>
+
+      <ul class="list">
+        {rest.map((p) => (
+          <li>
+            <a href={`/blog/${p.slug}`}>
+              <p class="date"><time datetime={p.date}>{formatDate(p.date)}</time>, {p.minutes} minute read</p>
+              <h2>{p.title}</h2>
+              <p class="desc">{p.description}</p>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+</Base>
+
+<style>
+  h1 { font-size: var(--t-2xl); }
+  .lead { display: grid; gap: 14px; padding: clamp(24px, 4vw, 44px); background: var(--ink); color: var(--porcelain); border-radius: var(--r-sheet); text-decoration: none; margin-bottom: 48px; }
+  .lead h2 { font-size: var(--t-2xl); max-width: 22ch; }
+  .lead .desc { color: #A9BDBF; font-size: var(--t-md); max-width: 60ch; }
+  .lead .date { color: #7F9799; }
+  .read { font-weight: 700; color: var(--marker); }
+  .lead:hover .read { text-decoration: underline; text-underline-offset: 5px; }
+  .list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+  .list a { display: grid; gap: 10px; align-content: start; text-decoration: none; padding-top: 18px; border-top: 2px solid var(--ink); }
+  .list h2 { font-size: var(--t-lg); line-height: 1.2; }
+  .list a:hover h2 { text-decoration: underline; text-decoration-color: var(--marker); text-decoration-thickness: 3px; text-underline-offset: 6px; }
+  .date { color: var(--slate); font-size: var(--t-sm); }
+  .desc { color: var(--slate); }
+  @media (max-width: 760px) { .list { grid-template-columns: 1fr; } }
+</style>

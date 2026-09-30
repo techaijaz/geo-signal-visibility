@@ -24,7 +24,7 @@ export const PLAN_LIMITS = {
     },
     starter: {
         maxQueries: 15,
-        maxBrands: 2,
+        maxBrands: 1,
         maxCompetitors: 5,
         allowedModels: STANDARD_AI_MODELS,
         allowedProviders: STANDARD_AI_PROVIDERS,
@@ -37,14 +37,14 @@ export const PLAN_LIMITS = {
         }
     },
     growth: {
-        maxQueries: 50,
+        maxQueries: 30,
         maxBrands: 3,
         maxCompetitors: 10,
         allowedModels: STANDARD_AI_MODELS,
         allowedProviders: STANDARD_AI_PROVIDERS,
         allowedLanguages: ['en', 'hi-en', 'hi', 'ta', 'bn'],
         features: {
-            multiBrand: false,
+            multiBrand: true,
             recommendations: true,
             whatsapp: true,
             competitorAnalysis: true
@@ -76,20 +76,35 @@ export const getPlanLimits = (plan: PlanName) => PLAN_LIMITS[plan]
 // How often each plan's brands are auto-scanned
 export const SCAN_INTERVAL_HOURS: Record<PlanName, number> = {
     free: 168,
-    starter: 168,
-    growth: 72,
+    starter: 24,
+    growth: 8,
     agency: 12
 }
 
-// Manual "Re-scan now" runs allowed per brand per day (IST); scheduled scans don't count
-export const MANUAL_RESCANS_PER_DAY: Record<PlanName, number> = {
-    free: 0,
-    starter: 1,
-    growth: 3,
-    agency: 10
+export type RescanKind = 'scan' | 'audit' | 'recommendation'
+
+// Manual re-runs allowed per brand per day (IST); scheduled scans don't count.
+// Sized so a customer using every limit still leaves >= 50% margin. With the 6h AI response
+// cache a brand gets at most ~4 fresh scans/day however auto + manual scans are combined
+export const DAILY_RESCAN_LIMITS: Record<PlanName, Record<RescanKind, number>> = {
+    free: { scan: 0, audit: 1, recommendation: 0 },
+    starter: { scan: 1, audit: 2, recommendation: 1 },
+    growth: { scan: 3, audit: 3, recommendation: 2 },
+    agency: { scan: 10, audit: 10, recommendation: 10 }
 }
 
+const RESCAN_LABELS: Record<RescanKind, string> = {
+    scan: 'AI re-scan',
+    audit: 'site audit re-run',
+    recommendation: 'recommendation refresh'
+}
+
+export const rescanLimitMessage = (kind: RescanKind, plan: PlanName, perDay: number) =>
+    perDay === 0
+        ? `Manual ${RESCAN_LABELS[kind]} is not available on the ${plan} plan. Upgrade to run it on demand.`
+        : `Daily ${RESCAN_LABELS[kind]} limit reached (${perDay}/${perDay} for this brand on the ${plan} plan). It resets at midnight IST, or upgrade for more.`
+
 export const getNextScanAt = (plan: string | undefined, from: Date = new Date()) => {
-    const hours = SCAN_INTERVAL_HOURS[(plan || 'starter') as PlanName] ?? SCAN_INTERVAL_HOURS.starter
+    const hours = SCAN_INTERVAL_HOURS[(plan || 'free') as PlanName] ?? SCAN_INTERVAL_HOURS.free
     return new Date(from.getTime() + hours * 60 * 60 * 1000)
 }

@@ -398,7 +398,7 @@ export default function AdminUsers() {
                     <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{p} Plan</span>
                   </div>
                   <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
-                    {p === 'free' ? '₹0/mo' : p === 'starter' ? '₹1,499/mo' : p === 'growth' ? '₹5,999/mo' : 'Custom'}
+                    {p === 'free' ? '₹0/mo' : p === 'starter' ? '₹2,999/mo' : p === 'growth' ? '₹9,999/mo' : 'Custom'}
                   </span>
                 </label>
               ))}

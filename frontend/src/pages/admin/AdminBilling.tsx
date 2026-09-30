@@ -64,7 +64,7 @@ export default function AdminBilling() {
   const [usersList, setUsersList] = useState<UserOption[]>([]);
   const [modalUserId, setModalUserId] = useState('');
   const [modalPlan, setModalPlan] = useState('starter');
-  const [modalAmount, setModalAmount] = useState('1499');
+  const [modalAmount, setModalAmount] = useState('2999');
   const [modalDesc, setModalDesc] = useState('');
   const [modalPaymentMethod, setModalPaymentMethod] = useState('Manual Admin / UPI');
   const [modalStatus, setModalStatus] = useState<'paid' | 'pending'>('paid');
@@ -280,8 +280,8 @@ export default function AdminBilling() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
           {[
             { id: 'free', name: 'Free', price: '₹0', color: 'var(--text-dim)', bg: 'rgba(255,255,255,0.05)' },
-            { id: 'starter', name: 'Starter', price: '₹1,499/mo', color: 'var(--amber)', bg: 'rgba(255,200,87,0.12)' },
-            { id: 'growth', name: 'Growth', price: '₹5,999/mo', color: 'var(--gemini)', bg: 'rgba(108,142,245,0.12)' },
+            { id: 'starter', name: 'Starter', price: '₹2,999/mo', color: 'var(--amber)', bg: 'rgba(255,200,87,0.12)' },
+            { id: 'growth', name: 'Growth', price: '₹9,999/mo', color: 'var(--gemini)', bg: 'rgba(108,142,245,0.12)' },
             { id: 'agency', name: 'Agency', price: 'Custom (₹19,999/mo)', color: 'var(--gpt)', bg: 'rgba(74,222,128,0.12)' }
           ].map((plan) => (
             <div key={plan.id} style={{ background: 'var(--ink-2)', border: '1px solid var(--line-soft)', padding: '16px', borderRadius: '10px' }}>
@@ -551,8 +551,8 @@ export default function AdminBilling() {
                     onChange={(e) => {
                       const p = e.target.value;
                       setModalPlan(p);
-                      if (p === 'starter') setModalAmount('1499');
-                      else if (p === 'growth') setModalAmount('5999');
+                      if (p === 'starter') setModalAmount('2999');
+                      else if (p === 'growth') setModalAmount('9999');
                       else if (p === 'agency') setModalAmount('19999');
                       else setModalAmount('0');
                     }}
@@ -566,8 +566,8 @@ export default function AdminBilling() {
                       fontSize: '13px'
                     }}
                   >
-                    <option value="starter">Starter Plan (₹1,499)</option>
-                    <option value="growth">Growth Plan (₹5,999)</option>
+                    <option value="starter">Starter Plan (₹2,999)</option>
+                    <option value="growth">Growth Plan (₹9,999)</option>
                     <option value="agency">Agency Plan (₹19,999)</option>
                     <option value="free">Free Plan (₹0)</option>
                   </select>

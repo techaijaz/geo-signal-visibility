@@ -7,7 +7,7 @@ import httpResponse from '../util/httpResponse'
 import httpError from '../util/httpError'
 import responceseMessage from '../constent/responceseMessage'
 import { EUserRole } from '../constent/userConstent'
-import { MANUAL_RESCANS_PER_DAY, type PlanName } from '../config/planLimits'
+import { DAILY_RESCAN_LIMITS, rescanLimitMessage, type PlanName } from '../config/planLimits'
 
 export default {
     getBrandMentions: async (req: Request, res: Response, next: NextFunction) => {
@@ -53,13 +53,10 @@ export default {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
             }
 
-            const plan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : ((orgId.plan || 'starter') as PlanName)
-            const perDay = MANUAL_RESCANS_PER_DAY[plan] ?? MANUAL_RESCANS_PER_DAY.starter
-            if (!(await databseService.consumeManualRescan(brandId, perDay))) {
-                const message = perDay === 0
-                    ? `Manual re-scan is not available on the ${plan} plan. Your brand is scanned automatically every week — upgrade to re-scan on demand.`
-                    : `Daily re-scan limit reached (${perDay}/${perDay} for this brand on the ${plan} plan). It resets at midnight IST, or upgrade for more.`
-                return httpError(next, new Error(message), req, 429)
+            const plan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : ((orgId.plan || 'free') as PlanName)
+            const perDay = (DAILY_RESCAN_LIMITS[plan] ?? DAILY_RESCAN_LIMITS.free).scan
+            if (!(await databseService.consumeDailyRescan(brandId, 'scan', perDay))) {
+                return httpError(next, new Error(rescanLimitMessage('scan', plan, perDay)), req, 429)
             }
 
             const job = await enqueueScanJob(brandId)
@@ -76,7 +73,7 @@ export default {
             }
 
             if (!config.ALLOW_INLINE_JOBS) {
-                await databseService.refundManualRescan(brandId)
+                await databseService.refundDailyRescan(brandId, 'scan')
                 return httpError(next, new Error(responceseMessage.QUEUE_UNAVAILABLE), req, 503)
             }
 

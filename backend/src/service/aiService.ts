@@ -144,7 +144,7 @@ const aiService = {
     /**
      * Call Google Gemini API
      */
-    callGemini: async (prompt: string, modelOverride?: string): Promise<string | null> => {
+    callGemini: async (prompt: string, modelOverride?: string, maxTokens = 400): Promise<string | null> => {
         const apiKey = await databseService.getDecryptedApiKey('GEMINI')
         if (!apiKey) return null
         let modelName = (modelOverride || config.AI_MODELS.GEMINI || 'gemini-1.5-flash').trim()
@@ -167,7 +167,8 @@ const aiService = {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }]
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { maxOutputTokens: maxTokens }
                 })
             })
             if (!response.ok) {
@@ -178,7 +179,8 @@ const aiService = {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }]
+                            contents: [{ parts: [{ text: prompt }] }],
+                            generationConfig: { maxOutputTokens: maxTokens }
                         })
                     })
                     if (fallbackRes.ok) {
@@ -230,7 +232,7 @@ const aiService = {
      * Call any available configured AI provider in sequence
      */
     callAnyAvailableAi: async (prompt: string, maxTokens = 1500): Promise<string | null> => {
-        const geminiRes = await aiService.callGemini(prompt)
+        const geminiRes = await aiService.callGemini(prompt, undefined, maxTokens)
         if (geminiRes) return geminiRes
 
         const openaiRes = await aiService.callOpenAiCompatible('OpenAI', prompt, undefined, maxTokens)
@@ -382,7 +384,7 @@ const aiService = {
         }
 
         const org = await orgModel.findById(brand.orgId).select('plan')
-        const planLimits = getPlanLimits((org?.plan || 'starter') as PlanName)
+        const planLimits = getPlanLimits((org?.plan || 'free') as PlanName)
 
         // Only enabled queries, capped at the plan limit (covers downgrades and legacy brands over the cap)
         const enabledQueries = (brand.queries || []).filter((q) => q.enabled !== false).map((q) => q.text)
@@ -400,7 +402,7 @@ const aiService = {
             return true
         })
         if (modelsToRun.length === 0) {
-            logger.error(`[aiService] Scan for brand ${brandId}: no active AI model allowed for plan ${org?.plan || 'starter'}`)
+            logger.error(`[aiService] Scan for brand ${brandId}: no active AI model allowed for plan ${org?.plan || 'free'}`)
             return []
         }
 

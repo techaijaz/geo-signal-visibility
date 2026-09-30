@@ -66,6 +66,10 @@ export interface IBrand {
     nextScanAt?: Date | null
     manualRescanDay?: string | null
     manualRescanCount?: number
+    auditRescanDay?: string | null
+    auditRescanCount?: number
+    recommendationRescanDay?: string | null
+    recommendationRescanCount?: number
     createdAt?: Date
     updatedAt?: Date
 }

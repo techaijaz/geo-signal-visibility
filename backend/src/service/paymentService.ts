@@ -28,12 +28,15 @@ const getStripe = (): Stripe => {
     return _stripe
 }
 
+// Payment verification failures: the client's fault (400), not a server error
+export class PaymentError extends Error {}
+
 // ─── Plan pricing ─────────────────────────────────────────────────────────────
 
 const PLAN_PRICES: Record<SubscriptionPlan, { monthly: number; yearly: number }> = {
     free: { monthly: 0, yearly: 0 },
-    starter: { monthly: 1499, yearly: 14990 },
-    growth: { monthly: 5999, yearly: 59990 },
+    starter: { monthly: 2999, yearly: 29990 },
+    growth: { monthly: 9999, yearly: 99990 },
     agency: { monthly: 19999, yearly: 199990 }
 }
 
@@ -53,7 +56,7 @@ export const paymentService = {
         billingCycle?: 'monthly' | 'yearly'
         gateway?: 'razorpay' | 'stripe' | 'mock'
     }) => {
-        const { userId, orgId, plan, billingCycle = 'monthly', gateway = 'mock' } = params
+        const { userId, orgId, plan, billingCycle = 'monthly', gateway } = params
 
         const priceObj = PLAN_PRICES[plan] || PLAN_PRICES.starter
         const amount = billingCycle === 'yearly' ? priceObj.yearly : priceObj.monthly
@@ -132,7 +135,10 @@ export const paymentService = {
             }
         }
 
-        // ── Mock / Sandbox (for testing without real keys) ────────────────────
+        // ── Mock / Sandbox (development only) ─────────────────────────────────
+        if (gateway !== 'mock' || !config.ALLOW_MOCK_PAYMENTS) {
+            throw new PaymentError(`Unsupported payment gateway: ${gateway}`)
+        }
         const mockOrderId = `mock_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`
         logger.info(`[PaymentService] Mock checkout: ${mockOrderId} for plan ${plan} (₹${amount})`)
         return {
@@ -153,7 +159,7 @@ export const paymentService = {
      * Verifies payment and activates subscription:
      *  - Razorpay: verifies HMAC-SHA256 signature
      *  - Stripe:   retrieves PaymentIntent from Stripe API and checks status
-     *  - Mock:     passes through (for sandbox/testing)
+     *  - Mock:     development only (ALLOW_MOCK_PAYMENTS)
      */
     confirmPayment: async (params: {
         userId: string
@@ -164,16 +170,23 @@ export const paymentService = {
         gatewayOrderId?: string      // Razorpay: razorpay_order_id | Stripe: paymentIntent.id
         gatewayPaymentId?: string    // Razorpay: razorpay_payment_id
         gatewaySignature?: string    // Razorpay: razorpay_signature (HMAC)
-        amount: number
     }) => {
         const {
             userId, orgId, plan, billingCycle = 'monthly',
-            gateway = 'mock',
-            gatewayOrderId, gatewayPaymentId, gatewaySignature,
-            amount
+            gateway,
+            gatewayOrderId, gatewayPaymentId, gatewaySignature
         } = params
 
         let paymentMethod = 'Unknown'
+        // Charged amount comes from the gateway (or the price list for sandbox), never from the client
+        let amount = 0
+        // The plan/cycle/org must be the ones the order was created for, otherwise a cheap
+        // payment could be replayed to activate a pricier plan
+        const assertOrderMatches = (notes: Record<string, unknown> | null | undefined) => {
+            if (notes?.plan !== plan || notes?.billingCycle !== billingCycle || notes?.orgId !== orgId) {
+                throw new PaymentError('Payment does not match the selected plan')
+            }
+        }
 
         // ── Razorpay signature verification ───────────────────────────────────
         if (gateway === 'razorpay') {
@@ -187,8 +200,11 @@ export const paymentService = {
                 .digest('hex')
 
             if (expectedSignature !== gatewaySignature) {
-                throw new Error('Razorpay payment signature verification failed — possible fraud attempt')
+                throw new PaymentError('Razorpay payment signature verification failed — possible fraud attempt')
             }
+            const order = await getRazorpay().orders.fetch(gatewayOrderId)
+            assertOrderMatches(order.notes as Record<string, unknown>)
+            amount = Number(order.amount) / 100
             paymentMethod = 'Razorpay'
             logger.info(`[PaymentService] Razorpay payment verified: ${gatewayPaymentId}`)
         }
@@ -201,16 +217,27 @@ export const paymentService = {
             const stripe = getStripe()
             const intent = await stripe.paymentIntents.retrieve(gatewayOrderId)
             if (intent.status !== 'succeeded') {
-                throw new Error(`Stripe payment not succeeded (status: ${intent.status})`)
+                throw new PaymentError(`Stripe payment not succeeded (status: ${intent.status})`)
             }
+            assertOrderMatches(intent.metadata)
+            amount = intent.amount / 100
             paymentMethod = 'Stripe Card'
             logger.info(`[PaymentService] Stripe PaymentIntent verified: ${gatewayOrderId}`)
         }
 
-        // ── Mock ──────────────────────────────────────────────────────────────
-        else {
+        // ── Mock (development only) ───────────────────────────────────────────
+        else if (gateway === 'mock' && config.ALLOW_MOCK_PAYMENTS) {
+            amount = billingCycle === 'yearly' ? PLAN_PRICES[plan].yearly : PLAN_PRICES[plan].monthly
             paymentMethod = 'Sandbox'
             logger.info(`[PaymentService] Mock payment confirmed for plan ${plan}`)
+        } else {
+            throw new PaymentError(`Unsupported payment gateway: ${gateway}`)
+        }
+
+        // A verified payment can only activate a plan once
+        const paymentRef = gatewayPaymentId || gatewayOrderId
+        if (paymentRef && (await InvoiceModel.exists({ gatewayPaymentId: paymentRef }))) {
+            throw new PaymentError('This payment has already been used')
         }
 
         // ── Activate subscription ─────────────────────────────────────────────
@@ -267,38 +294,7 @@ export const paymentService = {
      * Get user invoice history
      */
     getUserInvoices: async (orgId: string) => {
-        let invoices = await InvoiceModel.find({ orgId }).sort({ createdAt: -1 })
-
-        if (invoices.length === 0) {
-            const org = await orgModel.findById(orgId)
-            const currentPlan = (org?.plan || 'starter') as SubscriptionPlan
-            const price = PLAN_PRICES[currentPlan]?.monthly || 1499
-
-            if (price > 0) {
-                const invoiceCount = await InvoiceModel.countDocuments()
-                const defaultInv = await InvoiceModel.create({
-                    invoiceNumber: `INV-${new Date().getFullYear()}-${(invoiceCount + 1001).toString()}`,
-                    orgId,
-                    userId: org?.ownerId,
-                    plan: currentPlan,
-                    amount: price,
-                    currency: 'INR',
-                    status: 'paid',
-                    paymentMethod: 'UPI / NetBanking',
-                    gatewayPaymentId: `pay_demo_${Date.now()}`,
-                    paidAt: new Date(),
-                    items: [
-                        {
-                            description: `GEO Platform - ${currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan Subscription`,
-                            amount: price
-                        }
-                    ]
-                })
-                invoices = [defaultInv]
-            }
-        }
-
-        return invoices
+        return InvoiceModel.find({ orgId }).sort({ createdAt: -1 })
     },
 
     /**
@@ -307,7 +303,7 @@ export const paymentService = {
     getSubscriptionOverview: async (orgId: string, userId: string) => {
         let sub = await SubscriptionModel.findOne({ orgId })
         const org = await orgModel.findById(orgId)
-        const currentPlan = (org?.plan || 'starter') as SubscriptionPlan
+        const currentPlan = (org?.plan || 'free') as SubscriptionPlan
 
         if (!sub) {
             sub = await SubscriptionModel.create({

@@ -19,7 +19,7 @@ interface PlanLimits {
 
 export const usePlanLimits = () => {
   const [limits, setLimits] = useState<PlanLimits | null>(null);
-  const [plan, setPlan] = useState<string>('starter');
+  const [plan, setPlan] = useState<string>('free');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

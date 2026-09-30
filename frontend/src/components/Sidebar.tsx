@@ -16,14 +16,13 @@ export default function Sidebar({ currentBrand, brands = [], onBrandChange, navI
   const { limits, plan } = usePlanLimits();
   const { user } = useAuth();
 
-  const isAgency = plan === 'agency' || limits?.features?.multiBrand;
-  const canAddMoreBrands = isAgency || brands.length < (limits?.maxBrands || 1);
+  const canAddMoreBrands = brands.length < (limits?.maxBrands || 1);
 
   const handleAddBrandClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsBrandMenuOpen(false);
     if (!canAddMoreBrands) {
-      alert('Multi-brand feature is only available on the Agency plan. Upgrade to Agency plan to manage multiple brands.');
+      alert(`Your ${plan} plan allows up to ${limits?.maxBrands || 1} brand(s). Upgrade your plan to add more brands.`);
       navigate('/pricing');
     } else {
       navigate('/onboarding');

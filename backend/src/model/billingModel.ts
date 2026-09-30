@@ -18,7 +18,7 @@ const subscriptionSchema = new mongoose.Schema<ISubscription>(
         plan: {
             type: String,
             enum: ['free', 'starter', 'growth', 'agency'],
-            default: 'starter',
+            default: 'free',
             required: true
         },
         status: {

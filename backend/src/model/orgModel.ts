@@ -22,7 +22,7 @@ const orgSchema = new mongoose.Schema<IOrg>(
         plan: {
             type: String,
             enum: ['free', 'starter', 'growth', 'agency'],
-            default: 'starter'
+            default: 'free'
         }
     },
     {
@@ -36,7 +36,7 @@ orgSchema.post('findOneAndUpdate', async function (doc: (IOrg & { _id: mongoose.
     const plan = update?.plan ?? update?.$set?.plan
     if (!doc || !plan) return
 
-    const intervalMs = (SCAN_INTERVAL_HOURS[plan as PlanName] ?? SCAN_INTERVAL_HOURS.starter) * 60 * 60 * 1000
+    const intervalMs = (SCAN_INTERVAL_HOURS[plan as PlanName] ?? SCAN_INTERVAL_HOURS.free) * 60 * 60 * 1000
     await brandModel.updateMany(
         { orgId: doc._id, lastScannedAt: { $ne: null } },
         [{ $set: { nextScanAt: { $add: ['$lastScannedAt', intervalMs] } } }]

@@ -22,8 +22,7 @@ export default function Workspace() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-  const isAgency = plan === 'agency' || limits?.features?.multiBrand;
-  const canAddMoreBrands = isAgency || brands.length < (limits?.maxBrands || 1);
+  const canAddMoreBrands = brands.length < (limits?.maxBrands || 1);
 
   useEffect(() => {
     const fetchBrands = async () => {
@@ -60,7 +59,7 @@ export default function Workspace() {
 
   const handleAddBrandClick = () => {
     if (!canAddMoreBrands) {
-      alert('Multi-brand feature is only available on the Agency plan. Upgrade to Agency plan to manage multiple client brands.');
+      alert(`Your ${plan} plan allows up to ${limits?.maxBrands || 1} brand(s). Upgrade your plan to add more brands.`);
       navigate('/pricing');
     } else {
       navigate('/onboarding');
@@ -131,9 +130,9 @@ export default function Workspace() {
             fontSize: '13.5px',
             color: 'var(--amber)'
           }}>
-            <span>💼 <strong>Multi-brand management is exclusive to Agency plan.</strong> Upgrade to add and track additional client brands.</span>
+            <span>💼 <strong>You've reached your plan's brand limit ({limits?.maxBrands || 1}).</strong> Upgrade to add and track more brands.</span>
             <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: '12.5px' }} onClick={() => navigate('/pricing')}>
-              Upgrade to Agency
+              Upgrade plan
             </button>
           </div>
         )}

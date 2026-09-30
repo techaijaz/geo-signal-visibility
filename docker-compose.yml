@@ -1,59 +1,63 @@
 version: '3.8'
 
+# Reads secrets and keys from ./.env (copy .env.docker.example). Compose refuses to start
+# if a required variable (marked with :?) is missing, instead of booting with broken auth/DB.
+
+x-backend-env: &backend-env
+  env_file: .env
+  environment:
+    - NODE_ENV=production
+    - PORT=8080
+    - DATABASE_URL=${DATABASE_URL:?Set DATABASE_URL (MongoDB connection string) in .env}
+    - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET:?Set ACCESS_TOKEN_SECRET in .env}
+    - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET:?Set REFRESH_TOKEN_SECRET in .env}
+    - REDIS_HOST=redis
+    - REDIS_PORT=6379
+    - REDIS_PASSWORD=${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+
 services:
-  # 1. Redis Queue Broker for BullMQ
+  # 1. Redis Queue Broker for BullMQ (internal network only, password protected)
   redis:
     image: redis:7-alpine
-    container_name: geo_redis
     restart: always
-    ports:
-      - "6379:6379"
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
     networks:
       - geo_network
 
-  # 2. Backend Express API Instances (Stateless)
+  # 2. Backend Express API (stateless; scale with `docker compose up --scale api=3`)
   api:
+    <<: *backend-env
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: geo_backend_api
     restart: always
     command: npm run start:api
-    environment:
-      - NODE_ENV=production
-      - PORT=8080
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - MONGO_URI=${MONGO_URI:-mongodb://localhost:27017/geo-db}
-      - JWT_SECRET=${JWT_SECRET:-supersecretkey}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     networks:
       - geo_network
 
   # 3. Backend BullMQ Worker Pool (Scans, Audits, Recommendations, Scheduler)
   worker:
+    <<: *backend-env
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: geo_backend_worker
     restart: always
     command: npm run start:worker
-    environment:
-      - NODE_ENV=production
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - MONGO_URI=${MONGO_URI:-mongodb://localhost:27017/geo-db}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     networks:
       - geo_network
 
@@ -62,7 +66,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: geo_frontend
     restart: always
     networks:
       - geo_network
@@ -70,7 +73,6 @@ services:
   # 5. Nginx Reverse Proxy & Load Balancer
   nginx:
     image: nginx:alpine
-    container_name: geo_nginx_proxy
     restart: always
     ports:
       - "80:80"

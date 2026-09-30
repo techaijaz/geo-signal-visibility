@@ -25,6 +25,13 @@ import { IRecommendationData } from '../types/recommendationTypes'
 import { EUserRole } from '../constent/userConstent'
 import aiService from './aiService'
 import { generateRecommendations } from './recommendationService'
+import type { RescanKind } from '../config/planLimits'
+
+const RESCAN_QUOTA_FIELDS: Record<RescanKind, [string, string]> = {
+    scan: ['manualRescanDay', 'manualRescanCount'],
+    audit: ['auditRescanDay', 'auditRescanCount'],
+    recommendation: ['recommendationRescanDay', 'recommendationRescanCount']
+}
 import logger from '../util/loger'
 
 
@@ -145,26 +152,28 @@ const databseService = {
         return []
     },
     /**
-     * Atomically take one manual rescan from the brand's daily (IST) quota.
+     * Atomically take one manual re-run of `kind` from the brand's daily (IST) quota.
      * Returns false when the quota is used up.
      */
-    consumeManualRescan: async (brandId: string, perDayLimit: number): Promise<boolean> => {
+    consumeDailyRescan: async (brandId: string, kind: RescanKind, perDayLimit: number): Promise<boolean> => {
         if (perDayLimit <= 0) return false
+        const [dayField, countField] = RESCAN_QUOTA_FIELDS[kind]
         const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
         const sameDay = await brandModel.updateOne(
-            { _id: brandId, manualRescanDay: today, manualRescanCount: { $lt: perDayLimit } },
-            { $inc: { manualRescanCount: 1 } }
+            { _id: brandId, [dayField]: today, [countField]: { $lt: perDayLimit } },
+            { $inc: { [countField]: 1 } }
         )
         if (sameDay.modifiedCount === 1) return true
         const newDay = await brandModel.updateOne(
-            { _id: brandId, manualRescanDay: { $ne: today } },
-            { $set: { manualRescanDay: today, manualRescanCount: 1 } }
+            { _id: brandId, [dayField]: { $ne: today } },
+            { $set: { [dayField]: today, [countField]: 1 } }
         )
         return newDay.modifiedCount === 1
     },
-    // Give back a manual rescan when the scan could not be started
-    refundManualRescan: async (brandId: string) => {
-        await brandModel.updateOne({ _id: brandId, manualRescanCount: { $gt: 0 } }, { $inc: { manualRescanCount: -1 } })
+    // Give back a re-run when the job could not be started
+    refundDailyRescan: async (brandId: string, kind: RescanKind) => {
+        const [, countField] = RESCAN_QUOTA_FIELDS[kind]
+        await brandModel.updateOne({ _id: brandId, [countField]: { $gt: 0 } }, { $inc: { [countField]: -1 } })
     },
     rescanBrandMentions: async (brandId: string) => {
         return aiService.scanMentionsWithAi(brandId)
@@ -696,9 +705,9 @@ const databseService = {
         const allOrgs = await orgModel.find().select('_id ownerId plan').lean()
         const orgMap = new Map<string, string>()
         allOrgs.forEach(o => {
-            orgMap.set(o._id.toString(), o.plan || 'starter')
+            orgMap.set(o._id.toString(), o.plan || 'free')
             if (o.ownerId) {
-                orgMap.set(`owner_${o.ownerId.toString()}`, o.plan || 'starter')
+                orgMap.set(`owner_${o.ownerId.toString()}`, o.plan || 'free')
             }
         })
 
@@ -715,12 +724,12 @@ const databseService = {
 
             const userOrgPlan = (u.orgId && orgMap.get(u.orgId.toString())) ||
                 orgMap.get(`owner_${u._id.toString()}`) ||
-                'starter'
+                'free'
 
             if (userOrgPlan in planBreakdown) {
                 planBreakdown[userOrgPlan]++
             } else {
-                planBreakdown['starter']++
+                planBreakdown['free']++
             }
         })
 
@@ -764,7 +773,7 @@ const databseService = {
                 }
                 return {
                     ...u,
-                    plan: org?.plan || 'starter',
+                    plan: org?.plan || 'free',
                     orgName: org?.name || 'Workspace'
                 }
             })
@@ -971,13 +980,13 @@ const databseService = {
         const planCounts: Record<string, number> = { free: 0, starter: 0, growth: 0, agency: 0 }
         const PLAN_PRICES: Record<string, number> = {
             free: 0,
-            starter: 1499,
-            growth: 5999,
+            starter: 2999,
+            growth: 9999,
             agency: 19999
         }
 
         orgs.forEach((org) => {
-            const plan = (org.plan || 'starter') as string
+            const plan = (org.plan || 'free') as string
             if (planCounts[plan] !== undefined) {
                 planCounts[plan]++
             } else {

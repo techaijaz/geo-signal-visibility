@@ -64,6 +64,8 @@ export default {
     },
     // Run jobs inside the API process when Redis/BullMQ is down. Development only: in production a
     // queue outage returns 503 instead of letting API instances run AI scans themselves
+    // Sandbox "mock" payment gateway that activates plans without charging. Never enabled in production
+    ALLOW_MOCK_PAYMENTS: process.env.ALLOW_MOCK_PAYMENTS === 'true' && process.env.NODE_ENV !== 'production',
     ALLOW_INLINE_JOBS: process.env.ALLOW_INLINE_JOBS === 'true' && process.env.NODE_ENV !== 'production',
 
     OMNIROUTE_BASE_URL: process.env.OMNIROUTE_BASE_URL || 'https://api.omniroute.ai/v1/chat/completions',
@@ -78,7 +80,7 @@ export default {
         TIMEOUT_MS: Number(process.env.AI_TIMEOUT_MS) || 45000,
         RETRIES: Number(process.env.AI_RETRIES ?? 2),
         PROVIDER_CONCURRENCY: Number(process.env.AI_PROVIDER_CONCURRENCY) || 8,
-        // Keep below the shortest plan scan interval (12h) so a rescan never reuses its own previous answers
+        // Keep below the shortest plan scan interval (growth: 8h) so a scheduled scan never reuses its own previous answers
         CACHE_TTL_HOURS: Number(process.env.AI_CACHE_TTL_HOURS ?? 6)
     },
 

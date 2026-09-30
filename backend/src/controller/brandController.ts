@@ -61,7 +61,7 @@ export default {
             const org = await ensureUserOrg(authenticatedUser._id.toString(), authenticatedUser.name)
             const orgId = org._id.toString()
 
-            const effectivePlan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : ((org.plan || 'starter') as PlanName)
+            const effectivePlan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : ((org.plan || 'free') as PlanName)
             const planLimits = getPlanLimits(effectivePlan)
 
             // Check multi-brand plan limits
@@ -69,7 +69,7 @@ export default {
             if (existingBrands.length >= planLimits.maxBrands) {
                 return httpError(
                     next,
-                    new Error(`Multi-brand feature is only available on the Agency plan. Your ${org.plan || 'starter'} plan is limited to ${planLimits.maxBrands} brand. Please upgrade to the Agency plan to add additional brands.`),
+                    new Error(`Your ${org.plan || 'free'} plan allows up to ${planLimits.maxBrands} brand${planLimits.maxBrands === 1 ? '' : 's'}. Please upgrade your plan to add more brands.`),
                     req,
                     403
                 )
@@ -92,7 +92,7 @@ export default {
             if (value.competitors && value.competitors.length > maxCompetitors) {
                 return httpError(
                     next,
-                    new Error(`Your ${org.plan || 'starter'} plan allows maximum ${maxCompetitors} competitors. You tried to add ${value.competitors.length}. Please upgrade your plan or reduce competitors.`),
+                    new Error(`Your ${org.plan || 'free'} plan allows maximum ${maxCompetitors} competitors. You tried to add ${value.competitors.length}. Please upgrade your plan or reduce competitors.`),
                     req,
                     403
                 )
@@ -180,7 +180,7 @@ export default {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
             }
 
-            const effectivePlan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : ((org.plan || 'starter') as PlanName)
+            const effectivePlan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : ((org.plan || 'free') as PlanName)
             const planLimits = getPlanLimits(effectivePlan)
 
             // If queries are updated, check plan limits
@@ -203,7 +203,7 @@ export default {
                 if (value.competitors.length > maxCompetitors) {
                     return httpError(
                         next,
-                        new Error(`Your ${org.plan || 'starter'} plan allows maximum ${maxCompetitors} competitors. You tried to save ${value.competitors.length}. Please upgrade your plan or reduce competitors.`),
+                        new Error(`Your ${org.plan || 'free'} plan allows maximum ${maxCompetitors} competitors. You tried to save ${value.competitors.length}. Please upgrade your plan or reduce competitors.`),
                         req,
                         403
                     )

@@ -109,6 +109,22 @@ const brandSchema = new mongoose.Schema<IBrand>(
             type: Number,
             default: 0
         },
+        auditRescanDay: {
+            type: String,
+            default: null
+        },
+        auditRescanCount: {
+            type: Number,
+            default: 0
+        },
+        recommendationRescanDay: {
+            type: String,
+            default: null
+        },
+        recommendationRescanCount: {
+            type: Number,
+            default: 0
+        },
         // null = never scheduled yet (new or legacy brand); scheduler picks brands where this is <= now
         nextScanAt: {
             type: Date,

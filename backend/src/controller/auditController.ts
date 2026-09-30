@@ -7,6 +7,8 @@ import httpResponse from '../util/httpResponse'
 import httpError from '../util/httpError'
 import logger from '../util/loger'
 import responceseMessage from '../constent/responceseMessage'
+import { EUserRole } from '../constent/userConstent'
+import { DAILY_RESCAN_LIMITS, rescanLimitMessage, type PlanName } from '../config/planLimits'
 
 export default {
     getBrandAudit: async (req: Request, res: Response, next: NextFunction) => {
@@ -52,6 +54,12 @@ export default {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
             }
 
+            const plan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : ((org.plan || 'free') as PlanName)
+            const perDay = (DAILY_RESCAN_LIMITS[plan] ?? DAILY_RESCAN_LIMITS.free).audit
+            if (!(await databseService.consumeDailyRescan(brandId, 'audit', perDay))) {
+                return httpError(next, new Error(rescanLimitMessage('audit', plan, perDay)), req, 429)
+            }
+
             const job = await enqueueAuditJob(brandId)
 
             if (job) {
@@ -67,6 +75,7 @@ export default {
             }
 
             if (!config.ALLOW_INLINE_JOBS) {
+                await databseService.refundDailyRescan(brandId, 'audit')
                 return httpError(next, new Error(responceseMessage.QUEUE_UNAVAILABLE), req, 503)
             }
 

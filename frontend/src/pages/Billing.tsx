@@ -38,48 +38,46 @@ const DEFAULT_PLANS: Plan[] = [
     billingPeriod: ' /mo',
     description: 'See the problem before you commit to fixing it.',
     features: [
-      '1 brand workspace',
+      '1 brand',
       '3 tracked queries',
-      '1 run per query',
-      'Weekly scan frequency',
+      'Weekly scan',
       'ChatGPT, Gemini & Claude',
-      'Basic report exports'
+      '1 site audit re-run per day'
     ],
     buttonText: 'Downgrade'
   },
   {
     id: 'starter',
     name: 'Starter',
-    price: '₹1,499',
-    annualPrice: '₹1,199',
+    price: '₹2,999',
+    annualPrice: '₹2,499',
     billingPeriod: ' /mo',
     description: 'For solo founders and small D2C teams.',
     features: [
-      '1 brand workspace',
+      '1 brand',
       '15 tracked queries',
-      '3 runs per query',
-      'Weekly scan frequency',
+      'Daily scan',
+      '1 manual re-scan per day',
       'ChatGPT, Gemini, Claude, Grok & DeepSeek',
-      'AI Recommendations included',
-      'Weekly email digests'
+      'AI recommendations'
     ],
     buttonText: 'Current Plan'
   },
   {
     id: 'growth',
     name: 'Growth',
-    price: '₹5,999',
-    annualPrice: '₹4,799',
+    price: '₹9,999',
+    annualPrice: '₹8,333',
     billingPeriod: ' /mo',
     description: 'For funded startups and growing brands.',
     features: [
-      '1 brand workspace',
-      '50 tracked queries',
-      '3 runs per query',
-      'Scan every 3 days',
+      '3 brands',
+      '30 tracked queries per brand',
+      '3 scans a day',
+      '3 manual re-scans per day',
       'ChatGPT, Gemini, Claude, Grok & DeepSeek',
-      'Competitor share-of-voice',
-      'WhatsApp digest & priority'
+      'AI recommendations',
+      'Competitor share-of-voice'
     ],
     buttonText: 'Upgrade'
   },
@@ -92,11 +90,10 @@ const DEFAULT_PLANS: Plan[] = [
     description: 'Manage visibility across multiple client brands.',
     features: [
       'Up to 25 brands, 100 queries each',
-      'White-label reports',
       'Scans twice a day',
       'All 6 AIs incl. Perplexity',
-      'Priority SLA support',
-      'Dedicated manager'
+      'Priority support',
+      'Dedicated onboarding'
     ],
     buttonText: 'Talk to Sales'
   }
@@ -203,7 +200,7 @@ function StripeCheckoutForm({ clientSecret, plan, amount, billingCycle, onSucces
 export default function Billing() {
   const { user } = useAuth();
   const { limits, plan: currentPlanFromHook } = usePlanLimits();
-  const [currentPlan, setCurrentPlan] = useState<string>(currentPlanFromHook || 'starter');
+  const [currentPlan, setCurrentPlan] = useState<string>(currentPlanFromHook || 'free');
   const [plans] = useState<Plan[]>(DEFAULT_PLANS);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -457,7 +454,7 @@ export default function Billing() {
               transition: 'all 0.2s ease'
             }}
           >
-            Yearly <span style={{ fontSize: '10px', background: '#10b981', color: '#fff', padding: '2px 6px', borderRadius: '8px', marginLeft: '4px' }}>Save 20%</span>
+            Yearly <span style={{ fontSize: '10px', background: '#10b981', color: '#fff', padding: '2px 6px', borderRadius: '8px', marginLeft: '4px' }}>2 months free</span>
           </button>
         </div>
       </div>

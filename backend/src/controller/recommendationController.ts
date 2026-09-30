@@ -6,6 +6,8 @@ import { enqueueRecommendationJob } from '../service/queueService'
 import httpResponse from '../util/httpResponse'
 import httpError from '../util/httpError'
 import responceseMessage from '../constent/responceseMessage'
+import { EUserRole } from '../constent/userConstent'
+import { DAILY_RESCAN_LIMITS, rescanLimitMessage, type PlanName } from '../config/planLimits'
 
 export default {
     getBrandRecommendations: async (req: Request, res: Response, next: NextFunction) => {
@@ -79,6 +81,12 @@ export default {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
             }
 
+            const plan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : ((org.plan || 'free') as PlanName)
+            const perDay = (DAILY_RESCAN_LIMITS[plan] ?? DAILY_RESCAN_LIMITS.free).recommendation
+            if (!(await databseService.consumeDailyRescan(brandId, 'recommendation', perDay))) {
+                return httpError(next, new Error(rescanLimitMessage('recommendation', plan, perDay)), req, 429)
+            }
+
             const job = await enqueueRecommendationJob(brandId)
 
             if (job) {
@@ -93,6 +101,7 @@ export default {
             }
 
             if (!config.ALLOW_INLINE_JOBS) {
+                await databseService.refundDailyRescan(brandId, 'recommendation')
                 return httpError(next, new Error(responceseMessage.QUEUE_UNAVAILABLE), req, 503)
             }
 

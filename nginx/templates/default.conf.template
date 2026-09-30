@@ -1,0 +1,82 @@
+# Edge proxy for the single-VPS setup. ${DOMAIN} is filled in from .env by the nginx image at start.
+#   https://${DOMAIN}        marketing website
+#   https://app.${DOMAIN}    React app, with the API under /api/
+# One Let's Encrypt certificate covers all three names (see deploy/init-ssl.sh).
+
+server_tokens off;
+client_max_body_size 10m;
+
+gzip on;
+gzip_types text/plain text/css application/json application/javascript text/xml application/xml image/svg+xml;
+
+ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_session_cache shared:SSL:10m;
+ssl_session_timeout 1d;
+
+# Plain HTTP: answer Let's Encrypt challenges, redirect everything else to HTTPS
+server {
+    listen 80;
+    server_name ${DOMAIN} www.${DOMAIN} app.${DOMAIN};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name www.${DOMAIN};
+    return 301 https://${DOMAIN}$request_uri;
+}
+
+# Marketing website
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${DOMAIN};
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    location / {
+        proxy_pass http://website:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# App + API on one origin (no CORS, cookies just work)
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name app.${DOMAIN};
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    location /api/ {
+        proxy_pass http://api:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # PDF reports and audits can take a while
+        proxy_read_timeout 120s;
+    }
+
+    location / {
+        proxy_pass http://frontend:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

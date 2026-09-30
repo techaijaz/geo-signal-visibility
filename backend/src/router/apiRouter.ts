@@ -11,7 +11,6 @@ import reportController from '../controller/reportController'
 import overviewController from '../controller/overviewController'
 import categoryController from '../controller/categoryController'
 import adminController from '../controller/adminController'
-import publicController from '../controller/publicController'
 import jobController from '../controller/jobController'
 import authentication from '../middleware/authentication'
 import adminOnly from '../middleware/adminOnly'
@@ -21,9 +20,6 @@ const router = Router()
 router.use(rateLimit)
 router.route('/self').get(apiController.self)
 router.route('/health').get(apiController.health)
-
-// Public Free Checker router
-router.route('/free-check').post(publicController.freeCheck)
 
 // Job Status router
 router.route('/jobs/:queueName/:jobId').get(authentication, jobController.getJobStatus)

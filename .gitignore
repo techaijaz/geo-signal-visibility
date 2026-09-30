@@ -42,3 +42,7 @@ Thumbs.db
 # Temporary data / coverage
 coverage/
 .nyc_output/
+
+# Production server data (certificates, database backups)
+data/
+backups/

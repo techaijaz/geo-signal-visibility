@@ -1,5 +1,5 @@
 # Production Dockerfile for Backend (API & Worker)
-FROM node:20-slim AS base
+FROM node:22-slim AS base
 
 # Install Puppeteer & Headless Chrome dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

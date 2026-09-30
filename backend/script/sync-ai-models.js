@@ -34,7 +34,7 @@ const AiModel = mongoose.model('AiModel', aiModelSchema);
 const targetModels = [
     { name: 'ChatGPT (GPT-4o Mini)', modelId: 'gpt-4o-mini', provider: 'OpenAI', description: 'OpenAI ChatGPT', isDefault: true, inputCostPer1k: 0.00015, outputCostPer1k: 0.0006, maxTokens: 4096 },
     { name: 'Gemini 2.0 Flash', modelId: 'gemini-2.0-flash', provider: 'Google', description: 'Google Gemini', isDefault: false, inputCostPer1k: 0.0001, outputCostPer1k: 0.0004, maxTokens: 8192 },
-    { name: 'Claude 3.5 Sonnet', modelId: 'claude-3-5-sonnet-20241022', provider: 'Anthropic', description: 'Anthropic Claude', isDefault: false, inputCostPer1k: 0.003, outputCostPer1k: 0.015, maxTokens: 4096 },
+    { name: 'Claude Haiku 4.5', modelId: 'claude-haiku-4-5-20251001', provider: 'Anthropic', description: 'Anthropic Claude', isDefault: false, inputCostPer1k: 0.001, outputCostPer1k: 0.005, maxTokens: 4096 },
     { name: 'Grok 3 Mini', modelId: 'grok-3-mini', provider: 'xAI', description: 'xAI Grok', isDefault: false, inputCostPer1k: 0.0003, outputCostPer1k: 0.0005, maxTokens: 4096 },
     { name: 'DeepSeek v4 Flash', modelId: 'deepseek-v4-flash', provider: 'DeepSeek', description: 'DeepSeek', isDefault: false, inputCostPer1k: 0.00014, outputCostPer1k: 0.00028, maxTokens: 4096 },
     { name: 'Perplexity Sonar', modelId: 'sonar', provider: 'Perplexity', description: 'Perplexity web-search grounded answers', isDefault: false, inputCostPer1k: 0.001, outputCostPer1k: 0.001, maxTokens: 4096 }

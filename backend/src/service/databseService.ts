@@ -135,14 +135,36 @@ const databseService = {
         return mentions
     },
     seedDefaultMentions: async (brandId: string) => {
-        try {
-            const { enqueueScanJob } = await import('./queueService')
-            await enqueueScanJob(brandId)
-        } catch (err) {
-            logger.warn('[databseService] Queue unavailable for default mentions seed, running inline:', { meta: err })
+        const { enqueueScanJob } = await import('./queueService')
+        const job = await enqueueScanJob(brandId)
+        if (!job && config.ALLOW_INLINE_JOBS) {
+            logger.warn('[databseService] Queue unavailable for default mentions seed, running inline')
             return aiService.scanMentionsWithAi(brandId)
         }
+        // Without a queue the scheduler picks the brand up once workers are back
         return []
+    },
+    /**
+     * Atomically take one manual rescan from the brand's daily (IST) quota.
+     * Returns false when the quota is used up.
+     */
+    consumeManualRescan: async (brandId: string, perDayLimit: number): Promise<boolean> => {
+        if (perDayLimit <= 0) return false
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+        const sameDay = await brandModel.updateOne(
+            { _id: brandId, manualRescanDay: today, manualRescanCount: { $lt: perDayLimit } },
+            { $inc: { manualRescanCount: 1 } }
+        )
+        if (sameDay.modifiedCount === 1) return true
+        const newDay = await brandModel.updateOne(
+            { _id: brandId, manualRescanDay: { $ne: today } },
+            { $set: { manualRescanDay: today, manualRescanCount: 1 } }
+        )
+        return newDay.modifiedCount === 1
+    },
+    // Give back a manual rescan when the scan could not be started
+    refundManualRescan: async (brandId: string) => {
+        await brandModel.updateOne({ _id: brandId, manualRescanCount: { $gt: 0 } }, { $inc: { manualRescanCount: -1 } })
     },
     rescanBrandMentions: async (brandId: string) => {
         return aiService.scanMentionsWithAi(brandId)
@@ -152,11 +174,10 @@ const databseService = {
     findAuditByBrandId: async (brandId: string) => {
         let audit = await auditModel.findOne({ brandId })
         if (!audit) {
-            try {
-                const { enqueueAuditJob } = await import('./queueService')
-                await enqueueAuditJob(brandId)
-            } catch (err) {
-                logger.warn('[databseService] Queue unavailable for audit seed, running inline:', { meta: err })
+            const { enqueueAuditJob } = await import('./queueService')
+            const job = await enqueueAuditJob(brandId)
+            if (!job && config.ALLOW_INLINE_JOBS) {
+                logger.warn('[databseService] Queue unavailable for audit seed, running inline')
                 return auditService.runRealAudit(brandId)
             }
             audit = await auditModel.create({
@@ -799,7 +820,7 @@ const databseService = {
         const defaultModels: Array<Partial<IAiModel>> = [
             { name: 'ChatGPT (GPT-4o Mini)', modelId: 'gpt-4o-mini', provider: 'OpenAI', description: 'OpenAI ChatGPT', isActive: true, isDefault: true, inputCostPer1k: 0.00015, outputCostPer1k: 0.0006, maxTokens: 4096 },
             { name: 'Gemini 2.0 Flash', modelId: 'gemini-2.0-flash', provider: 'Google', description: 'Google Gemini', isActive: true, isDefault: false, inputCostPer1k: 0.0001, outputCostPer1k: 0.0004, maxTokens: 8192 },
-            { name: 'Claude 3.5 Sonnet', modelId: 'claude-3-5-sonnet-20241022', provider: 'Anthropic', description: 'Anthropic Claude', isActive: true, isDefault: false, inputCostPer1k: 0.003, outputCostPer1k: 0.015, maxTokens: 4096 },
+            { name: 'Claude Haiku 4.5', modelId: 'claude-haiku-4-5-20251001', provider: 'Anthropic', description: 'Anthropic Claude', isActive: true, isDefault: false, inputCostPer1k: 0.001, outputCostPer1k: 0.005, maxTokens: 4096 },
             { name: 'Grok 3 Mini', modelId: 'grok-3-mini', provider: 'xAI', description: 'xAI Grok', isActive: true, isDefault: false, inputCostPer1k: 0.0003, outputCostPer1k: 0.0005, maxTokens: 4096 },
             { name: 'DeepSeek v4 Flash', modelId: 'deepseek-v4-flash', provider: 'DeepSeek', description: 'DeepSeek', isActive: true, isDefault: false, inputCostPer1k: 0.00014, outputCostPer1k: 0.00028, maxTokens: 4096 },
             { name: 'Perplexity Sonar', modelId: 'sonar', provider: 'Perplexity', description: 'Perplexity web-search grounded answers', isActive: true, isDefault: false, inputCostPer1k: 0.001, outputCostPer1k: 0.001, maxTokens: 4096 }

@@ -15,5 +15,6 @@ export default {
     PASSWORD_RESET_URL_EXPIRED: 'Password reset url expired',
     INVALID_REQUEST: 'Invalid request',
     INVALID_OLD_PASSWORD: 'Invalid old password',
-    PASSWORD_MATCHING_WITH_OLD_PASSWORD: 'Password matching with old password'
+    PASSWORD_MATCHING_WITH_OLD_PASSWORD: 'Password matching with old password',
+    QUEUE_UNAVAILABLE: 'Background workers are temporarily unavailable. Please try again in a few minutes.'
 }

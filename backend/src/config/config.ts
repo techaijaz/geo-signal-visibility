@@ -56,12 +56,16 @@ export default {
     AI_MODELS: {
         DEEPSEEK: process.env.DEEPSEEK_MODEL_NAME || 'deepseek-v4-flash', // 'deepseek-v4-flash' or 'deepseek-v4-pro'
         GEMINI: process.env.GEMINI_MODEL_NAME || 'gemini-1.5-flash',   // 'gemini-1.5-flash' or 'gemini-1.5-pro'
-        CLAUDE: process.env.CLAUDE_MODEL_NAME || 'claude-3-5-sonnet-20241022', // 'claude-3-5-sonnet-20241022' or 'claude-3-opus-20240229'
+        CLAUDE: process.env.CLAUDE_MODEL_NAME || 'claude-haiku-4-5-20251001',
         OPENAI: process.env.OPENAI_MODEL_NAME || 'gpt-4o-mini',        // 'gpt-4o-mini' or 'gpt-4o'
         PERPLEXITY: process.env.PERPLEXITY_MODEL_NAME || 'sonar',
         GROK: process.env.GROK_MODEL_NAME || 'grok-3-mini',
         OMNIROUTE: process.env.OMNIROUTE_MODEL_NAME || 'omniroute-auto'
     },
+    // Run jobs inside the API process when Redis/BullMQ is down. Development only: in production a
+    // queue outage returns 503 instead of letting API instances run AI scans themselves
+    ALLOW_INLINE_JOBS: process.env.ALLOW_INLINE_JOBS === 'true' && process.env.NODE_ENV !== 'production',
+
     OMNIROUTE_BASE_URL: process.env.OMNIROUTE_BASE_URL || 'https://api.omniroute.ai/v1/chat/completions',
     // Providers skipped by scans even if a model is marked active (comma-separated aiModel.provider values)
     DISABLED_AI_PROVIDERS: (process.env.DISABLED_AI_PROVIDERS ?? 'OpenRouter,OmniRoute')

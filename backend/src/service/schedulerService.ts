@@ -1,4 +1,5 @@
 // backend/src/service/schedulerService.ts
+import config from '../config/config'
 import { getNextScanAt } from '../config/planLimits'
 import orgModel from '../model/orgModel'
 import brandModel from '../model/brandModel'
@@ -49,9 +50,13 @@ export const runSchedulerTick = async () => {
 
     const job = await enqueueScanJob(brandIdStr)
     if (!job) {
-      // Fallback to inline scan if queue service / Redis is unreachable
-      logger.warn(`[Scheduler] Queue unavailable, running inline scan for brand ${brandIdStr}`)
-      await databseService.rescanBrandMentions(brandIdStr)
+      if (config.ALLOW_INLINE_JOBS) {
+        logger.warn(`[Scheduler] Queue unavailable, running inline scan for brand ${brandIdStr}`)
+        await databseService.rescanBrandMentions(brandIdStr)
+      } else {
+        // The lease set above makes the next tick after it expires retry this brand
+        logger.warn(`[Scheduler] Queue unavailable, skipping brand ${brandIdStr} until its lease expires`)
+      }
     } else {
       enqueued++
     }

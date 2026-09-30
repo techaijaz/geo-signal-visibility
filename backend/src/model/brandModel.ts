@@ -100,6 +100,15 @@ const brandSchema = new mongoose.Schema<IBrand>(
             type: Date,
             default: null
         },
+        // Manual rescan quota: IST day (YYYY-MM-DD) the count belongs to
+        manualRescanDay: {
+            type: String,
+            default: null
+        },
+        manualRescanCount: {
+            type: Number,
+            default: 0
+        },
         // null = never scheduled yet (new or legacy brand); scheduler picks brands where this is <= now
         nextScanAt: {
             type: Date,

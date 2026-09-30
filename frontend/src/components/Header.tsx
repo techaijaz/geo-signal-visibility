@@ -21,8 +21,10 @@ export default function Header({ title, brandName, userRole }: HeaderProps) {
     if (activeBrandId) {
       try {
         await api.post(`/brands/${activeBrandId}/mentions/rescan`);
-      } catch (e) {
+      } catch (e: any) {
         console.error('Header rescan trigger failed:', e);
+        // Plan quota errors (429) carry a user-facing message
+        if (e.response?.status === 429) window.alert(e.response.data?.message);
       }
     }
     setTimeout(() => setIsRescanning(false), 2000);

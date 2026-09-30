@@ -74,7 +74,7 @@ export const plans: Plan[] = [
         scans: 'Scanned every day',
         manual: '1 on-demand re-scan a day',
         engines: ['chatgpt', 'gemini', 'claude', 'grok', 'deepseek'],
-        extras: ['AI recommendations', 'AI crawler and schema audit', 'PDF reports'],
+        extras: ['AI recommendations', 'Weekly email report with PDF', 'AI crawler and schema audit'],
         cta: 'Start with Starter',
         featured: true
     },
@@ -89,7 +89,7 @@ export const plans: Plan[] = [
         scans: 'Scanned 3 times a day',
         manual: '3 on-demand re-scans a day',
         engines: ['chatgpt', 'gemini', 'claude', 'grok', 'deepseek'],
-        extras: ['Competitor share of voice', 'AI recommendations', 'AI crawler and schema audit', 'PDF reports'],
+        extras: ['Competitor share of voice', 'AI recommendations', 'Weekly email report with PDF', 'AI crawler and schema audit'],
         cta: 'Start with Growth'
     },
     {

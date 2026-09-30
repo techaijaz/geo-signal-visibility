@@ -5,8 +5,9 @@ import aiService from './aiService'
 import { auditService } from './auditService'
 import logger from '../util/loger'
 import config from '../config/config'
-import { connection, ScanJobData, AuditJobData, RecommendationJobData } from './queueService'
-import { runSchedulerTick } from './schedulerService'
+import { connection, ScanJobData, AuditJobData, RecommendationJobData, WeeklyReportJobData } from './queueService'
+import { runSchedulerTick, runWeeklyReportTick } from './schedulerService'
+import { sendWeeklyReport } from './reportService/weeklyReport'
 
 export const startWorkers = () => {
   const scanWorker = new Worker<ScanJobData>(
@@ -46,14 +47,21 @@ export const startWorkers = () => {
     { connection, concurrency: config.WORKER_CONCURRENCY.RECOMMENDATION }
   )
 
+  // Headless Chrome per job, so keep this low
+  const weeklyReportWorker = new Worker<WeeklyReportJobData>(
+    'weekly-report',
+    async (job: Job<WeeklyReportJobData>) => sendWeeklyReport(job.data.brandId),
+    { connection, concurrency: 2 }
+  )
+
   // Each tick is a single job, so only one worker instance runs it even when scaled out
   const schedulerWorker = new Worker(
     'scan-scheduler',
-    async () => runSchedulerTick(),
+    async (job: Job) => (job.name === 'weekly-report-tick' ? runWeeklyReportTick() : runSchedulerTick()),
     { connection }
   )
 
-  const workers = [scanWorker, auditWorker, recommendationWorker, schedulerWorker]
+  const workers = [scanWorker, auditWorker, recommendationWorker, weeklyReportWorker, schedulerWorker]
 
   // Attach worker error listeners to avoid unhandled crashes when Redis is disconnected
   for (const worker of workers) {

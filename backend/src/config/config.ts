@@ -15,6 +15,13 @@ export default {
     FRONTEND_URL: process.env.FRONTEND_URL || process.env.FRUNTEND_URL || 'http://localhost:5173',
 
     //email service & SMTP
+    // EMAIL_PROVIDER picks the sender: 'smtp' (default, e.g. Hostinger mail) or 'resend'.
+    // With neither configured, emails are printed to the console (local dev)
+    EMAIL: {
+        PROVIDER: (process.env.EMAIL_PROVIDER || 'smtp').toLowerCase() as 'smtp' | 'resend',
+        FROM: process.env.EMAIL_FROM || process.env.SMTP_FROM || '',
+        RESEND_API_KEY: process.env.RESEND_API_KEY || process.env.EMAIL_SERVICE_API_KEY || ''
+    },
     EMAIL_SERVICE_API_KEY: process.env.EMAIL_SERVICE_API_KEY,
     get SMTP() {
         dotenvFlow.config({ purge_dotenv: true })
@@ -24,7 +31,7 @@ export default {
             SECURE: process.env.SMTP_SECURE === 'true',
             USER: process.env.SMTP_USER || '',
             PASS: (process.env.SMTP_PASS || '').replace(/\s+/g, ''),
-            FROM: process.env.SMTP_FROM || '"Signal AI" <07.aijaz@gmail.com>'
+            FROM: process.env.SMTP_FROM || ''
         }
     },
 

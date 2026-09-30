@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import express, { Router } from 'express'
 import apiController from '../controller/apiController'
 import rateLimit from '../middleware/rateLimit'
 import userController from '../controller/userController'
@@ -58,6 +58,8 @@ router.route('/brands/:id/recommendations/:recId/toggle').patch(authentication, 
 router.route('/brands/:id/recommendations/rescan').post(authentication, recommendationController.rescanBrandRecommendations)
 
 // Reports router
+// Public: link in the weekly report email (GET) and one-click unsubscribe from mail clients (POST)
+router.route('/reports/unsubscribe').get(reportController.unsubscribeWeeklyReport).post(express.urlencoded({ extended: false }), reportController.unsubscribeWeeklyReport)
 router.route('/brands/:id/reports').get(authentication, reportController.getBrandReports)
 router.route('/brands/:id/reports/generate').post(authentication, reportController.generateReport)
 router.route('/brands/:id/reports/:reportId/download').get(authentication, reportController.downloadReportPdf)

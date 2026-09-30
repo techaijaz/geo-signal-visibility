@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import api from '../utils/axios';
+import { usePlanLimits } from '../hooks/usePlanLimits';
 
 interface ReportItem {
   _id: string;
@@ -16,6 +17,8 @@ interface OutletContextType {
 
 const Reports: React.FC = () => {
   const context = useOutletContext<OutletContextType>();
+  const { plan } = usePlanLimits();
+  const weeklyEmail = plan !== 'free';
   const activeBrandId = context?.currentBrand?._id;
 
   const [reports, setReports] = useState<ReportItem[]>([]);
@@ -154,7 +157,9 @@ const Reports: React.FC = () => {
         </p>
         <div className="onb-actions" style={{ borderTop: 'none', paddingTop: 0, marginTop: 0 }}>
           <span className="mono" style={{ color: 'var(--text-dim)', fontSize: '12.5px' }}>
-            Auto-emailed every Monday, 9:00 AM
+            {weeklyEmail
+              ? 'Emailed every Monday at 9:00 AM IST to you and the people below, PDF attached'
+              : 'Weekly email reports are included on paid plans'}
           </span>
           <button
             className="btn btn-primary"
@@ -196,7 +201,11 @@ const Reports: React.FC = () => {
 
       <div className="panel">
         <h3>Sharing</h3>
-        <p className="sub">Send this report to teammates or your agency contact</p>
+        <p className="sub">
+          {weeklyEmail
+            ? 'These people also get the Monday email. Each email has an unsubscribe link.'
+            : 'Add people now; they start getting the Monday email when you upgrade.'}
+        </p>
 
         {sharedEmails.length > 0 && (
           <div className="chip-row">

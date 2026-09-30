@@ -13,6 +13,10 @@ const reportShareSchema = new mongoose.Schema<IReportShare>(
         sharedEmails: {
             type: [String],
             default: []
+        },
+        unsubscribed: {
+            type: [String],
+            default: []
         }
     },
     {

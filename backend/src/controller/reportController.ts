@@ -4,8 +4,36 @@ import databseService from '../service/databseService'
 import httpResponse from '../util/httpResponse'
 import httpError from '../util/httpError'
 import responceseMessage from '../constent/responceseMessage'
+import { generateReportPdf } from '../service/reportService/pdfService'
+import { buildReportData } from '../service/reportService/reportData'
+import { verifyUnsubscribeToken } from '../service/reportService/weeklyReport'
+import reportShareModel from '../model/reportShareModel'
+import mongoose from 'mongoose'
+
+const unsubscribePage = (title: string, body: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
+<body style="margin:0;background:#F2F4F1;font-family:Arial,Helvetica,sans-serif;color:#0F2629;display:grid;place-items:center;min-height:100vh">
+<main style="max-width:440px;padding:32px;background:#fff;border:1px solid #D3DBD8;border-radius:12px"><h1 style="font-size:22px;margin:0 0 10px">${title}</h1><p style="margin:0;color:#52676A;line-height:1.5">${body}</p></main></body></html>`
 
 export default {
+    // Public link from the weekly email (GET) and one-click unsubscribe from mail clients (POST)
+    unsubscribeWeeklyReport: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const src = { ...req.query, ...(req.body || {}) } as Record<string, unknown>
+            const brandId = String(src.b || '')
+            const email = String(src.e || '').toLowerCase()
+            const token = String(src.t || '')
+            res.type('html')
+            if (!mongoose.isValidObjectId(brandId) || !email || !verifyUnsubscribeToken(brandId, email, token)) {
+                res.status(400).send(unsubscribePage('This link is not valid', 'The unsubscribe link is incomplete or has been changed. Use the link from the latest weekly email, or reply to that email and we will remove you.'))
+                return
+            }
+            await reportShareModel.updateOne({ brandId }, { $addToSet: { unsubscribed: email } }, { upsert: true })
+            res.status(200).send(unsubscribePage('You are unsubscribed', `${email.replace(/[<>&"]/g, '')} will no longer get the weekly AI visibility report for this brand.`))
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+
     getBrandReports: async (req: Request, res: Response, next: NextFunction) => {
         try {
             const { authenticatedUser } = req as IAuthenticatedRequest
@@ -52,9 +80,8 @@ export default {
 
             const newReport = await databseService.generateBrandReport(brandId)
 
-            httpResponse(req, res, 201, responceseMessage.SUCCESS, {
-                report: newReport
-            })
+            const { data: _snapshot, ...report } = newReport.toObject()
+            httpResponse(req, res, 201, responceseMessage.SUCCESS, { report })
         } catch (error) {
             httpError(next, error, req, 500)
         }
@@ -75,72 +102,23 @@ export default {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
             }
 
-            const report = await databseService.findReportById(reportId)
+            const report = await databseService.findReportByIdForBrand(reportId, brandId)
             if (!report) {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Report')), req, 404)
             }
 
-            const brandName = brand.name
-            const reportDate = report.date
-            const score = report.score
-            const meta = report.meta
-
-            const pdfString = `%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
-endobj
-4 0 obj
-<< /Length 320 >>
-stream
-BT
-/F1 20 Tf
-50 730 Td
-(${brandName} - GEO AI Search Report) Tj
-/F1 12 Tf
-0 -35 Td
-(Report Date: ${reportDate}) Tj
-0 -20 Td
-(Visibility & Health Score: ${score}/100) Tj
-0 -20 Td
-(Metadata: ${meta}) Tj
-0 -35 Td
-(Executive Summary:) Tj
-0 -20 Td
-(This report reflects your brand visibility across generative search engines,) Tj
-0 -18 Td
-(AI crawler accessibility ratings, and action item optimization metrics.) Tj
-ET
-endstream
-endobj
-5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-xref
-0 6
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000246 00000 n 
-0000000618 00000 n 
-trailer
-<< /Size 6 /Root 1 0 R >>
-startxref
-697
-%%EOF`
+            // Reports created before snapshots existed get one from the current data, saved for next time
+            if (!report.data) {
+                report.data = await buildReportData(brandId)
+                await report.save()
+            }
+            const pdf = await generateReportPdf(report.data)
+            // Header values must be ASCII; brand names can contain ₹, Hindi or quotes
+            const safeName = brand.name.replace(/[^A-Za-z0-9-]+/g, '_').replace(/^_+|_+$/g, '') || 'Brand'
 
             res.setHeader('Content-Type', 'application/pdf')
-            res.setHeader(
-                'Content-Disposition',
-                `attachment; filename="GEO_Report_${brandName.replace(/\s+/g, '_')}_${report._id}.pdf"`
-            )
-            res.status(200).send(Buffer.from(pdfString, 'binary'))
+            res.setHeader('Content-Disposition', `attachment; filename="GEO_Report_${safeName}_${report._id}.pdf"`)
+            res.status(200).send(pdf)
         } catch (error) {
             httpError(next, error, req, 500)
         }

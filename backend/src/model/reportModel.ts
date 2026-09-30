@@ -35,8 +35,16 @@ const reportSchema = new mongoose.Schema<IReport>(
         },
         type: {
             type: String,
-            enum: ['auto-generated', 'manual run'],
+            enum: ['auto-generated', 'manual run', 'weekly'],
             default: 'manual run'
+        },
+        data: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null
+        },
+        emailedAt: {
+            type: Date,
+            default: null
         }
     },
     {

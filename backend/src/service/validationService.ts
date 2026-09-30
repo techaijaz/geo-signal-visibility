@@ -14,7 +14,8 @@ export const validationRegisterBody = Joi.object<IRegisterRequestBody>({
     email: Joi.string().email().required(),
     phone: Joi.string().optional().allow('').pattern(/^\+?[0-9]{10,15}$/).message('Phone number must be a valid 10 to 15 digit number'),
     password: Joi.string().min(8).max(72).required().trim(),
-    consent: Joi.boolean().required().valid(true)
+    consent: Joi.boolean().required().valid(true),
+    weeklyReportEmails: Joi.boolean().optional().default(false)
 })
 
 export const validationLoginBody = Joi.object<ILoginRequestBody>({
@@ -81,3 +82,7 @@ export const validateJoiSchema = <T>(schema: Joi.Schema, value: unknown) => {
         error: result.error?.message
     }
 }
+
+export const validationEmailPreferencesBody = Joi.object<{ weeklyReportEmails: boolean }>({
+    weeklyReportEmails: Joi.boolean().required()
+})

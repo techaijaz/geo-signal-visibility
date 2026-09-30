@@ -8,6 +8,7 @@ export interface IRegisterRequestBody {
     phone: string
     password: string
     consent: boolean
+    weeklyReportEmails?: boolean
 }
 
 export interface IForgotPasswordRequestBody {
@@ -44,6 +45,9 @@ export interface IUser {
     timezone: string
     password: string
     consent: boolean
+    consentAt?: Date | null
+    weeklyReportEmails?: boolean
+    weeklyReportEmailsUpdatedAt?: Date | null
     role: EUserRole
     accountConfirmation: {
         status: boolean

@@ -20,7 +20,8 @@ import {
     validationForgotPasswordBody,
     validationResetPasswordBody,
     validationChangePasswordBody,
-    validationUpdateProfileBody
+    validationUpdateProfileBody,
+    validationEmailPreferencesBody
 } from '../service/validationService'
 import quiker from '../util/quiker'
 import databseService from '../service/databseService'
@@ -82,7 +83,7 @@ export default {
             }
 
             // * phone number parsing and validation
-            const { name, phone, email, password, consent } = value
+            const { name, phone, email, password, consent, weeklyReportEmails } = value
             let rawPhone = phone && phone.trim() ? phone.trim() : '+919999999999'
             if (!rawPhone.startsWith('+')) {
                 if (/^\d{10}$/.test(rawPhone)) {
@@ -135,7 +136,10 @@ export default {
                 role: EUserRole.USER,
                 timezone: userTimezone,
                 password: encryptedPassword,
-                consent
+                consent,
+                consentAt: new Date(),
+                weeklyReportEmails: !!weeklyReportEmails,
+                weeklyReportEmailsUpdatedAt: new Date()
             }
             const newUser = await databseService.registerUser(payload)
 
@@ -568,6 +572,26 @@ export default {
             }
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, updatedUser)
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+    // Turn the Monday report email on or off (Settings > Scan & Notifications)
+    updateEmailPreferences: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { body, authenticatedUser } = req as IUpdateProfileRequest
+            const { error, value } = validateJoiSchema<{ weeklyReportEmails: boolean }>(validationEmailPreferencesBody, body)
+            if (error) {
+                return httpError(next, error, req, 422)
+            }
+            const updatedUser = await databseService.setWeeklyReportEmails(authenticatedUser._id.toString(), value.weeklyReportEmails)
+            if (!updatedUser) {
+                return httpError(next, new Error(responceseMessage.NOT_FOUND('User')), req, 404)
+            }
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, {
+                weeklyReportEmails: updatedUser.weeklyReportEmails,
+                weeklyReportEmailsUpdatedAt: updatedUser.weeklyReportEmailsUpdatedAt
+            })
         } catch (error) {
             httpError(next, error, req, 500)
         }

@@ -158,7 +158,7 @@ const Reports: React.FC = () => {
         <div className="onb-actions" style={{ borderTop: 'none', paddingTop: 0, marginTop: 0 }}>
           <span className="mono" style={{ color: 'var(--text-dim)', fontSize: '12.5px' }}>
             {weeklyEmail
-              ? 'Emailed every Monday at 9:00 AM IST to you and the people below, PDF attached'
+              ? 'Emailed every Monday at 9:00 AM IST to the people below, and to you if it is on in Settings'
               : 'Weekly email reports are included on paid plans'}
           </span>
           <button

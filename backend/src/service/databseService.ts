@@ -52,6 +52,22 @@ const databseService = {
     findUserByEmail: (email: string, select: string = '') => {
         return userModel.findOne({ email }).select(select)
     },
+    // Weekly report opt-in. Turning it on also clears an earlier unsubscribe of this address on the user's brands
+    setWeeklyReportEmails: async (userId: string, enabled: boolean) => {
+        const user = await userModel.findByIdAndUpdate(
+            userId,
+            { $set: { weeklyReportEmails: enabled, weeklyReportEmailsUpdatedAt: new Date() } },
+            { new: true }
+        )
+        if (user && enabled) {
+            const org = await orgModel.findOne({ ownerId: user._id }).select('_id').lean()
+            if (org) {
+                const brandIds = (await brandModel.find({ orgId: org._id }).select('_id').lean()).map((b) => b._id)
+                await reportShareModel.updateMany({ brandId: { $in: brandIds } }, { $pull: { unsubscribed: user.email.toLowerCase() } })
+            }
+        }
+        return user
+    },
     findUserById: (id: string, select: string = '') => {
         return userModel.findById(id).select(select)
     },

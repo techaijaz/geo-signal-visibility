@@ -85,7 +85,7 @@ export const renderWeeklyEmail = (d: IReportData, unsubscribe: string) => {
   <tr><td style="padding:24px 0 8px"><a href="${esc(dashboard)}" style="display:inline-block;background:#FFC857;color:#0F2629;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:8px">Open your dashboard</a></td></tr>
   <tr><td style="font-size:13px;color:#52676A">The full report, question by question, is attached as a PDF.</td></tr>
 </table>
-<p style="font-size:12px;color:#52676A;max-width:560px;margin:16px auto 0">You get this email every Monday because it was set up for ${esc(d.brandName)} on Signal AI. <a href="${esc(unsubscribe)}" style="color:#52676A">Unsubscribe</a></p>
+<p style="font-size:12px;color:#52676A;max-width:560px;margin:16px auto 0">You get this email every Monday because it was turned on for ${esc(d.brandName)} on Signal AI. <a href="${esc(unsubscribe)}" style="color:#52676A">Unsubscribe</a> or change it any time in Settings.</p>
 </td></tr></table></body></html>`
 
     return { subject, text, html }
@@ -110,12 +110,13 @@ export const sendWeeklyReport = async (brandId: string): Promise<{ sent: number;
     const alreadySent = await reportModel.exists({ brandId, type: 'weekly', date: weekOf, emailedAt: { $ne: null } })
     if (alreadySent) return { sent: 0, skipped: 'already sent this week' }
 
-    const owner = await userModel.findById(org.ownerId).select('email').lean()
+    // The owner gets it only after opting in (signup or Settings); shared addresses until they unsubscribe
+    const owner = await userModel.findById(org.ownerId).select('email weeklyReportEmails').lean()
     const share = await reportShareModel.findOne({ brandId }).lean()
     const unsubscribed = new Set((share?.unsubscribed || []).map((e) => e.toLowerCase()))
-    const recipients = [...new Set([owner?.email, ...(share?.sharedEmails || [])].filter(Boolean).map((e) => String(e).toLowerCase()))]
+    const recipients = [...new Set([owner?.weeklyReportEmails ? owner.email : null, ...(share?.sharedEmails || [])].filter(Boolean).map((e) => String(e).toLowerCase()))]
         .filter((e) => !unsubscribed.has(e))
-    if (recipients.length === 0) return { sent: 0, skipped: 'everyone unsubscribed' }
+    if (recipients.length === 0) return { sent: 0, skipped: 'no recipients opted in' }
 
     const databseService = (await import('../databseService')).default
     const report =

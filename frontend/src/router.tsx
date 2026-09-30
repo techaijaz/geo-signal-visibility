@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import AppLayout from './components/AppLayout';
 import Overview from './pages/Overview';
 import Mentions from './pages/Mentions';
@@ -16,7 +16,6 @@ import Recommendations from './pages/Recommendations';
 import Reports from './pages/Reports';
 import Pricing from './pages/Pricing';
 import Billing from './pages/Billing';
-import FreeVisibilityChecker from './pages/FreeVisibilityChecker';
 import AdminRoute from './components/AdminRoute';
 import AdminLayout from './components/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -135,7 +134,7 @@ export const router = createBrowserRouter([
       },
       {
         path: '/free-checker',
-        element: <FreeVisibilityChecker />,
+        element: <Navigate to="/signup" replace />,
       },
       {
         path: '/confirmation/:token',

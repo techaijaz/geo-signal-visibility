@@ -189,21 +189,31 @@ const databseService = {
                 logger.warn('[databseService] Queue unavailable for audit seed, running inline')
                 return auditService.runRealAudit(brandId)
             }
-            audit = await auditModel.create({
-                brandId,
-                healthScore: 70,
-                holdingBack: 'Initial audit in progress via background worker...',
-                crawlerAccess: [
-                  { bot: 'GPTBot (OpenAI)', status: 'Allowed', impact: 'Enables ChatGPT to crawl product specs & reviews' },
-                  { bot: 'ClaudeBot (Anthropic)', status: 'Allowed', impact: 'Enables Claude to index site authority' },
-                  { bot: 'GoogleOther (Gemini)', status: 'Allowed', impact: 'Feeds Google AI Overviews' },
-                  { bot: 'PerplexityBot', status: 'Allowed', impact: 'Required for Perplexity citations' }
-                ],
-                structuredData: [],
-                offSiteFootprint: [],
-                marketplaceReadability: [],
-                lastAuditedAt: new Date()
-            })
+            // Placeholder until the worker finishes the first audit. Same crawlers as auditService checks,
+            // marked "Checking" rather than guessing a result. Upsert so concurrent first requests
+            // (Overview and Audit pages load together) don't race on the unique brandId index
+            audit = await auditModel.findOneAndUpdate(
+                { brandId },
+                {
+                    $setOnInsert: {
+                        brandId,
+                        healthScore: 70,
+                        holdingBack: ['Initial audit in progress via background worker...'],
+                        crawlerAccess: [
+                            'GPTBot (OpenAI)',
+                            'ClaudeBot (Anthropic)',
+                            'Google-Extended (Gemini)',
+                            'PerplexityBot',
+                            'Bytespider (TikTok AI)'
+                        ].map((name) => ({ name, status: 'Checking', badgeType: 'badge-warn' })),
+                        structuredData: [],
+                        offSiteFootprint: [],
+                        marketplaceReadability: [],
+                        lastAuditedAt: new Date()
+                    }
+                },
+                { upsert: true, new: true, runValidators: true }
+            )
         }
         return audit
     },
@@ -320,95 +330,32 @@ const databseService = {
 
     // Report methods
     findReportsByBrandId: async (brandId: string) => {
-        let reports = await reportModel.find({ brandId }).sort({ createdAt: -1 })
-        if (reports.length === 0) {
-            reports = await databseService.seedDefaultReports(brandId)
-        }
-        return reports
+        // The snapshot is only needed to render a PDF, so keep it out of list responses
+        return reportModel.find({ brandId }).select('-data').sort({ createdAt: -1 })
     },
-    seedDefaultReports: async (brandId: string) => {
-        const audit = await databseService.findAuditByBrandId(brandId)
-        const baseScore = audit?.healthScore || 58
-
-        const defaultReports: Array<{
-            brandId: string
-            date: string
-            title: string
-            meta: string
-            score: number
-            queriesCount: number
-            modelsCount: number
-            type: 'auto-generated' | 'manual run'
-        }> = [
-            {
-                brandId,
-                date: 'Week of 21 Jul 2026',
-                title: 'Weekly Brand Snapshot',
-                meta: '8 queries · 3 models · auto-generated',
-                score: baseScore,
-                queriesCount: 8,
-                modelsCount: 3,
-                type: 'auto-generated'
-            },
-            {
-                brandId,
-                date: 'Week of 14 Jul 2026',
-                title: 'Weekly Brand Snapshot',
-                meta: '8 queries · 3 models · auto-generated',
-                score: Math.max(30, baseScore - 9),
-                queriesCount: 8,
-                modelsCount: 3,
-                type: 'auto-generated'
-            },
-            {
-                brandId,
-                date: 'Week of 07 Jul 2026',
-                title: 'Weekly Brand Snapshot',
-                meta: '6 queries · 2 models · auto-generated',
-                score: Math.max(30, baseScore - 14),
-                queriesCount: 6,
-                modelsCount: 2,
-                type: 'auto-generated'
-            },
-            {
-                brandId,
-                date: 'Week of 30 Jun 2026',
-                title: 'Weekly Brand Snapshot',
-                meta: '6 queries · 2 models · auto-generated',
-                score: Math.max(30, baseScore - 16),
-                queriesCount: 6,
-                modelsCount: 2,
-                type: 'auto-generated'
-            }
-        ]
-
-        return reportModel.insertMany(defaultReports)
-    },
-    generateBrandReport: async (brandId: string) => {
-        const brand = await brandModel.findById(brandId)
-        const audit = await databseService.findAuditByBrandId(brandId)
-        const mentions = await databseService.findMentionsByBrandId(brandId)
-
-        const uniqueModels = new Set(mentions.map((m: IMention) => m.model)).size || 3
-        const queriesCount = brand?.queries?.length || (mentions.length > 0 ? mentions.length : 8)
-        const baseScore = audit?.healthScore || 60
-
-        const dateStr = `Week of ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`
-        const metaStr = `${queriesCount} queries · ${uniqueModels} models · manual run`
+    generateBrandReport: async (brandId: string, type: 'manual run' | 'weekly' = 'manual run') => {
+        const { buildReportData } = await import('./reportService/reportData')
+        const data = await buildReportData(brandId)
+        const questions = data.questions.length
+        const engines = data.engines.length
+        const weekOf = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })
 
         return reportModel.create({
             brandId,
-            date: dateStr,
-            title: `${brand?.name || 'Brand'} - Optimisation Report`,
-            meta: metaStr,
-            score: baseScore,
-            queriesCount,
-            modelsCount: uniqueModels,
-            type: 'manual run'
+            date: `Week of ${weekOf}`,
+            title: `${data.brandName} AI visibility report`,
+            meta: `${questions} question${questions === 1 ? '' : 's'}, ${engines} AI${engines === 1 ? '' : 's'}, ${type === 'weekly' ? 'weekly email' : 'created manually'}`,
+            score: data.visibility,
+            queriesCount: questions,
+            modelsCount: engines,
+            type,
+            data
         })
     },
-    findReportById: async (reportId: string) => {
-        return reportModel.findById(reportId)
+    // Scoped to the brand so a report ID from another workspace can never be fetched
+    findReportByIdForBrand: async (reportId: string, brandId: string) => {
+        if (!mongoose.isValidObjectId(reportId)) return null
+        return reportModel.findOne({ _id: reportId, brandId })
     },
     getSharedEmailsByBrandId: async (brandId: string) => {
         let shareDoc = await reportShareModel.findOne({ brandId })

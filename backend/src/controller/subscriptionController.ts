@@ -52,7 +52,8 @@ const PLANS_DATA = [
             'Daily scan',
             '1 manual re-scan per day',
             'ChatGPT, Gemini, Claude, Grok & DeepSeek',
-            'AI recommendations'
+            'AI recommendations',
+            'Weekly email report with PDF'
         ],
         buttonText: 'Current plan'
     },
@@ -69,6 +70,7 @@ const PLANS_DATA = [
             '3 manual re-scans per day',
             'ChatGPT, Gemini, Claude, Grok & DeepSeek',
             'AI recommendations',
+            'Weekly email report with PDF',
             'Competitor share-of-voice'
         ],
         buttonText: 'Upgrade'

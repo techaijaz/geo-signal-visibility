@@ -12,6 +12,7 @@ import {
 import { EBrandRole, ICreateBrandRequestBody, IUpdateBrandRequestBody } from '../types/brandTypes'
 import { EUserRole } from '../constent/userConstent'
 import { getPlanLimits, type PlanName } from '../config/planLimits'
+import { computeCompetitorStats, loadScanPair } from '../service/competitorService'
 
 const extractDomain = (url: string): string => {
     if (!url) return ''
@@ -275,78 +276,46 @@ export default {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
             }
 
-            const mentions = await databseService.findMentionsByBrandId(id)
-            const userBrandName = `${brand.name} (you)`
+            // Brand vs competitors from the real AI answers of the latest scan (same numbers as the PDF report)
+            const { current, previous } = await loadScanPair(id, brand.lastScanId)
+            const competitorNames = (brand.competitors || []).map((c) => c.name)
+            const stats = computeCompetitorStats(brand.name, competitorNames, current, previous)
+            const countable = stats.answerTextAvailable
+            const palette = ['#D97757', '#6C8EF5', '#3FBF8F', '#A855F7', '#20B8CD', '#7A8587']
 
-            const compNames = brand.competitors && brand.competitors.length > 0
-                ? brand.competitors.map(c => c.name)
-                : []
+            const shareOfVoice = stats.rows
+                .filter((r) => r.isYou || countable)
+                .map((r, i) => ({
+                    name: r.name,
+                    label: r.isYou ? `${r.name} (you)` : r.name,
+                    percentage: countable ? r.share : r.answersNamed > 0 ? 100 : 0,
+                    color: r.isYou ? '#FFC857' : palette[(i - 1) % palette.length],
+                    isUserBrand: r.isYou
+                }))
+                .sort((x, y) => y.percentage - x.percentage)
 
-            if (mentions.length === 0) {
-                const shareOfVoice = [
-                    { name: brand.name, label: userBrandName, percentage: 100, color: '#FFC857', isUserBrand: true },
-                    ...compNames.map((cName, idx) => ({
-                        name: cName,
-                        label: cName,
-                        percentage: 0,
-                        color: idx === 0 ? '#D97757' : '#3A4256',
-                        isUserBrand: false
-                    }))
-                ]
+            const headToHead = stats.rows.map((r) => ({
+                name: r.isYou ? `${r.name} (you)` : r.name,
+                mentionRate: stats.totalAnswers === 0 || (!r.isYou && !countable) ? '—' : `${r.mentionRate}%`,
+                avgPosition: r.avgPosition === null ? '—' : `#${r.avgPosition}`,
+                trend: r.trend ?? '—',
+                isUserBrand: r.isYou
+            }))
 
-                const headToHead = [
-                    { name: userBrandName, mentionRate: '0%', avgPosition: '—', trend: 'flat', isUserBrand: true },
-                    ...compNames.map(cName => ({
-                        name: cName,
-                        mentionRate: '0%',
-                        avgPosition: '—',
-                        trend: 'flat',
-                        isUserBrand: false
-                    }))
-                ]
-
-                const summary = `No scan data available yet for ${brand.name}. Run an AI scan to compare Share of Voice against competitors.`
-
-                return httpResponse(req, res, 200, responceseMessage.SUCCESS, {
-                    brandId: brand._id,
-                    brandName: brand.name,
-                    shareOfVoice,
-                    headToHead,
-                    summary
-                })
+            let summary: string
+            if (stats.totalAnswers === 0) {
+                summary = 'No scan data yet. Run an AI scan to compare your share of voice against competitors.'
+            } else if (competitorNames.length === 0) {
+                summary = `Add competitors in Settings to see how often AI names them compared with ${brand.name}.`
+            } else if (!countable) {
+                summary = `Competitor counts appear after your next scan. ${brand.name} was named in ${stats.rows[0].mentionRate}% of AI answers in the last scan.`
+            } else {
+                const leader = [...stats.rows].sort((x, y) => y.answersNamed - x.answersNamed)[0]
+                const you = stats.rows[0]
+                summary = leader.isYou
+                    ? `${brand.name} is named most often: in ${you.mentionRate}% of ${stats.totalAnswers} AI answers, ahead of every tracked competitor.`
+                    : `${leader.name} is named most often (${leader.mentionRate}% of AI answers). ${brand.name} is named in ${you.mentionRate}%.`
             }
-
-            // Real mentions calculation
-            const totalMentionsCount = mentions.filter(m => m.mentioned).length
-            const userMentionsCount = mentions.filter(m => m.mentioned && m.queryText.toLowerCase().includes(brand.name.toLowerCase())).length
-            
-            const userSov = totalMentionsCount > 0 ? Math.round((userMentionsCount / totalMentionsCount) * 100) : 100
-
-            const shareOfVoice = [
-                { name: brand.name, label: userBrandName, percentage: userSov, color: '#FFC857', isUserBrand: true },
-                ...compNames.map((cName, idx) => ({
-                    name: cName,
-                    label: cName,
-                    percentage: totalMentionsCount > 0 ? Math.max(0, Math.round((100 - userSov) / Math.max(1, compNames.length))) : 0,
-                    color: idx === 0 ? '#D97757' : '#3A4256',
-                    isUserBrand: false
-                }))
-            ]
-
-            const userMentionRate = `${Math.round((userMentionsCount / Math.max(1, mentions.length)) * 100)}%`
-
-            const headToHead = [
-                { name: userBrandName, mentionRate: userMentionRate, avgPosition: '#1.5', trend: 'flat', isUserBrand: true },
-                ...compNames.map(cName => ({
-                    name: cName,
-                    mentionRate: '0%',
-                    avgPosition: '—',
-                    trend: 'flat',
-                    isUserBrand: false
-                }))
-            ]
-
-            const summary = `${brand.name} has ${userMentionRate} mention rate across tracked AI queries.`
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 brandId: brand._id,

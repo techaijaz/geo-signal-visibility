@@ -26,6 +26,7 @@ const defaultJobOptions = {
 export const scanQueue = new Queue('ai-scan', { connection, defaultJobOptions })
 export const auditQueue = new Queue('brand-audit', { connection, defaultJobOptions })
 export const recommendationQueue = new Queue('ai-recommendation', { connection, defaultJobOptions })
+export const weeklyReportQueue = new Queue('weekly-report', { connection, defaultJobOptions })
 export const schedulerQueue = new Queue('scan-scheduler', { connection, defaultJobOptions: { removeOnComplete: 100, removeOnFail: 100 } })
 
 // 2. Define Interfaces
@@ -37,6 +38,11 @@ export interface ScanJobData {
 export interface AuditJobData {
   brandId: string
   triggeredAt?: string
+}
+
+export interface WeeklyReportJobData {
+  brandId: string
+  week: string
 }
 
 export interface RecommendationJobData {
@@ -132,6 +138,19 @@ export const enqueueRecommendationJob = async (brandId: string): Promise<Job<Rec
     return null
   } catch (err) {
     logger.error(`[BullMQ Queue Error] Failed to enqueue recommendation job for brand ${brandId}:`, { meta: err })
+    return null
+  }
+}
+
+// One job per brand per ISO week (jobId), so a repeated Monday tick never queues the same email twice
+export const enqueueWeeklyReportJob = async (brandId: string, week: string): Promise<Job<WeeklyReportJobData> | null> => {
+  try {
+    return await enqueueWithTimeout(
+      weeklyReportQueue.add('weekly-report-job', { brandId, week }, { jobId: `weekly-${brandId}-${week}` }),
+      1500
+    )
+  } catch (err) {
+    logger.error(`[BullMQ Queue Error] Failed to enqueue weekly report for brand ${brandId}:`, { meta: err })
     return null
   }
 }

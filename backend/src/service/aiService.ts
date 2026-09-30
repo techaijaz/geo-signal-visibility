@@ -42,7 +42,7 @@ export interface IAiScanResult {
     mentioned: boolean
     position: number | null
     sentiment: 'Positive' | 'Neutral' | 'Negative'
-    rawResponse?: string
+    rawText?: string
     extractedAt: Date
 }
 
@@ -428,7 +428,7 @@ const aiService = {
                     mentioned: parsed.mentioned,
                     position: parsed.position,
                     sentiment: parsed.sentiment,
-                    rawResponse: rawText,
+                    rawText,
                     extractedAt: new Date()
                 }
             })

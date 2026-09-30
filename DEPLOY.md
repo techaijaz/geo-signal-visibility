@@ -57,6 +57,18 @@ Fill in every value. Generate each secret and password with `openssl rand -hex 3
 
 Also fill in the company details in `website/src/config/site.ts` (legal name, address, GSTIN, grievance officer). They appear in the footer and the policies.
 
+### Email
+
+Signup confirmations and the Monday report emails go out through `EMAIL_PROVIDER`:
+
+- **`smtp` (default):** create a mailbox such as `no-reply@your-domain.com` in Hostinger Email, then set
+  `SMTP_HOST=smtp.hostinger.com`, `SMTP_PORT=465`, `SMTP_SECURE=true`, `SMTP_USER` and `SMTP_PASS` to that mailbox,
+  and `EMAIL_FROM="Signal AI" <no-reply@your-domain.com>`.
+- **`resend`:** set `RESEND_API_KEY` and an `EMAIL_FROM` on a domain you have verified in Resend.
+
+Make sure the domain has SPF, DKIM and DMARC records (Hostinger adds them when the domain uses Hostinger DNS;
+check hPanel > Emails > DNS). Without them, report emails land in spam.
+
 ## 5. SSL certificate
 
 ```bash
@@ -123,7 +135,7 @@ Restore with `./deploy/restore-mongo.sh backups/<file>` (asks before replacing d
 ## Checklist before taking payments
 
 - [ ] Razorpay live keys in `.env`, and the website policies reviewed by a lawyer (Razorpay checks the Terms, Privacy, Refund and Contact pages during activation)
-- [ ] SMTP works: sign-up confirmation emails arrive
+- [ ] Email works: sign-up confirmation emails arrive, and a report generated from the Reports page downloads as a full PDF
 - [ ] A test purchase activates the plan and shows an invoice
 - [ ] `docker compose logs worker` shows "[Scheduler] Tick complete" lines every 5 minutes
 - [ ] A backup file appears in `backups/` the morning after setting up cron

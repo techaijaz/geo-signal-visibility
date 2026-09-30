@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
+import config from '../config/config'
 import { IAuthenticatedRequest } from '../middleware/authentication'
 import databseService from '../service/databseService'
 import { enqueueAuditJob } from '../service/queueService'
@@ -65,7 +66,11 @@ export default {
                 })
             }
 
-            // Fallback to inline scan if Queue / Redis is unavailable
+            if (!config.ALLOW_INLINE_JOBS) {
+                return httpError(next, new Error(responceseMessage.QUEUE_UNAVAILABLE), req, 503)
+            }
+
+            // Development only: run inline when Redis / BullMQ is unavailable
             logger.warn(`[Audit Controller] Queue unavailable, falling back to inline audit for brand ${brandId}`)
             const freshAudit = await databseService.rescanBrandAudit(brandId)
 

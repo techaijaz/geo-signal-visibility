@@ -41,8 +41,8 @@ const DEFAULT_PLANS: Plan[] = [
       '1 brand workspace',
       '3 tracked queries',
       '1 run per query',
-      'Monthly scan frequency',
-      'Claude + GPT models',
+      'Weekly scan frequency',
+      'ChatGPT, Gemini & Claude',
       'Basic report exports'
     ],
     buttonText: 'Downgrade'
@@ -59,7 +59,7 @@ const DEFAULT_PLANS: Plan[] = [
       '15 tracked queries',
       '3 runs per query',
       'Weekly scan frequency',
-      'Claude + GPT + Gemini',
+      'ChatGPT, Gemini, Claude, Grok & DeepSeek',
       'AI Recommendations included',
       'Weekly email digests'
     ],
@@ -76,8 +76,8 @@ const DEFAULT_PLANS: Plan[] = [
       '1 brand workspace',
       '50 tracked queries',
       '3 runs per query',
-      'Daily scan option',
-      'All models + Perplexity',
+      'Scan every 3 days',
+      'ChatGPT, Gemini, Claude, Grok & DeepSeek',
       'Competitor share-of-voice',
       'WhatsApp digest & priority'
     ],
@@ -91,9 +91,10 @@ const DEFAULT_PLANS: Plan[] = [
     billingPeriod: '',
     description: 'Manage visibility across multiple client brands.',
     features: [
-      'Multi-brand workspace (Unlimited)',
+      'Up to 25 brands, 100 queries each',
       'White-label reports',
-      'Daily scans',
+      'Scans twice a day',
+      'All 6 AIs incl. Perplexity',
       'Priority SLA support',
       'Dedicated manager'
     ],
@@ -540,7 +541,7 @@ export default function Billing() {
           </div>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8', border: '1px solid rgba(99, 102, 241, 0.3)' }}>GPT-4o</span>
-            <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '6px', background: 'rgba(236, 72, 153, 0.15)', color: '#f472b6', border: '1px solid rgba(236, 72, 153, 0.3)' }}>Claude 3.5</span>
+            <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '6px', background: 'rgba(236, 72, 153, 0.15)', color: '#f472b6', border: '1px solid rgba(236, 72, 153, 0.3)' }}>Claude Haiku</span>
             <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>Gemini 2.0</span>
           </div>
         </div>

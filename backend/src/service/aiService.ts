@@ -46,74 +46,97 @@ export interface IAiScanResult {
     extractedAt: Date
 }
 
+const SYSTEM_PROMPT = 'You are an AI search engine assistant providing authoritative recommendations for brands, products, software, and services.'
+
+interface IOpenAiCompatibleProvider {
+    keyName: string // API key record / aiFetch concurrency bucket
+    url: () => string
+    defaultModel: () => string
+    fallbackModel?: string // retried once when the requested model returns an error
+    extraHeaders?: () => Record<string, string>
+    extraBody?: Record<string, unknown>
+}
+
+// Keyed by aiModel.provider
+const OPENAI_COMPATIBLE_PROVIDERS: Record<string, IOpenAiCompatibleProvider> = {
+    OpenAI: {
+        keyName: 'OPENAI',
+        url: () => 'https://api.openai.com/v1/chat/completions',
+        defaultModel: () => config.AI_MODELS.OPENAI || 'gpt-4o-mini'
+    },
+    DeepSeek: {
+        keyName: 'DEEPSEEK',
+        url: () => 'https://api.deepseek.com/chat/completions',
+        defaultModel: () => config.AI_MODELS.DEEPSEEK || 'deepseek-v4-flash',
+        fallbackModel: 'deepseek-chat',
+        extraBody: { temperature: 0.7 }
+    },
+    Perplexity: {
+        keyName: 'PERPLEXITY',
+        url: () => 'https://api.perplexity.ai/chat/completions',
+        defaultModel: () => config.AI_MODELS.PERPLEXITY || 'sonar'
+    },
+    xAI: {
+        keyName: 'XAI',
+        url: () => 'https://api.x.ai/v1/chat/completions',
+        defaultModel: () => config.AI_MODELS.GROK || 'grok-3-mini'
+    },
+    OpenRouter: {
+        keyName: 'OPENROUTER',
+        url: () => 'https://openrouter.ai/api/v1/chat/completions',
+        defaultModel: () => 'openai/gpt-4o-mini',
+        extraHeaders: () => ({ 'HTTP-Referer': config.FRONTEND_URL || 'http://localhost:5173', 'X-Title': 'GEO Dashboard' })
+    },
+    OmniRoute: {
+        keyName: 'OMNIROUTE',
+        url: () => config.OMNIROUTE_BASE_URL,
+        defaultModel: () => config.AI_MODELS.OMNIROUTE || 'omniroute-auto'
+    }
+}
+
 const aiService = {
     /**
-     * Call DeepSeek API (OpenAI compatible endpoint)
+     * Call any OpenAI-compatible chat completions API (OpenAI, DeepSeek, Perplexity, xAI Grok, OpenRouter, OmniRoute)
      */
-    callDeepSeek: async (prompt: string, modelOverride?: string, maxTokensOverride?: number): Promise<string | null> => {
-        const apiKey = await databseService.getDecryptedApiKey('DEEPSEEK')
+    callOpenAiCompatible: async (
+        provider: string,
+        prompt: string,
+        modelOverride?: string,
+        maxTokens = 400
+    ): Promise<string | null> => {
+        const spec = OPENAI_COMPATIBLE_PROVIDERS[provider]
+        if (!spec) return null
+        const apiKey = await databseService.getDecryptedApiKey(spec.keyName)
         if (!apiKey) return null
-        const targetModel = modelOverride || config.AI_MODELS.DEEPSEEK || 'deepseek-v4-flash'
+        const model = modelOverride || spec.defaultModel()
         try {
-            const response = await aiFetch('DEEPSEEK', 'https://api.deepseek.com/chat/completions', {
+            const response = await aiFetch(spec.keyName, spec.url(), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
+                    'Authorization': `Bearer ${apiKey}`,
+                    ...spec.extraHeaders?.()
                 },
                 body: JSON.stringify({
-                    model: targetModel,
+                    model,
                     messages: [
-                        { role: 'system', content: 'You are an AI search engine assistant providing authoritative recommendations for brands, products, software, and services.' },
+                        { role: 'system', content: SYSTEM_PROMPT },
                         { role: 'user', content: prompt }
                     ],
-                    temperature: 0.7,
-                    max_tokens: maxTokensOverride || 400
+                    max_tokens: maxTokens,
+                    ...spec.extraBody
                 })
             })
             if (!response.ok) {
-                // If custom model variant fails, fallback to deepseek-chat endpoint model
-                if (targetModel !== 'deepseek-chat') {
-                    return aiService.callDeepSeek(prompt, 'deepseek-chat', maxTokensOverride)
+                if (spec.fallbackModel && model !== spec.fallbackModel) {
+                    return aiService.callOpenAiCompatible(provider, prompt, spec.fallbackModel, maxTokens)
                 }
                 return null
             }
             const data = (await response.json()) as IOpenAiChatResponse
             return data.choices?.[0]?.message?.content || null
         } catch (error) {
-            logger.error('DeepSeek API Error:', { meta: error })
-            return null
-        }
-    },
-
-    /**
-     * Call OpenAI GPT API
-     */
-    callOpenAI: async (prompt: string, maxTokensOverride?: number): Promise<string | null> => {
-        const apiKey = await databseService.getDecryptedApiKey('OPENAI')
-        if (!apiKey) return null
-        const modelName = config.AI_MODELS.OPENAI || 'gpt-4o-mini'
-        try {
-            const response = await aiFetch('OPENAI', 'https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: modelName,
-                    messages: [
-                        { role: 'system', content: 'You are an AI search engine assistant providing authoritative recommendations for brands, products, software, and services.' },
-                        { role: 'user', content: prompt }
-                    ],
-                    max_tokens: maxTokensOverride || 400
-                })
-            })
-            if (!response.ok) return null
-            const data = (await response.json()) as IOpenAiChatResponse
-            return data.choices?.[0]?.message?.content || null
-        } catch (error) {
-            logger.error('OpenAI API Error:', { meta: error })
+            logger.error(`${provider} API Error:`, { meta: error })
             return null
         }
     },
@@ -176,10 +199,10 @@ const aiService = {
     /**
      * Call Anthropic Claude API
      */
-    callClaude: async (prompt: string, maxTokensOverride?: number): Promise<string | null> => {
+    callClaude: async (prompt: string, maxTokensOverride?: number, modelOverride?: string): Promise<string | null> => {
         const apiKey = await databseService.getDecryptedApiKey('ANTHROPIC')
         if (!apiKey) return null
-        const modelName = config.AI_MODELS.CLAUDE || 'claude-3-5-sonnet-20241022'
+        const modelName = modelOverride || config.AI_MODELS.CLAUDE || 'claude-haiku-4-5-20251001'
         try {
             const response = await aiFetch('ANTHROPIC', 'https://api.anthropic.com/v1/messages', {
                 method: 'POST',
@@ -210,145 +233,16 @@ const aiService = {
         const geminiRes = await aiService.callGemini(prompt)
         if (geminiRes) return geminiRes
 
-        const openaiRes = await aiService.callOpenAI(prompt, maxTokens)
+        const openaiRes = await aiService.callOpenAiCompatible('OpenAI', prompt, undefined, maxTokens)
         if (openaiRes) return openaiRes
 
         const claudeRes = await aiService.callClaude(prompt, maxTokens)
         if (claudeRes) return claudeRes
 
-        const deepseekRes = await aiService.callDeepSeek(prompt, undefined, maxTokens)
+        const deepseekRes = await aiService.callOpenAiCompatible('DeepSeek', prompt, undefined, maxTokens)
         if (deepseekRes) return deepseekRes
 
         return null
-    },
-
-    /**
-     * Call OmniRoute API (Unified LLM Router API Endpoint)
-     */
-    callOmniRoute: async (prompt: string, modelOverride?: string): Promise<string | null> => {
-        const apiKey = await databseService.getDecryptedApiKey('OMNIROUTE')
-        if (!apiKey) return null
-        const targetModel = modelOverride || config.AI_MODELS.OMNIROUTE || 'omniroute-auto'
-        try {
-            const response = await aiFetch('OMNIROUTE', config.OMNIROUTE_BASE_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: targetModel,
-                    messages: [
-                        { role: 'system', content: 'You are an AI search engine assistant providing authoritative recommendations for brands, products, software, and services.' },
-                        { role: 'user', content: prompt }
-                    ],
-                    max_tokens: 400
-                })
-            })
-            if (!response.ok) return null
-            const data = (await response.json()) as IOpenAiChatResponse
-            return data.choices?.[0]?.message?.content || null
-        } catch (error) {
-            logger.error('OmniRoute API Error:', { meta: error })
-            return null
-        }
-    },
-
-    /**
-     * Call Perplexity API (OpenAI compatible, web-search grounded Sonar models)
-     */
-    callPerplexity: async (prompt: string, modelOverride?: string): Promise<string | null> => {
-        const apiKey = await databseService.getDecryptedApiKey('PERPLEXITY')
-        if (!apiKey) return null
-        const targetModel = modelOverride || config.AI_MODELS.PERPLEXITY || 'sonar'
-        try {
-            const response = await aiFetch('PERPLEXITY', 'https://api.perplexity.ai/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: targetModel,
-                    messages: [
-                        { role: 'system', content: 'You are an AI search engine assistant providing authoritative recommendations for brands, products, software, and services.' },
-                        { role: 'user', content: prompt }
-                    ],
-                    max_tokens: 400
-                })
-            })
-            if (!response.ok) return null
-            const data = (await response.json()) as IOpenAiChatResponse
-            return data.choices?.[0]?.message?.content || null
-        } catch (error) {
-            logger.error('Perplexity API Error:', { meta: error })
-            return null
-        }
-    },
-
-    /**
-     * Call xAI Grok API (OpenAI compatible endpoint)
-     */
-    callGrok: async (prompt: string, modelOverride?: string): Promise<string | null> => {
-        const apiKey = await databseService.getDecryptedApiKey('XAI')
-        if (!apiKey) return null
-        const targetModel = modelOverride || config.AI_MODELS.GROK || 'grok-3-mini'
-        try {
-            const response = await aiFetch('XAI', 'https://api.x.ai/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: targetModel,
-                    messages: [
-                        { role: 'system', content: 'You are an AI search engine assistant providing authoritative recommendations for brands, products, software, and services.' },
-                        { role: 'user', content: prompt }
-                    ],
-                    max_tokens: 400
-                })
-            })
-            if (!response.ok) return null
-            const data = (await response.json()) as IOpenAiChatResponse
-            return data.choices?.[0]?.message?.content || null
-        } catch (error) {
-            logger.error('Grok API Error:', { meta: error })
-            return null
-        }
-    },
-
-    /**
-     * Call OpenRouter API
-     */
-    callOpenRouter: async (prompt: string, modelName: string): Promise<string | null> => {
-        const apiKey = await databseService.getDecryptedApiKey('OPENROUTER')
-        if (!apiKey) return null
-        try {
-            const response = await aiFetch('OPENROUTER', 'https://openrouter.ai/api/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
-                    'HTTP-Referer': config.FRONTEND_URL || 'http://localhost:5173',
-                    'X-Title': 'GEO Dashboard'
-                },
-                body: JSON.stringify({
-                    model: modelName,
-                    messages: [
-                        { role: 'system', content: 'You are an AI search engine assistant providing authoritative recommendations for brands, products, software, and services.' },
-                        { role: 'user', content: prompt }
-                    ],
-                    max_tokens: 400
-                })
-            })
-            if (!response.ok) return null
-            const data = (await response.json()) as IOpenAiChatResponse
-            return data.choices?.[0]?.message?.content || null
-        } catch (error) {
-            logger.error('OpenRouter API Error:', { meta: error })
-            return null
-        }
     },
 
     /**
@@ -356,15 +250,11 @@ const aiService = {
      */
     callModel: async (provider: string, modelId: string, queryText: string): Promise<string | null> => {
         if (config.DISABLED_AI_PROVIDERS.includes(provider)) return null
-        if (provider === 'OpenRouter') return aiService.callOpenRouter(queryText, modelId)
         if (provider === 'Google') return aiService.callGemini(queryText, modelId)
-        if (provider === 'Anthropic') return aiService.callClaude(queryText)
-        if (provider === 'DeepSeek') return aiService.callDeepSeek(queryText, modelId)
-        if (provider === 'Perplexity') return aiService.callPerplexity(queryText, modelId)
-        if (provider === 'xAI') return aiService.callGrok(queryText, modelId)
-        if (provider === 'OmniRoute') return aiService.callOmniRoute(queryText, modelId)
-        // OpenAI, and fallback for unknown providers
-        return aiService.callOpenAI(queryText)
+        if (provider === 'Anthropic') return aiService.callClaude(queryText, undefined, modelId)
+        if (OPENAI_COMPATIBLE_PROVIDERS[provider]) return aiService.callOpenAiCompatible(provider, queryText, modelId)
+        logger.warn(`[aiService] No client for AI provider "${provider}", skipping`)
+        return null
     },
 
     /**
@@ -491,12 +381,12 @@ const aiService = {
             ]
         }
 
-        const queries = brand.queries && brand.queries.length > 0
-            ? brand.queries.map(q => q.text)
-            : defaultQueries
-
         const org = await orgModel.findById(brand.orgId).select('plan')
         const planLimits = getPlanLimits((org?.plan || 'starter') as PlanName)
+
+        // Only enabled queries, capped at the plan limit (covers downgrades and legacy brands over the cap)
+        const enabledQueries = (brand.queries || []).filter((q) => q.enabled !== false).map((q) => q.text)
+        const queries = (enabledQueries.length > 0 ? enabledQueries : defaultQueries).slice(0, planLimits.maxQueries)
         const allowedProviders: readonly string[] = planLimits?.allowedProviders ?? []
 
         const aiModel = (await import('../model/aiModel')).default

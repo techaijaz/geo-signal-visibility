@@ -64,6 +64,8 @@ export interface IBrand {
     lastScanId?: string | null
     lastScannedAt?: Date | null
     nextScanAt?: Date | null
+    manualRescanDay?: string | null
+    manualRescanCount?: number
     createdAt?: Date
     updatedAt?: Date
 }

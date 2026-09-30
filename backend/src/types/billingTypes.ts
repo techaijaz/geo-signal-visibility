@@ -1,7 +1,7 @@
 import { Document, Types } from 'mongoose'
 
 export type SubscriptionPlan = 'free' | 'starter' | 'growth' | 'agency'
-export type SubscriptionStatus = 'active' | 'past_due' | 'canceled' | 'trialing'
+export type SubscriptionStatus = 'active' | 'past_due' | 'canceled' | 'trialing' | 'expired'
 export type InvoiceStatus = 'paid' | 'pending' | 'failed' | 'refunded'
 
 export interface ISubscription extends Document {
@@ -17,6 +17,8 @@ export interface ISubscription extends Document {
     currentPeriodStart: Date
     currentPeriodEnd: Date
     cancelAtPeriodEnd: boolean
+    // End of the last paid period; null = no paid period (free or granted by an admin), never expires
+    expiresAt?: Date | null
     createdAt: Date
     updatedAt: Date
 }

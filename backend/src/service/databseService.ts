@@ -803,7 +803,8 @@ const databseService = {
         if (org) {
             await SubscriptionModel.findOneAndUpdate(
                 { orgId: org._id },
-                { userId: user._id, plan, status: 'active' },
+                // Admin-granted plans have no paid period, so they never expire
+                { userId: user._id, plan, status: 'active', expiresAt: null },
                 { upsert: true, new: true }
             )
         }

@@ -23,7 +23,7 @@ const subscriptionSchema = new mongoose.Schema<ISubscription>(
         },
         status: {
             type: String,
-            enum: ['active', 'past_due', 'canceled', 'trialing'],
+            enum: ['active', 'past_due', 'canceled', 'trialing', 'expired'],
             default: 'active',
             required: true
         },
@@ -56,6 +56,13 @@ const subscriptionSchema = new mongoose.Schema<ISubscription>(
         cancelAtPeriodEnd: {
             type: Boolean,
             default: false
+        },
+        // Set only by a confirmed payment. The scheduler moves the org to Free once this passes;
+        // null (free plan or admin-granted plan) never expires
+        expiresAt: {
+            type: Date,
+            default: null,
+            index: true
         }
     },
     { timestamps: true }

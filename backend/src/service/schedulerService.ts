@@ -6,6 +6,7 @@ import brandModel from '../model/brandModel'
 import mentionModel from '../model/mentionModel'
 import databseService from './databseService'
 import { enqueueScanJob, schedulerQueue } from './queueService'
+import { paymentService } from './paymentService'
 import logger from '../util/loger'
 
 const TICK_INTERVAL_MS = 5 * 60 * 1000
@@ -37,6 +38,7 @@ const backfillUnscheduledBrands = async () => {
 }
 
 export const runSchedulerTick = async () => {
+  await paymentService.expireLapsedSubscriptions()
   await backfillUnscheduledBrands()
 
   const now = new Date()

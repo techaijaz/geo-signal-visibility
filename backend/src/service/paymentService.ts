@@ -72,7 +72,8 @@ export const paymentService = {
                     status: 'active',
                     billingCycle,
                     currentPeriodStart: new Date(),
-                    currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                    currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                    expiresAt: null
                 },
                 { upsert: true, new: true }
             )
@@ -243,9 +244,15 @@ export const paymentService = {
         // ── Activate subscription ─────────────────────────────────────────────
         await orgModel.findByIdAndUpdate(orgId, { plan })
 
+        // Renewing the same plan before it lapses extends it from the current expiry, so no paid days are lost
         const periodDays = billingCycle === 'yearly' ? 365 : 30
-        const currentPeriodStart = new Date()
-        const currentPeriodEnd = new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000)
+        const existing = await SubscriptionModel.findOne({ orgId }).lean()
+        const now = new Date()
+        const currentPeriodStart =
+            existing?.plan === plan && existing.status === 'active' && existing.expiresAt && existing.expiresAt > now
+                ? existing.expiresAt
+                : now
+        const currentPeriodEnd = new Date(currentPeriodStart.getTime() + periodDays * 24 * 60 * 60 * 1000)
 
         const sub = await SubscriptionModel.findOneAndUpdate(
             { orgId },
@@ -257,6 +264,7 @@ export const paymentService = {
                 gatewaySubscriptionId: gatewayPaymentId || gatewayOrderId || `sub_${Date.now()}`,
                 currentPeriodStart,
                 currentPeriodEnd,
+                expiresAt: currentPeriodEnd,
                 cancelAtPeriodEnd: false
             },
             { upsert: true, new: true }
@@ -288,6 +296,25 @@ export const paymentService = {
         logger.info(`[PaymentService] Subscription activated for Org ${orgId}. Invoice: ${invoiceNumber}`)
 
         return { subscription: sub, invoice }
+    },
+
+    /**
+     * Move every org whose paid period has ended back to the Free plan.
+     * Runs from the scheduler tick; safe to run repeatedly and from several workers.
+     */
+    expireLapsedSubscriptions: async (now: Date = new Date()) => {
+        const lapsed = await SubscriptionModel.find({ expiresAt: { $lte: now }, plan: { $ne: 'free' } }).lean()
+        for (const sub of lapsed) {
+            // Guarded update so a renewal that lands at the same moment is never overwritten
+            const res = await SubscriptionModel.updateOne(
+                { _id: sub._id, expiresAt: sub.expiresAt },
+                { $set: { plan: 'free', status: 'expired', expiresAt: null } }
+            )
+            if (res.modifiedCount === 0) continue
+            await orgModel.findByIdAndUpdate(sub.orgId, { plan: 'free' })
+            logger.info(`[PaymentService] ${sub.plan} plan expired for org ${sub.orgId.toString()}, moved to free`)
+        }
+        return lapsed.length
     },
 
     /**

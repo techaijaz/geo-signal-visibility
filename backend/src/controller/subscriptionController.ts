@@ -132,7 +132,8 @@ export default {
                 {
                     userId: authenticatedUser._id,
                     plan,
-                    status: 'active'
+                    status: 'active',
+                    expiresAt: null
                 },
                 { upsert: true, new: true }
             )

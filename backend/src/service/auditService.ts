@@ -446,7 +446,9 @@ export const auditService = {
         }
 
         // AI Mentions footprint check in GEO DB
-        const dbMentionsCount = await mentionModel.countDocuments({ brandId })
+        const dbMentionsCount = await mentionModel.countDocuments(
+            brand.lastScanId ? { brandId, scanId: brand.lastScanId } : { brandId }
+        )
 
         const offSiteFootprint: IAuditGridItem[] = [
             {

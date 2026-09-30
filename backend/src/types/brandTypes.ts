@@ -61,6 +61,9 @@ export interface IBrand {
     competitors: ICompetitor[]
     queries: IBrandQuery[]
     languages: string[]
+    lastScanId?: string | null
+    lastScannedAt?: Date | null
+    nextScanAt?: Date | null
     createdAt?: Date
     updatedAt?: Date
 }

@@ -82,8 +82,9 @@ export default function AdminApiKeys() {
     GEMINI: { name: 'Google Gemini', color: '#6C8EF5', desc: 'Powers Gemini 2.0 Flash & 1.5 Pro models' },
     ANTHROPIC: { name: 'Anthropic Claude', color: '#D97757', desc: 'Powers Claude 3.5 Sonnet & Opus models' },
     PERPLEXITY: { name: 'Perplexity AI', color: '#FFC857', desc: 'Powers Sonar web search-grounded models' },
-    OMNIROUTE: { name: 'OmniRoute LLM Router', color: '#A855F7', desc: 'Unified Router for dynamic multi-provider routing' },
-    OPENROUTER: { name: 'OpenRouter Gateway', color: '#6366F1', desc: 'Unified Gateway for 300+ AI models (GPT, Claude, Gemini, DeepSeek, Llama)' }
+    XAI: { name: 'xAI Grok', color: '#9CA3AF', desc: 'Powers Grok models' },
+    OMNIROUTE: { name: 'OmniRoute LLM Router', color: '#A855F7', desc: 'Disabled for scans — unified router for multi-provider routing' },
+    OPENROUTER: { name: 'OpenRouter Gateway', color: '#6366F1', desc: 'Disabled for scans — gateway for 300+ AI models' }
   };
 
   return (

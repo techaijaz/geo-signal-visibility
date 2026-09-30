@@ -91,6 +91,19 @@ const brandSchema = new mongoose.Schema<IBrand>(
         languages: {
             type: [String],
             default: ['en', 'hi-en']
+        },
+        lastScanId: {
+            type: String,
+            default: null
+        },
+        lastScannedAt: {
+            type: Date,
+            default: null
+        },
+        // null = never scheduled yet (new or legacy brand); scheduler picks brands where this is <= now
+        nextScanAt: {
+            type: Date,
+            default: null
         }
     },
     {
@@ -99,5 +112,6 @@ const brandSchema = new mongoose.Schema<IBrand>(
 )
 
 brandSchema.index({ orgId: 1, createdAt: -1 })
+brandSchema.index({ nextScanAt: 1 })
 
 export default mongoose.model<IBrand>('Brand', brandSchema)

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import api from '../utils/axios';
+import VisibilityTrendChart, { type VisibilityTrendPoint } from '../components/VisibilityTrendChart';
 
 interface ModelStat {
   name: string;
@@ -30,6 +31,7 @@ interface OverviewData {
   deltaText: string;
   models: ModelStat[];
   trendPoints: number[];
+  trend?: VisibilityTrendPoint[];
   categoryBenchmark: CategoryBenchmark;
   summaryText: string;
   totalQueriesTracked: number;
@@ -90,31 +92,11 @@ const Overview: React.FC = () => {
   const deltaText = data?.deltaText ?? 'No scan data available';
   const models = data?.models ?? [];
 
-  const trendPoints = data?.trendPoints && data.trendPoints.length > 0 ? data.trendPoints : [blendedScore];
   const userScore = data?.categoryBenchmark?.userScore ?? blendedScore;
   const categoryAvg = data?.categoryBenchmark?.categoryAverage ?? 0;
   const categoryName = data?.categoryBenchmark?.categoryName ?? `${data?.category || 'Category'} average`;
   const summaryText = data?.summaryText ?? 'No scan data available yet for this brand. Run an AI scan to track performance across models.';
   const totalQueries = data?.totalQueriesTracked ?? 0;
-
-  // Build SVG sparkline polyline dynamically based on trendPoints count
-  const countPoints = trendPoints.length;
-  let polylinePoints = '';
-  if (countPoints > 1) {
-    polylinePoints = trendPoints
-      .map((score, idx) => {
-        const y = Math.round(74 - (Math.min(100, Math.max(0, score)) / 100) * 60);
-        const x = Math.round((idx / (countPoints - 1)) * 600);
-        return `${x},${y}`;
-      })
-      .join(' ');
-  } else {
-    const y = Math.round(74 - (Math.min(100, Math.max(0, trendPoints[0] ?? blendedScore)) / 100) * 60);
-    polylinePoints = `0,${y} 600,${y}`;
-  }
-
-  const lastPointX = 600;
-  const lastPointY = Math.round(74 - (Math.min(100, Math.max(0, trendPoints[trendPoints.length - 1] ?? blendedScore)) / 100) * 60);
 
   // Delta style helper
   let deltaClass = 'score-delta';
@@ -223,14 +205,11 @@ const Overview: React.FC = () => {
         )}
       </div>
 
-      {/* Visibility Trend Sparkline */}
+      {/* Visibility Trend */}
       <div className="panel">
         <h3>Visibility trend</h3>
-        <p className="sub">Blended score across all tracked models, last 6 scans</p>
-        <svg className="sparkline" viewBox="0 0 600 80" preserveAspectRatio="none">
-          <polyline points={polylinePoints} fill="none" stroke="#FFC857" strokeWidth="2.5" />
-          <circle cx={lastPointX} cy={lastPointY} r="4" fill="#FFC857" />
-        </svg>
+        <p className="sub">Share of tracked AI answers that mention {data?.brandName || 'your brand'}, averaged across models · last {Math.max(1, data?.trend?.length ?? 0)} scans</p>
+        <VisibilityTrendChart points={data?.trend ?? []} />
       </div>
 
       {/* Category Benchmark */}

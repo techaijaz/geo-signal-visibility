@@ -161,7 +161,6 @@ export default function Login() {
           <div className="divider-row">or</div>
           <button type="button" className="btn btn-block">Continue with Google</button>
           <p className="foot-note">New here? <Link to="/signup">Create an account</Link></p>
-          <p className="free-check-link">Not ready to sign up? <Link to="/free-checker">Get your free AI visibility score →</Link></p>
         </div>
 
       </div>

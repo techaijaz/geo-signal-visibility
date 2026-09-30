@@ -18,7 +18,7 @@ import { encrypt, decrypt, maskApiKey } from '../util/encryption'
 import { IUser } from '../types/userTypes'
 import { IOrg } from '../types/orgTypes'
 import { IBrand, IUpdateBrandRequestBody } from '../types/brandTypes'
-import { IMention } from '../types/mentionTypes'
+import { IMention, IVisibilityTrendPoint } from '../types/mentionTypes'
 import { IAuditData } from '../types/auditTypes'
 import { IReport } from '../types/reportTypes'
 import { IRecommendationData } from '../types/recommendationTypes'
@@ -27,6 +27,11 @@ import aiService from './aiService'
 import { generateRecommendations } from './recommendationService'
 import logger from '../util/loger'
 
+
+// Decrypted keys are cached briefly: a scan makes hundreds of AI calls. Worker processes pick up key edits within the TTL.
+const API_KEY_CACHE_TTL_MS = 60 * 1000
+const apiKeyCache = new Map<string, { value: string; expiresAt: number }>()
+const resolveApiKey = (provider: string) => databseService.getDecryptedApiKeyUncached(provider)
 
 const databseService = {
     connect: async () => {
@@ -109,6 +114,11 @@ const databseService = {
     // Mention methods
     findMentionsByBrandId: async (brandId: string, modelFilter?: string) => {
         const query: FilterQuery<IMention> = { brandId }
+        // Legacy brands (scanned before history was kept) have no lastScanId and only one set of mentions
+        const brandScan = await brandModel.findById(brandId).select('lastScanId').lean()
+        if (brandScan?.lastScanId) {
+            query.scanId = brandScan.lastScanId
+        }
         if (modelFilter && modelFilter !== 'All models') {
             query.model = modelFilter
         }
@@ -394,7 +404,41 @@ const databseService = {
         return doc ? doc.sharedEmails : []
     },
 
-    // Overview method
+    // Visibility per scan (oldest -> newest), from the scan history kept in mentions
+    getVisibilityTrendByBrandId: async (brandId: string, limit = 12): Promise<IVisibilityTrendPoint[]> => {
+        const scans: Array<{ _id: string; scannedAt: Date; models: Array<{ name: string; total: number; mentioned: number }> }> =
+            await mentionModel.aggregate([
+                { $match: { brandId: new mongoose.Types.ObjectId(brandId), scanId: { $ne: null } } },
+                {
+                    $group: {
+                        _id: { scanId: '$scanId', model: '$model' },
+                        scannedAt: { $max: '$extractedAt' },
+                        total: { $sum: 1 },
+                        mentioned: { $sum: { $cond: ['$mentioned', 1, 0] } }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$_id.scanId',
+                        scannedAt: { $max: '$scannedAt' },
+                        models: { $push: { name: '$_id.model', total: '$total', mentioned: '$mentioned' } }
+                    }
+                },
+                { $sort: { scannedAt: -1 } },
+                { $limit: limit },
+                { $sort: { scannedAt: 1 } }
+            ])
+
+        return scans.map((scan) => {
+            const models = scan.models
+                .map((m) => ({ name: m.name, score: m.total > 0 ? Math.round((m.mentioned / m.total) * 100) : 0 }))
+                .sort((a, b) => a.name.localeCompare(b.name))
+            // Same blend as the headline score: average of per-model visibility
+            const score = models.length > 0 ? Math.round(models.reduce((acc, m) => acc + m.score, 0) / models.length) : 0
+            return { scanId: scan._id, scannedAt: scan.scannedAt, score, models }
+        })
+    },
+
     // Overview method
     getOverviewByBrandId: async (brandId: string) => {
         const brand = await brandModel.findById(brandId)
@@ -423,6 +467,8 @@ const databseService = {
             GPT: { color: 'var(--gpt)', dotBg: 'var(--gpt)' },
             Gemini: { color: 'var(--gemini)', dotBg: 'var(--gemini)' },
             DeepSeek: { color: '#0066FF', dotBg: '#0066FF' },
+            Grok: { color: '#9CA3AF', dotBg: '#9CA3AF' },
+            Perplexity: { color: '#20B8CD', dotBg: '#20B8CD' },
             'Google AI Overview': { color: '#4285F4', dotBg: '#4285F4' },
             'Meta AI': { color: '#0081FB', dotBg: '#0081FB' }
         }
@@ -476,9 +522,13 @@ const databseService = {
             ? Math.round(modelStats.reduce((acc, curr) => acc + curr.score, 0) / modelStats.length)
             : 0
 
-        // Historical trend points from real reports database
+        const trend = await databseService.getVisibilityTrendByBrandId(brandId)
+
+        // Historical trend points: scan history when available, else legacy report scores
         let trendPoints: number[] = []
-        if (reports && reports.length > 0) {
+        if (trend.length > 0) {
+            trendPoints = trend.map((t) => t.score)
+        } else if (reports && reports.length > 0) {
             // Sort reports ascending by date/createdAt
             const sortedReports = [...reports].sort((a: IReport, b: IReport) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
             trendPoints = sortedReports.map((r: IReport) => r.score)
@@ -490,7 +540,12 @@ const databseService = {
 
         let previousScore = blendedScore
         let deltaText = 'No scan data available'
-        if (reports && reports.length >= 2) {
+        if (trend.length >= 2) {
+            previousScore = trend[trend.length - 2].score
+            const deltaValue = blendedScore - previousScore
+            const deltaSymbol = deltaValue >= 0 ? '▲' : '▼'
+            deltaText = `${deltaSymbol} ${Math.abs(deltaValue)} pts since last scan (was ${previousScore})`
+        } else if (reports && reports.length >= 2) {
             const sortedReports = [...reports].sort((a: IReport, b: IReport) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
             previousScore = sortedReports[sortedReports.length - 2].score
             const deltaValue = blendedScore - previousScore
@@ -528,6 +583,7 @@ const databseService = {
             deltaText,
             models: modelStats,
             trendPoints,
+            trend,
             categoryBenchmark: {
                 userScore: blendedScore,
                 categoryAverage: categoryAvg,
@@ -739,51 +795,14 @@ const databseService = {
     },
 
     seedDefaultAiModels: async () => {
+        // One direct-API model per AI; OpenRouter/OmniRoute gateways are disabled for scans
         const defaultModels: Array<Partial<IAiModel>> = [
-            {
-                name: 'GPT-4o Mini (OpenRouter)',
-                modelId: 'openai/gpt-4o-mini',
-                provider: 'OpenRouter',
-                description: 'Fast and cost-efficient OpenAI model via OpenRouter',
-                isActive: true,
-                isDefault: true,
-                inputCostPer1k: 0.00015,
-                outputCostPer1k: 0.0006,
-                maxTokens: 4096
-            },
-            {
-                name: 'Claude 3.5 Sonnet (OpenRouter)',
-                modelId: 'anthropic/claude-3.5-sonnet',
-                provider: 'OpenRouter',
-                description: 'State of the art reasoning & writing model via OpenRouter',
-                isActive: true,
-                isDefault: false,
-                inputCostPer1k: 0.003,
-                outputCostPer1k: 0.015,
-                maxTokens: 4096
-            },
-            {
-                name: 'Gemini 1.5 Flash (OpenRouter)',
-                modelId: 'google/gemini-1.5-flash',
-                provider: 'OpenRouter',
-                description: 'Fast multimodal model via OpenRouter',
-                isActive: true,
-                isDefault: false,
-                inputCostPer1k: 0.0001,
-                outputCostPer1k: 0.0004,
-                maxTokens: 8192
-            },
-            {
-                name: 'DeepSeek Chat (OpenRouter)',
-                modelId: 'deepseek/deepseek-chat',
-                provider: 'OpenRouter',
-                description: 'High precision DeepSeek search model via OpenRouter',
-                isActive: true,
-                isDefault: false,
-                inputCostPer1k: 0.00014,
-                outputCostPer1k: 0.00028,
-                maxTokens: 4096
-            }
+            { name: 'ChatGPT (GPT-4o Mini)', modelId: 'gpt-4o-mini', provider: 'OpenAI', description: 'OpenAI ChatGPT', isActive: true, isDefault: true, inputCostPer1k: 0.00015, outputCostPer1k: 0.0006, maxTokens: 4096 },
+            { name: 'Gemini 2.0 Flash', modelId: 'gemini-2.0-flash', provider: 'Google', description: 'Google Gemini', isActive: true, isDefault: false, inputCostPer1k: 0.0001, outputCostPer1k: 0.0004, maxTokens: 8192 },
+            { name: 'Claude 3.5 Sonnet', modelId: 'claude-3-5-sonnet-20241022', provider: 'Anthropic', description: 'Anthropic Claude', isActive: true, isDefault: false, inputCostPer1k: 0.003, outputCostPer1k: 0.015, maxTokens: 4096 },
+            { name: 'Grok 3 Mini', modelId: 'grok-3-mini', provider: 'xAI', description: 'xAI Grok', isActive: true, isDefault: false, inputCostPer1k: 0.0003, outputCostPer1k: 0.0005, maxTokens: 4096 },
+            { name: 'DeepSeek v4 Flash', modelId: 'deepseek-v4-flash', provider: 'DeepSeek', description: 'DeepSeek', isActive: true, isDefault: false, inputCostPer1k: 0.00014, outputCostPer1k: 0.00028, maxTokens: 4096 },
+            { name: 'Perplexity Sonar', modelId: 'sonar', provider: 'Perplexity', description: 'Perplexity web-search grounded answers', isActive: true, isDefault: false, inputCostPer1k: 0.001, outputCostPer1k: 0.001, maxTokens: 4096 }
         ]
         return aiModel.insertMany(defaultModels)
     },
@@ -830,6 +849,7 @@ const databseService = {
         const { encryptedData, iv } = encrypt(rawKey)
         const maskedKey = maskApiKey(rawKey)
 
+        apiKeyCache.clear()
         const updatedDoc = await apiKeyModel.findOneAndUpdate(
             { provider: uppercaseProvider },
             {
@@ -845,6 +865,15 @@ const databseService = {
 
     getDecryptedApiKey: async (provider: string): Promise<string> => {
         const uppercaseProvider = provider.toUpperCase().trim()
+        const cached = apiKeyCache.get(uppercaseProvider)
+        if (cached && cached.expiresAt > Date.now()) return cached.value
+        const value = await resolveApiKey(uppercaseProvider)
+        apiKeyCache.set(uppercaseProvider, { value, expiresAt: Date.now() + API_KEY_CACHE_TTL_MS })
+        return value
+    },
+
+    getDecryptedApiKeyUncached: async (provider: string): Promise<string> => {
+        const uppercaseProvider = provider.toUpperCase().trim()
         const record = await apiKeyModel.findOne({ provider: uppercaseProvider })
         if (record && record.encryptedKey && record.iv) {
             const decrypted = decrypt(record.encryptedKey, record.iv)
@@ -857,6 +886,8 @@ const databseService = {
             DEEPSEEK: config.AI_KEYS.DEEPSEEK,
             GEMINI: config.AI_KEYS.GEMINI,
             ANTHROPIC: config.AI_KEYS.ANTHROPIC,
+            PERPLEXITY: config.AI_KEYS.PERPLEXITY,
+            XAI: config.AI_KEYS.XAI,
             OMNIROUTE: config.AI_KEYS.OMNIROUTE,
             OPENROUTER: config.AI_KEYS.OPENROUTER
         }
@@ -864,7 +895,7 @@ const databseService = {
     },
 
     getAllApiKeysStatus: async () => {
-        const providers = ['OPENAI', 'DEEPSEEK', 'GEMINI', 'ANTHROPIC', 'PERPLEXITY', 'OMNIROUTE', 'OPENROUTER']
+        const providers = ['OPENAI', 'DEEPSEEK', 'GEMINI', 'ANTHROPIC', 'PERPLEXITY', 'XAI', 'OMNIROUTE', 'OPENROUTER']
         const dbRecords = await apiKeyModel.find().lean()
 
         const statusList = providers.map((prov) => {
@@ -873,6 +904,8 @@ const databseService = {
                 : prov === 'DEEPSEEK' ? config.AI_KEYS.DEEPSEEK
                 : prov === 'GEMINI' ? config.AI_KEYS.GEMINI
                 : prov === 'ANTHROPIC' ? config.AI_KEYS.ANTHROPIC
+                : prov === 'PERPLEXITY' ? config.AI_KEYS.PERPLEXITY
+                : prov === 'XAI' ? config.AI_KEYS.XAI
                 : prov === 'OMNIROUTE' ? config.AI_KEYS.OMNIROUTE
                 : prov === 'OPENROUTER' ? config.AI_KEYS.OPENROUTER
                 : ''
@@ -895,6 +928,7 @@ const databseService = {
 
     deleteApiKeyByProvider: async (provider: string) => {
         const uppercaseProvider = provider.toUpperCase().trim()
+        apiKeyCache.clear()
         return apiKeyModel.findOneAndDelete({ provider: uppercaseProvider })
     },
 

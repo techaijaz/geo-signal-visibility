@@ -46,6 +46,8 @@ export default {
         OPENAI: process.env.OPENAI_API_KEY || '',
         GEMINI: process.env.GEMINI_API_KEY || '',
         ANTHROPIC: process.env.ANTHROPIC_API_KEY || '',
+        PERPLEXITY: process.env.PERPLEXITY_API_KEY || '',
+        XAI: process.env.XAI_API_KEY || '',
         OMNIROUTE: process.env.OMNIROUTE_API_KEY || '',
         OPENROUTER: process.env.OPENROUTER_API_KEY || ''
     },
@@ -56,9 +58,32 @@ export default {
         GEMINI: process.env.GEMINI_MODEL_NAME || 'gemini-1.5-flash',   // 'gemini-1.5-flash' or 'gemini-1.5-pro'
         CLAUDE: process.env.CLAUDE_MODEL_NAME || 'claude-3-5-sonnet-20241022', // 'claude-3-5-sonnet-20241022' or 'claude-3-opus-20240229'
         OPENAI: process.env.OPENAI_MODEL_NAME || 'gpt-4o-mini',        // 'gpt-4o-mini' or 'gpt-4o'
+        PERPLEXITY: process.env.PERPLEXITY_MODEL_NAME || 'sonar',
+        GROK: process.env.GROK_MODEL_NAME || 'grok-3-mini',
         OMNIROUTE: process.env.OMNIROUTE_MODEL_NAME || 'omniroute-auto'
     },
     OMNIROUTE_BASE_URL: process.env.OMNIROUTE_BASE_URL || 'https://api.omniroute.ai/v1/chat/completions',
+    // Providers skipped by scans even if a model is marked active (comma-separated aiModel.provider values)
+    DISABLED_AI_PROVIDERS: (process.env.DISABLED_AI_PROVIDERS ?? 'OpenRouter,OmniRoute')
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean),
+
+    // AI call throttling, retries and response caching
+    AI_LIMITS: {
+        TIMEOUT_MS: Number(process.env.AI_TIMEOUT_MS) || 45000,
+        RETRIES: Number(process.env.AI_RETRIES ?? 2),
+        PROVIDER_CONCURRENCY: Number(process.env.AI_PROVIDER_CONCURRENCY) || 8,
+        // Keep below the shortest plan scan interval (12h) so a rescan never reuses its own previous answers
+        CACHE_TTL_HOURS: Number(process.env.AI_CACHE_TTL_HOURS ?? 6)
+    },
+
+    // BullMQ worker concurrency (jobs processed in parallel per worker process)
+    WORKER_CONCURRENCY: {
+        SCAN: Number(process.env.SCAN_WORKER_CONCURRENCY) || 5,
+        AUDIT: Number(process.env.AUDIT_WORKER_CONCURRENCY) || 5,
+        RECOMMENDATION: Number(process.env.RECOMMENDATION_WORKER_CONCURRENCY) || 3
+    },
 
     // Payment Gateway Keys
     PAYMENT: {

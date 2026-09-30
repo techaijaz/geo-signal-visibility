@@ -33,7 +33,7 @@ const DEFAULT_PLANS: Plan[] = [
     name: 'Starter',
     price: '₹1,499',
     billingPeriod: ' /mo',
-    description: 'For solo founders and small D2C teams.',
+    description: 'For solo founders running a Shopify or D2C store.',
     features: [
       '1 brand workspace',
       '15 tracked queries',
@@ -50,7 +50,7 @@ const DEFAULT_PLANS: Plan[] = [
     name: 'Growth',
     price: '₹5,999',
     billingPeriod: ' /mo',
-    description: 'For funded startups and growing D2C brands.',
+    description: 'For funded, growing Shopify & D2C brands.',
     features: [
       '1 brand workspace',
       '50 tracked queries',

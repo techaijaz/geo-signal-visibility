@@ -1,56 +1,70 @@
 // backend/src/service/schedulerService.ts
-import cron from 'node-cron'
-import { PlanName } from '../config/planLimits'
+import { getNextScanAt } from '../config/planLimits'
 import orgModel from '../model/orgModel'
 import brandModel from '../model/brandModel'
 import mentionModel from '../model/mentionModel'
 import databseService from './databseService'
-import { enqueueScanJob } from './queueService'
+import { enqueueScanJob, schedulerQueue } from './queueService'
+import logger from '../util/loger'
 
-const SCHEDULES: Record<PlanName, string> = {
-  free: '0 0 * * 1',        // Weekly Monday
-  starter: '0 0 * * 1',     // Weekly Monday
-  growth: '0 0 * * *',      // Daily
-  agency: '0 0,12 * * *'    // Twice daily
-}
+const TICK_INTERVAL_MS = 5 * 60 * 1000
+// If an enqueued scan never completes, the brand becomes due again after this lease
+const SCAN_LEASE_MS = 60 * 60 * 1000
 
-const isDue = (lastScanDate: Date | null, cronSchedule: string): boolean => {
-  if (!lastScanDate) return true
-  const now = Date.now()
-  const diffHours = (now - new Date(lastScanDate).getTime()) / (1000 * 60 * 60)
-  if (cronSchedule.includes('0 0,12')) return diffHours >= 12
-  if (cronSchedule.includes('0 0 * * *')) return diffHours >= 24
-  return diffHours >= 168 // 7 days
-}
+// One-time backfill for brands created before nextScanAt existed: derive it from their latest mention
+const backfillUnscheduledBrands = async () => {
+  const brands = await brandModel.find({ nextScanAt: null }).select('_id orgId').lean()
+  if (brands.length === 0) return
 
-export const startScheduler = () => {
-  cron.schedule('*/5 * * * *', async () => {
-    try {
-      const orgs = await orgModel.find({
-        plan: { $in: ['free', 'starter', 'growth', 'agency'] }
-      })
+  const orgs = await orgModel.find({ _id: { $in: brands.map((b) => b.orgId) } }).select('plan').lean()
+  const planByOrg = new Map(orgs.map((o) => [o._id.toString(), o.plan]))
 
-      for (const org of orgs) {
-        const brands = await brandModel.find({ orgId: org._id })
-        for (const brand of brands) {
-          const planKey = (org.plan || 'starter') as PlanName
-          const lastMention = await mentionModel.findOne({ brandId: brand._id }).sort({ extractedAt: -1 })
-
-          if (isDue(lastMention?.extractedAt ? new Date(lastMention.extractedAt) : null, SCHEDULES[planKey])) {
-            const brandIdStr = brand._id.toString()
-            const job = await enqueueScanJob(brandIdStr)
-            if (!job) {
-              // Fallback to inline scan if queue service / Redis is unreachable
-              console.warn(`[Scheduler] Queue unavailable, running inline scan for brand ${brandIdStr}`)
-              await databseService.rescanBrandMentions(brandIdStr)
-            } else {
-              console.log(`[Scheduler] Enqueued scheduled scan for brand ${brandIdStr}`)
-            }
-          }
+  for (const brand of brands) {
+    const lastMention = await mentionModel.findOne({ brandId: brand._id }).sort({ extractedAt: -1 }).select('extractedAt').lean()
+    const lastScannedAt = lastMention?.extractedAt ? new Date(lastMention.extractedAt) : null
+    await brandModel.updateOne(
+      { _id: brand._id },
+      {
+        $set: {
+          lastScannedAt,
+          nextScanAt: lastScannedAt ? getNextScanAt(planByOrg.get(brand.orgId.toString()), lastScannedAt) : new Date()
         }
       }
-    } catch (err) {
-      console.error('Error in scheduler cron job:', err)
+    )
+  }
+  logger.info(`[Scheduler] Backfilled nextScanAt for ${brands.length} brand(s)`)
+}
+
+export const runSchedulerTick = async () => {
+  await backfillUnscheduledBrands()
+
+  const now = new Date()
+  const dueBrands = await brandModel.find({ nextScanAt: { $lte: now } }).select('_id').lean()
+
+  let enqueued = 0
+  for (const brand of dueBrands) {
+    const brandIdStr = brand._id.toString()
+    // Push nextScanAt out as a lease; the scan itself sets the real next time when it finishes
+    await brandModel.updateOne({ _id: brand._id }, { $set: { nextScanAt: new Date(now.getTime() + SCAN_LEASE_MS) } })
+
+    const job = await enqueueScanJob(brandIdStr)
+    if (!job) {
+      // Fallback to inline scan if queue service / Redis is unreachable
+      logger.warn(`[Scheduler] Queue unavailable, running inline scan for brand ${brandIdStr}`)
+      await databseService.rescanBrandMentions(brandIdStr)
+    } else {
+      enqueued++
     }
-  })
+  }
+  logger.info(`[Scheduler] Tick complete, ${enqueued} scan(s) enqueued`)
+  return { enqueued }
+}
+
+// Idempotent: every worker instance upserts the same scheduler id, so Redis holds exactly one
+export const startScheduler = async () => {
+  await schedulerQueue.upsertJobScheduler(
+    'scan-scheduler-tick',
+    { every: TICK_INTERVAL_MS },
+    { name: 'scheduler-tick' }
+  )
 }

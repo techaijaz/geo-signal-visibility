@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose'
 
 export interface IApiKey extends Document {
-    provider: string // 'OpenAI' | 'DeepSeek' | 'Google' | 'Anthropic' | 'Perplexity' | 'OmniRoute'
+    provider: string // 'OpenAI' | 'DeepSeek' | 'Google' | 'Anthropic' | 'Perplexity' | 'xAI' | 'OmniRoute'
     encryptedKey: string
     iv: string
     maskedKey: string

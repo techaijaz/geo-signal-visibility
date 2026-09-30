@@ -9,6 +9,11 @@ const mentionSchema = new mongoose.Schema<IMention>(
             required: true,
             index: true
         },
+        // Groups all mentions produced by one scan run; brand.lastScanId points to the latest
+        scanId: {
+            type: String,
+            default: null
+        },
         queryText: {
             type: String,
             required: true,
@@ -47,5 +52,6 @@ const mentionSchema = new mongoose.Schema<IMention>(
 
 mentionSchema.index({ brandId: 1, extractedAt: -1 })
 mentionSchema.index({ brandId: 1, model: 1 })
+mentionSchema.index({ brandId: 1, scanId: 1 })
 
 export default mongoose.model<IMention>('Mention', mentionSchema)

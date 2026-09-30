@@ -1,7 +1,7 @@
 // backend/src/worker.ts
 import databseService from './service/databseService'
 import logger from './util/loger'
-import { scanWorker, auditWorker, recommendationWorker } from './service/queueService'
+import { startWorkers } from './service/workerService'
 import { startScheduler } from './service/schedulerService'
 
 ;(async () => {
@@ -11,12 +11,11 @@ import { startScheduler } from './service/schedulerService'
             meta: { CONNECTION_NAME: connection.name }
         })
 
-        // Initialize Cron Scheduler
-        startScheduler()
-        logger.info('CRON SCHEDULER STARTED')
+        const activeWorkers = startWorkers()
 
-        // Touch worker instances to ensure execution
-        const activeWorkers = [scanWorker, auditWorker, recommendationWorker]
+        // Register the repeating scheduler tick in Redis (safe to call from every worker instance)
+        await startScheduler()
+        logger.info('SCAN SCHEDULER REGISTERED')
 
         logger.info('BULLMQ WORKERS ACTIVE AND READY FOR JOBS', {
             meta: {

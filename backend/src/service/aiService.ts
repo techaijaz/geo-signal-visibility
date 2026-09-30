@@ -1,5 +1,11 @@
 import config from '../config/config'
+import { createHash } from 'crypto'
+import { aiFetch } from '../util/aiHttp'
+import aiResponseCacheModel from '../model/aiResponseCacheModel'
+import { randomUUID } from 'crypto'
 import brandModel from '../model/brandModel'
+import orgModel from '../model/orgModel'
+import { getNextScanAt, getPlanLimits, type PlanName } from '../config/planLimits'
 import mentionModel from '../model/mentionModel'
 import { IMention } from '../types/mentionTypes'
 import logger from '../util/loger'
@@ -49,7 +55,7 @@ const aiService = {
         if (!apiKey) return null
         const targetModel = modelOverride || config.AI_MODELS.DEEPSEEK || 'deepseek-v4-flash'
         try {
-            const response = await fetch('https://api.deepseek.com/chat/completions', {
+            const response = await aiFetch('DEEPSEEK', 'https://api.deepseek.com/chat/completions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -88,7 +94,7 @@ const aiService = {
         if (!apiKey) return null
         const modelName = config.AI_MODELS.OPENAI || 'gpt-4o-mini'
         try {
-            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            const response = await aiFetch('OPENAI', 'https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -134,7 +140,7 @@ const aiService = {
 
         try {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`
-            const response = await fetch(url, {
+            const response = await aiFetch('GEMINI', url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -145,7 +151,7 @@ const aiService = {
                 // If model slug fails, fallback to standard gemini-1.5-flash
                 if (modelName !== 'gemini-1.5-flash') {
                     const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`
-                    const fallbackRes = await fetch(fallbackUrl, {
+                    const fallbackRes = await aiFetch('GEMINI', fallbackUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -175,7 +181,7 @@ const aiService = {
         if (!apiKey) return null
         const modelName = config.AI_MODELS.CLAUDE || 'claude-3-5-sonnet-20241022'
         try {
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
+            const response = await aiFetch('ANTHROPIC', 'https://api.anthropic.com/v1/messages', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -224,7 +230,7 @@ const aiService = {
         if (!apiKey) return null
         const targetModel = modelOverride || config.AI_MODELS.OMNIROUTE || 'omniroute-auto'
         try {
-            const response = await fetch(config.OMNIROUTE_BASE_URL, {
+            const response = await aiFetch('OMNIROUTE', config.OMNIROUTE_BASE_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -249,13 +255,77 @@ const aiService = {
     },
 
     /**
+     * Call Perplexity API (OpenAI compatible, web-search grounded Sonar models)
+     */
+    callPerplexity: async (prompt: string, modelOverride?: string): Promise<string | null> => {
+        const apiKey = await databseService.getDecryptedApiKey('PERPLEXITY')
+        if (!apiKey) return null
+        const targetModel = modelOverride || config.AI_MODELS.PERPLEXITY || 'sonar'
+        try {
+            const response = await aiFetch('PERPLEXITY', 'https://api.perplexity.ai/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: targetModel,
+                    messages: [
+                        { role: 'system', content: 'You are an AI search engine assistant providing authoritative recommendations for brands, products, software, and services.' },
+                        { role: 'user', content: prompt }
+                    ],
+                    max_tokens: 400
+                })
+            })
+            if (!response.ok) return null
+            const data = (await response.json()) as IOpenAiChatResponse
+            return data.choices?.[0]?.message?.content || null
+        } catch (error) {
+            logger.error('Perplexity API Error:', { meta: error })
+            return null
+        }
+    },
+
+    /**
+     * Call xAI Grok API (OpenAI compatible endpoint)
+     */
+    callGrok: async (prompt: string, modelOverride?: string): Promise<string | null> => {
+        const apiKey = await databseService.getDecryptedApiKey('XAI')
+        if (!apiKey) return null
+        const targetModel = modelOverride || config.AI_MODELS.GROK || 'grok-3-mini'
+        try {
+            const response = await aiFetch('XAI', 'https://api.x.ai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: targetModel,
+                    messages: [
+                        { role: 'system', content: 'You are an AI search engine assistant providing authoritative recommendations for brands, products, software, and services.' },
+                        { role: 'user', content: prompt }
+                    ],
+                    max_tokens: 400
+                })
+            })
+            if (!response.ok) return null
+            const data = (await response.json()) as IOpenAiChatResponse
+            return data.choices?.[0]?.message?.content || null
+        } catch (error) {
+            logger.error('Grok API Error:', { meta: error })
+            return null
+        }
+    },
+
+    /**
      * Call OpenRouter API
      */
     callOpenRouter: async (prompt: string, modelName: string): Promise<string | null> => {
         const apiKey = await databseService.getDecryptedApiKey('OPENROUTER')
         if (!apiKey) return null
         try {
-            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            const response = await aiFetch('OPENROUTER', 'https://openrouter.ai/api/v1/chat/completions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -279,6 +349,49 @@ const aiService = {
             logger.error('OpenRouter API Error:', { meta: error })
             return null
         }
+    },
+
+    /**
+     * Route a query to the configured provider for a tracked model
+     */
+    callModel: async (provider: string, modelId: string, queryText: string): Promise<string | null> => {
+        if (config.DISABLED_AI_PROVIDERS.includes(provider)) return null
+        if (provider === 'OpenRouter') return aiService.callOpenRouter(queryText, modelId)
+        if (provider === 'Google') return aiService.callGemini(queryText, modelId)
+        if (provider === 'Anthropic') return aiService.callClaude(queryText)
+        if (provider === 'DeepSeek') return aiService.callDeepSeek(queryText, modelId)
+        if (provider === 'Perplexity') return aiService.callPerplexity(queryText, modelId)
+        if (provider === 'xAI') return aiService.callGrok(queryText, modelId)
+        if (provider === 'OmniRoute') return aiService.callOmniRoute(queryText, modelId)
+        // OpenAI, and fallback for unknown providers
+        return aiService.callOpenAI(queryText)
+    },
+
+    /**
+     * callModel with a shared response cache: the same question to the same model within the TTL
+     * is answered once, whichever brand asks it
+     */
+    callModelCached: async (provider: string, modelId: string, queryText: string): Promise<string | null> => {
+        const ttlHours = config.AI_LIMITS.CACHE_TTL_HOURS
+        if (ttlHours <= 0) return aiService.callModel(provider, modelId, queryText)
+
+        const normalized = queryText.trim().toLowerCase().replace(/\s+/g, ' ')
+        const key = createHash('sha256').update(`${provider}|${modelId}|${normalized}`).digest('hex')
+
+        const hit = await aiResponseCacheModel.findOne({ key, expiresAt: { $gt: new Date() } }).lean()
+        if (hit) return hit.response
+
+        const response = await aiService.callModel(provider, modelId, queryText)
+        if (response) {
+            await aiResponseCacheModel
+                .updateOne(
+                    { key },
+                    { $set: { provider, modelId, queryText: normalized, response, expiresAt: new Date(Date.now() + ttlHours * 60 * 60 * 1000) } },
+                    { upsert: true }
+                )
+                .catch((err) => logger.warn('[aiService] Failed to write AI response cache', { meta: err }))
+        }
+        return response
     },
 
     /**
@@ -382,70 +495,72 @@ const aiService = {
             ? brand.queries.map(q => q.text)
             : defaultQueries
 
+        const org = await orgModel.findById(brand.orgId).select('plan')
+        const planLimits = getPlanLimits((org?.plan || 'starter') as PlanName)
+        const allowedProviders: readonly string[] = planLimits?.allowedProviders ?? []
+
         const aiModel = (await import('../model/aiModel')).default
-        const activeModels = await aiModel.find({ isActive: true })
-        const modelsToRun = activeModels.length > 0 ? activeModels : [
-            { name: 'GPT-4o Mini', modelId: 'openai/gpt-4o-mini', provider: 'OpenRouter' },
-            { name: 'Gemini 1.5 Flash', modelId: 'google/gemini-1.5-flash', provider: 'OpenRouter' }
-        ]
+        const activeModels = await aiModel.find({ isActive: true }).sort({ isDefault: -1, name: 1 })
+        // One model per provider, restricted to the plan's providers and never a disabled gateway
+        const seenProviders = new Set<string>()
+        const modelsToRun = activeModels.filter((m) => {
+            if (!allowedProviders.includes(m.provider) || config.DISABLED_AI_PROVIDERS.includes(m.provider)) return false
+            if (seenProviders.has(m.provider)) return false
+            seenProviders.add(m.provider)
+            return true
+        })
+        if (modelsToRun.length === 0) {
+            logger.error(`[aiService] Scan for brand ${brandId}: no active AI model allowed for plan ${org?.plan || 'starter'}`)
+            return []
+        }
 
-        const results: IAiScanResult[] = []
+        // Every query x model pair runs concurrently; aiFetch caps in-flight calls per provider
+        const pairs = queries.flatMap((queryText) => modelsToRun.map((model) => ({ queryText, model })))
+        const answers = await Promise.all(
+            pairs.map(async ({ queryText, model }) => ({
+                queryText,
+                model,
+                rawText: await aiService.callModelCached(model.provider, model.modelId, queryText)
+            }))
+        )
 
-        for (let idx = 0; idx < queries.length; idx++) {
-            const queryText = queries[idx]
-            
-            // Process all active models in parallel for this query
-            const promises = modelsToRun.map(async (model) => {
-                let rawText: string | null = null
-
-                if (model.provider === 'OpenRouter') {
-                    rawText = await aiService.callOpenRouter(queryText, model.modelId)
-                } else if (model.provider === 'OpenAI') {
-                    rawText = await aiService.callOpenAI(queryText)
-                } else if (model.provider === 'Google') {
-                    rawText = await aiService.callGemini(queryText, model.modelId)
-                } else if (model.provider === 'Anthropic') {
-                    rawText = await aiService.callClaude(queryText)
-                } else if (model.provider === 'DeepSeek') {
-                    rawText = await aiService.callDeepSeek(queryText, model.modelId)
-                } else if (model.provider === 'OmniRoute') {
-                    rawText = await aiService.callOmniRoute(queryText, model.modelId)
-                } else {
-                    // Fallback to OpenAI if provider unknown
-                    rawText = await aiService.callOpenAI(queryText)
-                }
-
-                if (rawText) {
-                    const parsed = aiService.parseMentionFromText(rawText, brandName)
-                    results.push({
-                        brandId,
-                        queryText,
-                        model: model.name,
-                        mentioned: parsed.mentioned,
-                        position: parsed.position,
-                        sentiment: parsed.sentiment,
-                        rawResponse: rawText,
-                        extractedAt: new Date()
-                    })
-                } else {
-                    results.push({
-                        brandId,
-                        queryText,
-                        model: model.name,
-                        mentioned: false,
-                        position: null,
-                        sentiment: 'Neutral',
-                        rawResponse: 'Live API key not configured or response unavailable',
-                        extractedAt: new Date()
-                    })
+        // Failed calls are dropped, not recorded as "not mentioned", so outages don't fake a visibility drop
+        const results: IAiScanResult[] = answers
+            .filter((a): a is typeof a & { rawText: string } => !!a.rawText)
+            .map(({ queryText, model, rawText }) => {
+                const parsed = aiService.parseMentionFromText(rawText, brandName)
+                return {
+                    brandId,
+                    queryText,
+                    model: model.name,
+                    mentioned: parsed.mentioned,
+                    position: parsed.position,
+                    sentiment: parsed.sentiment,
+                    rawResponse: rawText,
+                    extractedAt: new Date()
                 }
             })
 
-            await Promise.all(promises)
+        const failed = answers.length - results.length
+        if (failed > 0) {
+            logger.warn(`[aiService] Scan for brand ${brandId}: ${failed}/${answers.length} AI calls failed and were skipped`)
+        }
+        if (results.length === 0) {
+            // Keep the previous scan as the latest; the scheduler lease retries this brand later
+            logger.error(`[aiService] Scan for brand ${brandId} produced no answers (check API keys / provider status)`)
+            return []
         }
 
-        await mentionModel.deleteMany({ brandId })
-        return mentionModel.insertMany(results)
+        // Keep previous scans as history; readers use brand.lastScanId to get the latest set
+        const scanId = randomUUID()
+        const inserted = await mentionModel.insertMany(results.map((r) => ({ ...r, scanId })))
+
+        const scannedAt = new Date()
+        await brandModel.updateOne(
+            { _id: brandId },
+            { $set: { lastScanId: scanId, lastScannedAt: scannedAt, nextScanAt: getNextScanAt(org?.plan, scannedAt) } }
+        )
+        return inserted
     }
 }
 

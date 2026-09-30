@@ -70,8 +70,8 @@ export default function Signup() {
           <span>Signal</span>
         </Link>
         <div className="login-copy">
-          <h1>Control your brand's AI narrative.</h1>
-          <p>Join Signal to track, audit, and improve your visibility across all major AI models before your competitors do.</p>
+          <h1>Get your Shopify store recommended by AI.</h1>
+          <p>Join Signal to track, audit, and improve how ChatGPT, Claude, and Gemini recommend your D2C store — before your competitors get there first.</p>
           <div className="scanner">
             <div className="scanner-row">
               <span className="scanner-label">Live scan</span>
@@ -187,7 +187,6 @@ export default function Signup() {
               <div className="divider-row">or</div>
               <button type="button" className="btn btn-block">Continue with Google</button>
               <p className="foot-note">Already have an account? <Link to="/login">Log in</Link></p>
-              <p className="free-check-link" style={{ textAlign: 'center', marginTop: '0.75rem', fontSize: '0.85rem', color: '#94a3b8' }}>Want a quick test first? <Link to="/free-checker" style={{ color: '#818cf8', fontWeight: 600 }}>Get your free AI visibility score →</Link></p>
             </div>
 
           )}

@@ -5,6 +5,16 @@ import { useAuth } from '../context/AuthContext';
 import { usePlanLimits } from '../hooks/usePlanLimits';
 import { generateCategoryQueries } from '../utils/categoryQueryGenerator';
 
+// Names must match planLimits.allowedModels on the backend
+const TRACKED_AI_MODELS = [
+  { name: 'ChatGPT', color: 'var(--gpt)' },
+  { name: 'Gemini', color: 'var(--gemini)' },
+  { name: 'Claude', color: 'var(--claude)' },
+  { name: 'Grok', color: '#9CA3AF' },
+  { name: 'DeepSeek', color: '#0066FF' },
+  { name: 'Perplexity', color: '#20B8CD' }
+];
+
 const FALLBACK_CATEGORIES = [
   'SaaS & Software',
   'E-Commerce & Retail',
@@ -1052,41 +1062,20 @@ export default function Settings() {
           {/* MODELS & PLATFORMS TRACKED PANEL */}
           <div className="panel">
             <h3>Models & platforms tracked</h3>
-            <p className="sub">Turn providers on or off for this brand</p>
+            <p className="sub">AI engines scanned for this brand on your plan</p>
             <div className="audit-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div className="audit-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--ink-2)', border: '1px solid var(--line-soft)', borderRadius: '8px' }}>
-                <span className="name">
-                  <span className="model-dot" style={{ background: 'var(--claude)', display: 'inline-block', marginRight: '8px', width: '7px', height: '7px', borderRadius: '50%' }}></span>
-                  Claude
-                </span>
-                <span className="badge badge-ok">On</span>
-              </div>
-              <div className="audit-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--ink-2)', border: '1px solid var(--line-soft)', borderRadius: '8px' }}>
-                <span className="name">
-                  <span className="model-dot" style={{ background: 'var(--gpt)', display: 'inline-block', marginRight: '8px', width: '7px', height: '7px', borderRadius: '50%' }}></span>
-                  GPT
-                </span>
-                <span className="badge badge-ok">On</span>
-              </div>
-              <div className="audit-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--ink-2)', border: '1px solid var(--line-soft)', borderRadius: '8px' }}>
-                <span className="name">
-                  <span className="model-dot" style={{ background: 'var(--gemini)', display: 'inline-block', marginRight: '8px', width: '7px', height: '7px', borderRadius: '50%' }}></span>
-                  Gemini
-                </span>
-                <span className="badge badge-ok">On</span>
-              </div>
-              <div className="audit-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--ink-2)', border: '1px solid var(--line-soft)', borderRadius: '8px' }}>
-                <span className="name">Google AI Overview</span>
-                <span className="badge badge-ok">On</span>
-              </div>
-              <div className="audit-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--ink-2)', border: '1px solid var(--line-soft)', borderRadius: '8px' }}>
-                <span className="name">Meta AI (WhatsApp/Instagram)</span>
-                <span className="badge badge-warn">Upgrade to enable</span>
-              </div>
-              <div className="audit-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--ink-2)', border: '1px solid var(--line-soft)', borderRadius: '8px' }}>
-                <span className="name">Perplexity</span>
-                <span className="badge badge-warn">Upgrade to enable</span>
-              </div>
+              {TRACKED_AI_MODELS.map((m) => {
+                const enabled = limits?.allowedModels?.includes(m.name) ?? false;
+                return (
+                  <div key={m.name} className="audit-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--ink-2)', border: '1px solid var(--line-soft)', borderRadius: '8px' }}>
+                    <span className="name">
+                      <span className="model-dot" style={{ background: m.color, display: 'inline-block', marginRight: '8px', width: '7px', height: '7px', borderRadius: '50%' }}></span>
+                      {m.name}
+                    </span>
+                    {enabled ? <span className="badge badge-ok">On</span> : <span className="badge badge-warn">Upgrade to enable</span>}
+                  </div>
+                );
+              })}
             </div>
           </div>
 

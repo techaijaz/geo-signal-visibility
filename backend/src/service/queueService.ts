@@ -1,10 +1,8 @@
 // backend/src/service/queueService.ts
-import { Queue, Worker, Job } from 'bullmq'
-import aiService from './aiService'
-import { auditService } from './auditService'
+import { Queue, Job } from 'bullmq'
 import logger from '../util/loger'
 
-const connection = {
+export const connection = {
   host: process.env.REDIS_HOST || 'localhost',
   port: Number(process.env.REDIS_PORT) || 6379,
   maxRetriesPerRequest: null,
@@ -27,6 +25,7 @@ const defaultJobOptions = {
 export const scanQueue = new Queue('ai-scan', { connection, defaultJobOptions })
 export const auditQueue = new Queue('brand-audit', { connection, defaultJobOptions })
 export const recommendationQueue = new Queue('ai-recommendation', { connection, defaultJobOptions })
+export const schedulerQueue = new Queue('scan-scheduler', { connection, defaultJobOptions: { removeOnComplete: 100, removeOnFail: 100 } })
 
 // 2. Define Interfaces
 export interface ScanJobData {
@@ -72,7 +71,9 @@ export const enqueueScanJob = async (brandId: string): Promise<Job<ScanJobData> 
         brandId,
         triggeredAt: new Date().toISOString()
       }, {
-        jobId: `scan-${brandId}-${Date.now()}`
+        jobId: `scan-${brandId}-${Date.now()}`,
+        // Skip if a scan for this brand is already waiting/running (avoids double AI spend)
+        deduplication: { id: `scan-${brandId}` }
       }),
       1500
     )
@@ -164,62 +165,11 @@ export const getJobStatus = async (queueName: string, jobId: string) => {
   }
 }
 
-// 4. Define Workers
-export const scanWorker = new Worker<ScanJobData>(
-  'ai-scan',
-  async (job: Job<ScanJobData>) => {
-    const { brandId } = job.data
-    logger.info(`[BullMQ Worker] Starting AI scan job for brand: ${brandId}`)
-    const mentions = await aiService.scanMentionsWithAi(brandId)
-    logger.info(`[BullMQ Worker] Completed AI scan job for brand: ${brandId} (${mentions.length} mentions processed)`)
-    return { brandId, count: mentions.length }
-  },
-  { connection }
-)
-
-export const auditWorker = new Worker<AuditJobData>(
-  'brand-audit',
-  async (job: Job<AuditJobData>) => {
-    const { brandId } = job.data
-    logger.info(`[BullMQ Worker] Starting Audit job for brand: ${brandId}`)
-    const audit = await auditService.runRealAudit(brandId)
-    logger.info(`[BullMQ Worker] Completed Audit job for brand: ${brandId} (Health Score: ${audit.healthScore})`)
-    return { brandId, healthScore: audit.healthScore }
-  },
-  { connection }
-)
-
-export const recommendationWorker = new Worker<RecommendationJobData>(
-  'ai-recommendation',
-  async (job: Job<RecommendationJobData>) => {
-    const { brandId } = job.data
-    logger.info(`[BullMQ Worker] Starting Recommendation job for brand: ${brandId}`)
-    const databseService = (await import('./databseService')).default
-    const recs = await databseService.rescanBrandRecommendations(brandId)
-    logger.info(`[BullMQ Worker] Completed Recommendation job for brand: ${brandId} (${recs.length} recommendations generated)`)
-    return { brandId, count: recs.length }
-  },
-  { connection }
-)
-
-// Attach worker error listeners to avoid unhandled crashes when Redis is disconnected
-const attachWorkerErrorHandlers = (worker: Worker, name: string) => {
-  worker.on('failed', (job, err) => {
-    logger.error(`[BullMQ Worker Failure] ${name} Job ${job?.id} failed: ${err.message}`)
-  })
-  worker.on('error', (err) => {
-    logger.warn(`[BullMQ Worker Connection Warning] ${name} Redis issue: ${err.message}`)
-  })
-}
-
-attachWorkerErrorHandlers(scanWorker, 'ai-scan')
-attachWorkerErrorHandlers(auditWorker, 'brand-audit')
-attachWorkerErrorHandlers(recommendationWorker, 'ai-recommendation')
-
 export default {
   scanQueue,
   auditQueue,
   recommendationQueue,
+  schedulerQueue,
   enqueueScanJob,
   enqueueAuditJob,
   enqueueRecommendationJob,

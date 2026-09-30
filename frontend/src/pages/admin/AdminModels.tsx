@@ -132,6 +132,7 @@ export default function AdminModels() {
     Google: '#6C8EF5',
     Anthropic: '#D97757',
     Perplexity: '#FFC857',
+    xAI: '#9CA3AF',
     OmniRoute: '#A855F7',
     Other: '#94A3B8'
   };
@@ -143,7 +144,7 @@ export default function AdminModels() {
         <div>
           <h1 style={{ fontSize: '28px', margin: 0, fontWeight: 700 }}>AI Models Manager</h1>
           <p style={{ color: 'var(--text-dim)', margin: '4px 0 0 0', fontSize: '14px' }}>
-            Configure and enable/disable LLM providers (OpenAI, DeepSeek, Gemini, Claude, Perplexity) used in AI visibility scans.
+            Configure and enable/disable LLM providers (ChatGPT, Gemini, Claude, Grok, DeepSeek, Perplexity) used in AI visibility scans.
           </p>
         </div>
         <button onClick={handleOpenAddModal} className="btn btn-primary" style={{ fontSize: '13.5px' }}>
@@ -332,8 +333,9 @@ export default function AdminModels() {
                   <option value="Google">Google (Gemini)</option>
                   <option value="Anthropic">Anthropic (Claude)</option>
                   <option value="Perplexity">Perplexity</option>
-                  <option value="OmniRoute">OmniRoute</option>
-                  <option value="OpenRouter">OpenRouter Gateway</option>
+                  <option value="xAI">xAI (Grok)</option>
+                  <option value="OmniRoute">OmniRoute (disabled for scans)</option>
+                  <option value="OpenRouter">OpenRouter Gateway (disabled for scans)</option>
                   <option value="Other">Other</option>
                 </select>
               </div>

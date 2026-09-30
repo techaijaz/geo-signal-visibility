@@ -55,6 +55,21 @@ const userSchema = new mongoose.Schema<IUser>(
             required: true,
             default: false
         },
+        // When the user ticked "I agree to the Terms and Privacy policy" at signup
+        consentAt: {
+            type: Date,
+            default: null
+        },
+        // Opt-in for the Monday report email (off unless the user ticks it at signup or in Settings)
+        weeklyReportEmails: {
+            type: Boolean,
+            default: false
+        },
+        // Last time the user turned the weekly email on or off (record of consent)
+        weeklyReportEmailsUpdatedAt: {
+            type: Date,
+            default: null
+        },
         accountConfirmation: {
             _id: false,
             status: {

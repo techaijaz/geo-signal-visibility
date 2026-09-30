@@ -8,6 +8,9 @@ import { generateReportPdf } from '../service/reportService/pdfService'
 import { buildReportData } from '../service/reportService/reportData'
 import { verifyUnsubscribeToken } from '../service/reportService/weeklyReport'
 import reportShareModel from '../model/reportShareModel'
+import brandModel from '../model/brandModel'
+import orgModel from '../model/orgModel'
+import userModel from '../model/userModel'
 import mongoose from 'mongoose'
 
 const unsubscribePage = (title: string, body: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
@@ -27,8 +30,16 @@ export default {
                 res.status(400).send(unsubscribePage('This link is not valid', 'The unsubscribe link is incomplete or has been changed. Use the link from the latest weekly email, or reply to that email and we will remove you.'))
                 return
             }
-            await reportShareModel.updateOne({ brandId }, { $addToSet: { unsubscribed: email } }, { upsert: true })
-            res.status(200).send(unsubscribePage('You are unsubscribed', `${email.replace(/[<>&"]/g, '')} will no longer get the weekly AI visibility report for this brand.`))
+            // The brand owner's link turns off their Settings checkbox; anyone else goes on the brand's unsubscribe list
+            const brand = await brandModel.findById(brandId).select('orgId').lean()
+            const org = brand ? await orgModel.findById(brand.orgId).select('ownerId').lean() : null
+            const owner = org ? await userModel.findById(org.ownerId).select('email').lean() : null
+            if (owner && owner.email.toLowerCase() === email) {
+                await databseService.setWeeklyReportEmails(owner._id.toString(), false)
+            } else {
+                await reportShareModel.updateOne({ brandId }, { $addToSet: { unsubscribed: email } }, { upsert: true })
+            }
+            res.status(200).send(unsubscribePage('You are unsubscribed', `${email.replace(/[<>&"]/g, '')} will no longer get the weekly AI visibility report for this brand. Account owners can turn it back on in Settings.`))
         } catch (error) {
             httpError(next, error, req, 500)
         }

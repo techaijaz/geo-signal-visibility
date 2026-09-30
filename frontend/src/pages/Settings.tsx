@@ -15,6 +15,14 @@ const TRACKED_AI_MODELS = [
   { name: 'Perplexity', color: '#20B8CD' }
 ];
 
+// Automatic scan schedule per plan (backend/src/config/planLimits.ts SCAN_INTERVAL_HOURS)
+const SCAN_SCHEDULE: Record<string, string> = {
+  free: 'Every week',
+  starter: 'Every day',
+  growth: '3 times a day',
+  agency: 'Twice a day'
+};
+
 const FALLBACK_CATEGORIES = [
   'SaaS & Software',
   'E-Commerce & Retail',
@@ -138,10 +146,25 @@ export default function Settings() {
   const [isDeletingBrand, setIsDeletingBrand] = useState(false);
 
   // --- Interactive UI Settings State ---
-  const [scanFrequency, setScanFrequency] = useState('Daily');
-  const [runsPerQuery, setRunsPerQuery] = useState('3 runs');
-  const [digestEmail, setDigestEmail] = useState(user?.email || '');
-  const [isWhatsappConnected, setIsWhatsappConnected] = useState(false);
+  // Monday report email opt-in (saved as soon as it changes)
+  const [weeklyReportEmails, setWeeklyReportEmails] = useState(false);
+  const [emailPrefSaving, setEmailPrefSaving] = useState(false);
+  const [emailPrefMessage, setEmailPrefMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleWeeklyEmailToggle = async (enabled: boolean) => {
+    setWeeklyReportEmails(enabled);
+    setEmailPrefSaving(true);
+    setEmailPrefMessage(null);
+    try {
+      await api.put('/email-preferences', { weeklyReportEmails: enabled });
+      setEmailPrefMessage({ type: 'success', text: enabled ? 'Weekly report email turned on.' : 'Weekly report email turned off.' });
+    } catch (err: any) {
+      setWeeklyReportEmails(!enabled);
+      setEmailPrefMessage({ type: 'error', text: err.response?.data?.message || 'Could not save. Try again.' });
+    } finally {
+      setEmailPrefSaving(false);
+    }
+  };
 
   // Load initial user & brand data
   useEffect(() => {
@@ -151,7 +174,7 @@ export default function Settings() {
         const userData = userRes.data?.data;
         if (userData) {
           setFullName(userData.name || '');
-          setDigestEmail(userData.email || '');
+          setWeeklyReportEmails(!!userData.weeklyReportEmails);
           if (userData.phone?.internationalNumber) {
             setPhone(userData.phone.internationalNumber);
           }
@@ -1123,65 +1146,41 @@ export default function Settings() {
       {/* --- TAB 3: SCAN & NOTIFICATIONS --- */}
       {activeTab === 'preferences' && (
         <>
-          {/* SCAN SCHEDULE PANEL */}
+          {/* SCAN SCHEDULE PANEL: set by the plan */}
           <div className="panel">
             <h3>Scan schedule</h3>
-            <p className="sub">How often Signal re-runs your tracked queries</p>
-            <div className="audit-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div className="audit-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--ink-2)', border: '1px solid var(--line-soft)', borderRadius: '8px' }}>
-                <span className="name">Scan frequency</span>
-                <select
-                  value={scanFrequency}
-                  onChange={(e) => setScanFrequency(e.target.value)}
-                  style={{ width: 'auto', padding: '6px 10px', background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', borderRadius: '6px' }}
-                >
-                  <option value="Weekly">Weekly</option>
-                  <option value="Daily">Daily</option>
-                  <option value="Monthly">Monthly</option>
-                </select>
-              </div>
-              <div className="audit-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--ink-2)', border: '1px solid var(--line-soft)', borderRadius: '8px' }}>
-                <span className="name">Runs per query per model</span>
-                <select
-                  value={runsPerQuery}
-                  onChange={(e) => setRunsPerQuery(e.target.value)}
-                  style={{ width: 'auto', padding: '6px 10px', background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', borderRadius: '6px' }}
-                >
-                  <option value="1 run">1 run</option>
-                  <option value="3 runs">3 runs</option>
-                  <option value="5 runs">5 runs</option>
-                </select>
-              </div>
+            <p className="sub">How often Signal re-runs your tracked questions. This comes with your plan.</p>
+            <div className="audit-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--ink-2)', border: '1px solid var(--line-soft)', borderRadius: '8px' }}>
+              <span className="name">Automatic scans on the {plan} plan</span>
+              <span className="badge badge-ok">{SCAN_SCHEDULE[plan] || 'Every week'}</span>
             </div>
           </div>
 
           {/* NOTIFICATIONS PANEL */}
           <div className="panel">
             <h3>Notifications</h3>
-            <p className="sub">Where Signal sends your weekly digest and alerts</p>
-            <div className="field" style={{ marginBottom: '14px' }}>
-              <label>Digest email</label>
+            <p className="sub">Emails go to {user?.email || 'your account email'}</p>
+            <label className="audit-item" style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '13px 16px', background: 'var(--ink-2)', border: '1px solid var(--line-soft)', borderRadius: '8px', cursor: 'pointer' }}>
               <input
-                type="email"
-                value={digestEmail}
-                onChange={(e) => setDigestEmail(e.target.value)}
+                type="checkbox"
+                checked={weeklyReportEmails}
+                disabled={emailPrefSaving}
+                onChange={(e) => handleWeeklyEmailToggle(e.target.checked)}
+                style={{ width: 'auto', marginTop: '3px' }}
               />
-            </div>
-            <div className="audit-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--ink-2)', border: '1px solid var(--line-soft)', borderRadius: '8px', marginBottom: '8px' }}>
-              <span className="name">Score drop / spike alerts</span>
-              <span className="badge badge-ok">Enabled</span>
-            </div>
-            <div className="audit-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', background: 'var(--ink-2)', border: '1px solid var(--line-soft)', borderRadius: '8px' }}>
-              <span className="name">WhatsApp digest — reply to mark recommendations done</span>
-              <button
-                type="button"
-                className={`btn connect-btn ${isWhatsappConnected ? 'connected' : ''}`}
-                onClick={() => setIsWhatsappConnected(!isWhatsappConnected)}
-                style={{ fontSize: '11.5px', padding: '5px 12px' }}
-              >
-                {isWhatsappConnected ? 'Connected ✓' : 'Connect'}
-              </button>
-            </div>
+              <span>
+                <span className="name" style={{ display: 'block' }}>Weekly AI visibility report</span>
+                <span style={{ color: 'var(--text-dim)', fontSize: '12.5px' }}>
+                  Every Monday at 9:00 AM IST with the PDF attached.
+                  {plan === 'free' ? ' Starts when you move to a paid plan.' : ''}
+                </span>
+              </span>
+            </label>
+            {emailPrefMessage && (
+              <p style={{ marginTop: '10px', fontSize: '13px', color: emailPrefMessage.type === 'success' ? 'var(--good)' : 'var(--bad)' }}>
+                {emailPrefMessage.text}
+              </p>
+            )}
           </div>
         </>
       )}

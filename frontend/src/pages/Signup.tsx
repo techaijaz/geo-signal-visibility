@@ -13,7 +13,12 @@ const signupSchema = z.object({
     return /^\+?[0-9]{10,15}$/.test(val.trim());
   }, { message: 'Please enter a valid phone number (10–15 digits)' }),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+  acceptTerms: z.boolean().refine((v) => v, 'Please accept the Terms of service and Privacy policy to create an account'),
+  weeklyReportEmails: z.boolean(),
 });
+
+// Legal pages live on the marketing site
+const SITE_URL = (import.meta.env.VITE_SITE_URL || (import.meta.env.DEV ? 'http://localhost:4321' : '')).replace(/\/$/, '');
 
 type SignupFormValues = z.infer<typeof signupSchema>;
 
@@ -25,6 +30,7 @@ export default function Signup() {
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
+    defaultValues: { acceptTerms: false, weeklyReportEmails: false },
   });
 
   const onSubmit = async (data: SignupFormValues) => {
@@ -36,7 +42,8 @@ export default function Signup() {
         email: data.email,
         phone: data.phone || '',
         password: data.password,
-        consent: true
+        consent: data.acceptTerms,
+        weeklyReportEmails: data.weeklyReportEmails
       });
 
       // 2. Set submitted email to display confirmation prompt
@@ -179,6 +186,23 @@ export default function Signup() {
                     {...register('password')}
                   />
                   {errors.password && <p className="error-text">{errors.password.message}</p>}
+                </div>
+                <div className="field">
+                  <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', fontWeight: 400, lineHeight: 1.45, cursor: 'pointer' }}>
+                    <input type="checkbox" style={{ width: 'auto', marginTop: '3px' }} {...register('acceptTerms')} />
+                    <span>
+                      I agree to the{' '}
+                      <a href={`${SITE_URL}/legal/terms`} target="_blank" rel="noreferrer" style={{ textDecoration: 'underline' }}>Terms of service</a> and{' '}
+                      <a href={`${SITE_URL}/legal/privacy`} target="_blank" rel="noreferrer" style={{ textDecoration: 'underline' }}>Privacy policy</a>
+                    </span>
+                  </label>
+                  {errors.acceptTerms && <p className="error-text">{errors.acceptTerms.message}</p>}
+                </div>
+                <div className="field">
+                  <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', fontWeight: 400, lineHeight: 1.45, cursor: 'pointer' }}>
+                    <input type="checkbox" style={{ width: 'auto', marginTop: '3px' }} {...register('weeklyReportEmails')} />
+                    <span>Email me a weekly AI visibility report every Monday (optional, you can change this any time in Settings)</span>
+                  </label>
                 </div>
                 <button type="submit" className="btn btn-primary btn-block" disabled={isSubmitting}>
                   {isSubmitting ? 'Creating account...' : 'Create account →'}

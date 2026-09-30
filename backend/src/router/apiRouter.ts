@@ -37,6 +37,7 @@ router.route('/forgot-password').put(userController.forgotPassword)
 router.route('/reset-password/:token').put(userController.resetPassword)
 router.route('/change-password').put(authentication, userController.changePassword)
 router.route('/update-profile').put(authentication, userController.updateProfile)
+router.route('/email-preferences').put(authentication, userController.updateEmailPreferences)
 
 //Org & Brand router
 router.route('/orgs/brands').get(authentication, brandController.getWorkspaceBrands)

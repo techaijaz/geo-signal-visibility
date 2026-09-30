@@ -9,8 +9,11 @@ RUN npm ci
 # Vite bakes these in at build time. In production the API is served from the same origin under /api/v1
 ARG VITE_API_BASE_URL=/api/v1
 ARG VITE_STRIPE_PUBLISHABLE_KEY=
+# Marketing site, for the Terms and Privacy links on the signup page
+ARG VITE_SITE_URL=
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ENV VITE_STRIPE_PUBLISHABLE_KEY=$VITE_STRIPE_PUBLISHABLE_KEY
+ENV VITE_SITE_URL=$VITE_SITE_URL
 
 COPY . .
 RUN npm run build

@@ -49,6 +49,10 @@ server {
     server_name ${DOMAIN};
 
     location / {
+        # HTTPS is terminated by the host nginx; these headers are for the pages (the API sets its own)
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
         proxy_pass http://website:80;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $forwarded_proto;
@@ -84,6 +88,10 @@ server {
     }
 
     location / {
+        # HTTPS is terminated by the host nginx; these headers are for the pages (the API sets its own)
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
         proxy_pass http://frontend:80;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $forwarded_proto;

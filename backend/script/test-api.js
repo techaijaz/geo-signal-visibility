@@ -83,7 +83,7 @@ async function test() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    Authorization: `Bearer ${token}`
                 },
                 body: JSON.stringify(brandPayload)
             })
@@ -100,10 +100,10 @@ async function test() {
 
     // Summary
     console.log('\n=== API TEST RESULTS ===')
-    results.forEach(r => console.log(r))
+    results.forEach((r) => console.log(r))
     if (errors.length > 0) {
         console.log('\n=== ERRORS ===')
-        errors.forEach(e => console.log(e))
+        errors.forEach((e) => console.log(e))
     }
     console.log('\n=== DONE ===')
 }

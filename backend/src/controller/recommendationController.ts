@@ -5,6 +5,7 @@ import databseService from '../service/databseService'
 import { enqueueRecommendationJob } from '../service/queueService'
 import httpResponse from '../util/httpResponse'
 import httpError from '../util/httpError'
+import logger from '../util/loger'
 import responceseMessage from '../constent/responceseMessage'
 import { EUserRole } from '../constent/userConstent'
 import { DAILY_RESCAN_LIMITS, rescanLimitMessage, type PlanName } from '../config/planLimits'
@@ -106,7 +107,7 @@ export default {
             }
 
             // Development only: run inline when Redis / BullMQ is unavailable
-            console.warn(`[Recommendation Controller] Queue unavailable, falling back to inline generation for brand ${brandId}`)
+            logger.warn(`[Recommendation Controller] Queue unavailable, falling back to inline generation for brand ${brandId}`)
             const freshRecommendations = await databseService.rescanBrandRecommendations(brandId)
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {

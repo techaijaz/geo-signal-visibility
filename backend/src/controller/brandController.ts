@@ -4,11 +4,7 @@ import databseService from '../service/databseService'
 import httpResponse from '../util/httpResponse'
 import httpError from '../util/httpError'
 import responceseMessage from '../constent/responceseMessage'
-import {
-    validateJoiSchema,
-    validationCreateBrandBody,
-    validationUpdateBrandBody
-} from '../service/validationService'
+import { validateJoiSchema, validationCreateBrandBody, validationUpdateBrandBody } from '../service/validationService'
 import { EBrandRole, ICreateBrandRequestBody, IUpdateBrandRequestBody } from '../types/brandTypes'
 import { EUserRole } from '../constent/userConstent'
 import { getPlanLimits, type PlanName } from '../config/planLimits'
@@ -22,6 +18,8 @@ const extractDomain = (url: string): string => {
     return clean.split('/')[0].split('?')[0]
 }
 
+// Callers pass the returned org document where an org id is expected; Mongoose casts it to its _id.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ensureUserOrg = async (userId: string, userName: string): Promise<any> => {
     let org = await databseService.findOrgByOwnerId(userId)
     if (!org) {
@@ -70,19 +68,23 @@ export default {
             if (existingBrands.length >= planLimits.maxBrands) {
                 return httpError(
                     next,
-                    new Error(`Your ${org.plan || 'free'} plan allows up to ${planLimits.maxBrands} brand${planLimits.maxBrands === 1 ? '' : 's'}. Please upgrade your plan to add more brands.`),
+                    new Error(
+                        `Your ${org.plan || 'free'} plan allows up to ${planLimits.maxBrands} brand${planLimits.maxBrands === 1 ? '' : 's'}. Please upgrade your plan to add more brands.`
+                    ),
                     req,
                     403
                 )
             }
 
             // Check plan limits for query count
-            const queriesCount = value.queries?.filter(q => q.enabled !== false).length || 0
+            const queriesCount = value.queries?.filter((q) => q.enabled !== false).length || 0
 
             if (queriesCount > planLimits.maxQueries) {
                 return httpError(
                     next,
-                    new Error(`Your ${org.plan} plan allows maximum ${planLimits.maxQueries} queries. You tried to add ${queriesCount}. Please upgrade your plan or reduce queries.`),
+                    new Error(
+                        `Your ${org.plan} plan allows maximum ${planLimits.maxQueries} queries. You tried to add ${queriesCount}. Please upgrade your plan or reduce queries.`
+                    ),
                     req,
                     403
                 )
@@ -93,7 +95,9 @@ export default {
             if (value.competitors && value.competitors.length > maxCompetitors) {
                 return httpError(
                     next,
-                    new Error(`Your ${org.plan || 'free'} plan allows maximum ${maxCompetitors} competitors. You tried to add ${value.competitors.length}. Please upgrade your plan or reduce competitors.`),
+                    new Error(
+                        `Your ${org.plan || 'free'} plan allows maximum ${maxCompetitors} competitors. You tried to add ${value.competitors.length}. Please upgrade your plan or reduce competitors.`
+                    ),
                     req,
                     403
                 )
@@ -109,21 +113,11 @@ export default {
                     const compDomain = extractDomain(comp.name)
 
                     if (compNameLower === brandNameLower) {
-                        return httpError(
-                            next,
-                            new Error(`You cannot add your own brand ("${value.name}") as a competitor.`),
-                            req,
-                            422
-                        )
+                        return httpError(next, new Error(`You cannot add your own brand ("${value.name}") as a competitor.`), req, 422)
                     }
 
                     if ((brandDomain && compDomain && compDomain === brandDomain) || (brandDomain && compNameLower === brandDomain)) {
-                        return httpError(
-                            next,
-                            new Error(`You cannot add your brand's website ("${value.website}") as a competitor.`),
-                            req,
-                            422
-                        )
+                        return httpError(next, new Error(`You cannot add your brand's website ("${value.website}") as a competitor.`), req, 422)
                     }
                 }
             }
@@ -186,12 +180,14 @@ export default {
 
             // If queries are updated, check plan limits
             if (value.queries) {
-                const queriesCount = value.queries.filter(q => q.enabled !== false).length
+                const queriesCount = value.queries.filter((q) => q.enabled !== false).length
 
                 if (queriesCount > planLimits.maxQueries) {
                     return httpError(
                         next,
-                        new Error(`Your ${org.plan} plan allows maximum ${planLimits.maxQueries} queries. You tried to save ${queriesCount}. Please upgrade your plan or reduce queries.`),
+                        new Error(
+                            `Your ${org.plan} plan allows maximum ${planLimits.maxQueries} queries. You tried to save ${queriesCount}. Please upgrade your plan or reduce queries.`
+                        ),
                         req,
                         403
                     )
@@ -204,7 +200,9 @@ export default {
                 if (value.competitors.length > maxCompetitors) {
                     return httpError(
                         next,
-                        new Error(`Your ${org.plan || 'free'} plan allows maximum ${maxCompetitors} competitors. You tried to save ${value.competitors.length}. Please upgrade your plan or reduce competitors.`),
+                        new Error(
+                            `Your ${org.plan || 'free'} plan allows maximum ${maxCompetitors} competitors. You tried to save ${value.competitors.length}. Please upgrade your plan or reduce competitors.`
+                        ),
                         req,
                         403
                     )

@@ -20,7 +20,6 @@ const shutdown = (signal: string) => {
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'))
 process.on('SIGINT', () => shutdown('SIGINT'))
-
 ;(async () => {
     try {
         const connection = await databseService.connect()

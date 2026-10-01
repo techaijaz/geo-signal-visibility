@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Get the first Let's Encrypt certificate for DOMAIN, www.DOMAIN and app.DOMAIN.
+# Get the first Let's Encrypt certificate for DOMAIN, www.DOMAIN, app.DOMAIN and status.DOMAIN.
 # Run once, before `docker compose up`, with DNS already pointing at this server.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -18,7 +18,7 @@ docker compose stop nginx 2>/dev/null || true
 
 # Standalone mode: certbot answers the challenge itself on port 80
 docker compose run --rm -p 80:80 certbot certonly --standalone \
-  -d "$DOMAIN" -d "www.$DOMAIN" -d "app.$DOMAIN" \
+  -d "$DOMAIN" -d "www.$DOMAIN" -d "app.$DOMAIN" -d "status.$DOMAIN" \
   --email "$LETSENCRYPT_EMAIL" --agree-tos --no-eff-email
 
 echo "Certificate issued. Now run: docker compose up -d --build"

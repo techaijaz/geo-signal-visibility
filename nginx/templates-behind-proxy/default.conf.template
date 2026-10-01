@@ -1,0 +1,107 @@
+# Shared-server mode: this nginx sits BEHIND the server's own nginx, which already serves other sites
+# (e.g. a PM2 app) and terminates HTTPS. It listens on plain HTTP; docker-compose publishes it only on
+# 127.0.0.1 (NGINX_HTTP_BIND), so it is reachable from the host nginx and nothing else.
+# Host side: deploy/host-nginx/signal-ai.conf
+#
+#   ${DOMAIN}         marketing website
+#   app.${DOMAIN}     React app + API under /api/
+#   status.${DOMAIN}  Uptime Kuma
+
+server_tokens off;
+client_max_body_size 10m;
+
+gzip on;
+gzip_types text/plain text/css application/json application/javascript text/xml application/xml image/svg+xml;
+
+# The visitor's IP arrives in X-Forwarded-For from the host nginx (through Docker's network gateway).
+# Trust it only from those addresses so rate limits and logs see the real visitor
+set_real_ip_from 127.0.0.1;
+set_real_ip_from 172.16.0.0/12;
+set_real_ip_from 10.0.0.0/8;
+set_real_ip_from 192.168.0.0/16;
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+
+# The host nginx terminated HTTPS; pass its scheme on to the apps
+map $http_x_forwarded_proto $forwarded_proto {
+    default $http_x_forwarded_proto;
+    ''      $scheme;
+}
+
+# Rate limits per visitor IP, applied before requests reach Node:
+#   api  : normal API traffic, bursts allowed for dashboard page loads
+#   auth : login, signup and password endpoints, to slow down password guessing
+limit_req_zone $binary_remote_addr zone=api:10m rate=20r/s;
+limit_req_zone $binary_remote_addr zone=auth:10m rate=10r/m;
+limit_conn_zone $binary_remote_addr zone=perip:10m;
+limit_req_status 429;
+limit_conn_status 429;
+
+server {
+    listen 80;
+    server_name www.${DOMAIN};
+    return 301 https://${DOMAIN}$request_uri;
+}
+
+# Marketing website
+server {
+    listen 80;
+    server_name ${DOMAIN};
+
+    location / {
+        proxy_pass http://website:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+    }
+}
+
+# App + API on one origin
+server {
+    listen 80;
+    server_name app.${DOMAIN};
+
+    location ~ ^/api/v1/(login|register|forgot-password|reset-password|resend-confirmation|change-password) {
+        limit_req zone=auth burst=10 nodelay;
+        proxy_pass http://api:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+    }
+
+    location /api/ {
+        limit_req zone=api burst=60 nodelay;
+        limit_conn perip 30;
+        proxy_pass http://api:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+        # PDF reports and audits can take a while
+        proxy_read_timeout 120s;
+    }
+
+    location / {
+        proxy_pass http://frontend:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+    }
+}
+
+# Uptime Kuma dashboard (has its own login). Its UI needs the WebSocket headers
+server {
+    listen 80;
+    server_name status.${DOMAIN};
+
+    location / {
+        proxy_pass http://uptime-kuma:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+    }
+}

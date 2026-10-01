@@ -17,7 +17,7 @@ export const fetchRobotsTxt = async (domain: string): Promise<string | null> => 
   try {
     const res = await axios.get(`https://${domain}/robots.txt`, {
       timeout: 10000,
-      headers: { 'User-Agent': 'SignalBot/1.0 (+https://signal-ai.com/bot)' }
+      headers: { 'User-Agent': 'SignalBot/1.0 (+https://geosignalai.com)' }
     })
     return res.data
   } catch (error) {

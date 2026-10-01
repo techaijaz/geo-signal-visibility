@@ -7,11 +7,21 @@ import cors from 'cors'
 import { EApplicationEnvionment } from './constent/application'
 import cookieParser from 'cookie-parser'
 import config from './config/config'
+import { readinessCheck } from './util/health'
 
 const app: Application = express()
 //Middlewares
 // Behind nginx: take the client IP from X-Forwarded-For so rate limits apply per visitor, not per proxy
 app.set('trust proxy', 1)
+// Probes sit before rate limiting and auth so a busy or attacked API still reports its own health
+app.get('/healthz', (_req, res) => {
+    res.status(200).json({ status: 'ok' })
+})
+app.get('/readyz', async (_req, res) => {
+    const r = await readinessCheck()
+    res.status(r.ok ? 200 : 503).json(r)
+})
+
 app.use(helmet())
 app.use(cookieParser())
 const allowedOrigins = [config.FRONTEND_URL, 'http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'].filter(Boolean) as string[]

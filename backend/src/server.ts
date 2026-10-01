@@ -6,6 +6,21 @@ import { initRateLimiter } from './config/rateLimiter'
 
 const server = app.listen(config.PORT, () => {})
 
+// Docker/Kubernetes send SIGTERM before stopping a container: finish in-flight requests, then exit
+const shutdown = (signal: string) => {
+    logger.info(`${signal} received, shutting down API`)
+    server.close(() => {
+        databseService
+            .disconnect()
+            .catch(() => undefined)
+            .finally(() => process.exit(0))
+    })
+    // Hard stop if connections don't drain in time (Kubernetes default grace period is 30s)
+    setTimeout(() => process.exit(0), 25000).unref()
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
+
 ;(async () => {
     try {
         const connection = await databseService.connect()

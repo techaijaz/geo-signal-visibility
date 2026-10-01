@@ -1,10 +1,20 @@
 # Edge proxy for the single-VPS setup. ${DOMAIN} is filled in from .env by the nginx image at start.
 #   https://${DOMAIN}        marketing website
 #   https://app.${DOMAIN}    React app, with the API under /api/
-# One Let's Encrypt certificate covers all three names (see deploy/init-ssl.sh).
+#   https://status.${DOMAIN} Uptime Kuma
+# One Let's Encrypt certificate covers all four names (see deploy/init-ssl.sh).
 
 server_tokens off;
 client_max_body_size 10m;
+
+# Rate limits per client IP, applied before requests reach Node:
+#   api  : normal API traffic, bursts allowed for dashboard page loads
+#   auth : login, signup and password endpoints, to slow down password guessing
+limit_req_zone $binary_remote_addr zone=api:10m rate=20r/s;
+limit_req_zone $binary_remote_addr zone=auth:10m rate=10r/m;
+limit_conn_zone $binary_remote_addr zone=perip:10m;
+limit_req_status 429;
+limit_conn_status 429;
 
 gzip on;
 gzip_types text/plain text/css application/json application/javascript text/xml application/xml image/svg+xml;
@@ -18,7 +28,7 @@ ssl_session_timeout 1d;
 # Plain HTTP: answer Let's Encrypt challenges, redirect everything else to HTTPS
 server {
     listen 80;
-    server_name ${DOMAIN} www.${DOMAIN} app.${DOMAIN};
+    server_name ${DOMAIN} www.${DOMAIN} app.${DOMAIN} status.${DOMAIN};
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -63,7 +73,19 @@ server {
     add_header X-Content-Type-Options nosniff always;
     add_header Referrer-Policy strict-origin-when-cross-origin always;
 
+    location ~ ^/api/v1/(login|register|forgot-password|reset-password|resend-confirmation|change-password) {
+        limit_req zone=auth burst=10 nodelay;
+        proxy_pass http://api:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     location /api/ {
+        limit_req zone=api burst=60 nodelay;
+        limit_conn perip 30;
         proxy_pass http://api:8080;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -77,6 +99,25 @@ server {
     location / {
         proxy_pass http://frontend:80;
         proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# Uptime Kuma dashboard (has its own login). Its UI needs the WebSocket headers
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name status.${DOMAIN};
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    location / {
+        proxy_pass http://uptime-kuma:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }

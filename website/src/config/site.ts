@@ -14,9 +14,9 @@ export const company = {
     legalName: '[Registered company name]',
     address: '[Registered office address, City, State, PIN]',
     gstin: '[GSTIN]',
-    email: 'hello@signal-ai.com',
-    salesEmail: 'sales@signal-ai.com',
-    supportEmail: 'support@signal-ai.com',
+    email: 'hello@geosignalai.com',
+    salesEmail: 'sales@geosignalai.com',
+    supportEmail: 'support@geosignalai.com',
     grievanceOfficer: '[Grievance officer name]',
     jurisdiction: '[City], India'
 }

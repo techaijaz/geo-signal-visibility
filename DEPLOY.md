@@ -7,8 +7,12 @@ Everything runs with Docker Compose on a single server:
 | `https://your-domain.com` | Marketing website (`website/`) |
 | `https://app.your-domain.com` | React app (`frontend/`) |
 | `https://app.your-domain.com/api/v1` | API (`backend/`, same origin as the app) |
+| `https://status.your-domain.com` | Uptime Kuma: uptime monitoring and alerts |
 
-Containers: `nginx` (HTTPS, the only one with open ports), `website`, `frontend`, `api`, `worker`, `mongo`, `redis`, plus `certbot` for SSL.
+Containers: `nginx` (HTTPS, rate limits, the only one with open ports), `website`, `frontend`, `api`, `worker`, `mongo`, `redis`, `uptime-kuma`, `autoheal`, plus `certbot` for SSL.
+
+> **Already running another site on the server** (for example a PM2 app behind the server's nginx)?
+> Follow [Sharing the server with another site](#sharing-the-server-with-another-site): it replaces step 5 (SSL) and the SSL renewal cron job; everything else stays the same.
 
 ## 1. Server
 
@@ -25,6 +29,7 @@ In the DNS zone of your domain, create three **A records** pointing at the serve
 | `@` | A | server IP |
 | `www` | A | server IP |
 | `app` | A | server IP |
+| `status` | A | server IP |
 
 Wait until `ping app.your-domain.com` shows the server IP before step 5.
 
@@ -76,7 +81,7 @@ chmod +x deploy/*.sh
 ./deploy/init-ssl.sh
 ```
 
-This gets one Let's Encrypt certificate for `your-domain.com`, `www.your-domain.com` and `app.your-domain.com`.
+This gets one Let's Encrypt certificate for `your-domain.com`, `www`, `app` and `status`.
 
 ## 6. Start everything
 
@@ -122,6 +127,21 @@ Backups are stored in `/opt/signal-ai/backups`. Also turn on Hostinger's weekly 
 
 Restore with `./deploy/restore-mongo.sh backups/<file>` (asks before replacing data).
 
+## 9. Monitoring
+
+Open `https://status.your-domain.com`, create the admin account (do this right away: the first visitor becomes admin), then add monitors:
+
+| Monitor | Type | URL |
+|---|---|---|
+| Website | HTTP(s) | `https://your-domain.com` |
+| App | HTTP(s) | `https://app.your-domain.com` |
+| API ready | HTTP(s) | `http://api:8080/readyz` (inside Docker; fails if MongoDB or Redis is down) |
+| Worker ready | HTTP(s) | `http://worker:8081/readyz` |
+
+Add a notification (email, Telegram, Slack or a webhook) under Settings > Notifications and attach it to each monitor.
+
+Self-healing: `api` and `worker` have healthchecks (`/healthz`). If one stops answering, `autoheal` restarts it.
+
 ## Everyday operations
 
 | Task | Command |
@@ -130,6 +150,8 @@ Restore with `./deploy/restore-mongo.sh backups/<file>` (asks before replacing d
 | See logs | `docker compose logs -f api worker` |
 | Restart one service | `docker compose restart api` |
 | Check memory use | `docker stats --no-stream` |
+| Check the nginx config | `docker compose exec nginx nginx -t` |
+| Health of every container | `docker compose ps` (look for `healthy`) |
 | Open a Mongo shell | `docker compose exec mongo mongosh -u $MONGO_USER -p` |
 
 ## Checklist before taking payments
@@ -139,3 +161,93 @@ Restore with `./deploy/restore-mongo.sh backups/<file>` (asks before replacing d
 - [ ] A test purchase activates the plan and shows an invoice
 - [ ] `docker compose logs worker` shows "[Scheduler] Tick complete" lines every 5 minutes
 - [ ] A backup file appears in `backups/` the morning after setting up cron
+
+## Sharing the server with another site
+
+Use this when the VPS already serves another site (e.g. `task.hasanoud.in` with PM2) through the server's own
+nginx on ports 80/443. That site is not touched: the server's nginx keeps ports 80/443 and HTTPS, and simply
+forwards the Signal AI domains to the Docker stack, which listens only on `127.0.0.1:8088`.
+
+```
+Internet ─► server nginx (80/443, HTTPS) ─┬─► task.hasanoud.in ─► PM2 app (unchanged)
+                                          └─► geosignalai.com, www., app., status. ─► 127.0.0.1:8088 ─► Docker nginx ─► containers
+```
+
+The existing Redis on the server is not used; Signal AI runs its own Redis inside Docker with no open port, so the two never clash.
+
+**1. Check the server first** (nothing here changes anything):
+
+```bash
+free -h                                  # want ~2.5 GB free for Signal AI
+sudo ss -tlnp | grep -E ':(80|443|8088|8443) '   # 80/443 should be nginx; 8088/8443 must be free
+pm2 list
+sudo nginx -t                            # the existing nginx config is valid
+```
+
+**2. DNS:** A records for `@`, `www`, `app` and `status` of `geosignalai.com` pointing at the server IP.
+
+**3. Docker:** if `docker --version` fails, install it with `curl -fsSL https://get.docker.com | sh`.
+Installing Docker does not affect PM2 or nginx.
+
+**4. Code and settings:** steps 4 above, and in `.env` also set:
+
+```
+DOMAIN=geosignalai.com
+NGINX_HTTP_BIND=127.0.0.1:8088
+NGINX_HTTPS_BIND=127.0.0.1:8443
+NGINX_TEMPLATES=./nginx/templates-behind-proxy
+MONGO_CACHE_GB=0.5
+```
+
+**5. Start Signal AI and check it locally:**
+
+```bash
+docker compose up -d --build
+docker compose ps
+curl -s -H 'Host: app.geosignalai.com' http://127.0.0.1:8088/api/v1/health | head -c 120
+```
+
+**6. Hand the domains over from the server's nginx:**
+
+```bash
+sudo cp deploy/host-nginx/signal-ai.conf /etc/nginx/sites-available/signal-ai.conf
+sudo ln -s /etc/nginx/sites-available/signal-ai.conf /etc/nginx/sites-enabled/signal-ai.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+**7. HTTPS** with the server's certbot (it already renews the other site's certificate, and will renew this one too):
+
+```bash
+sudo certbot --nginx -d geosignalai.com -d www.geosignalai.com -d app.geosignalai.com -d status.geosignalai.com
+```
+
+Choose "redirect" when asked. Skip `deploy/init-ssl.sh` and the `renew-ssl.sh` cron job in this mode.
+
+**8. Check both sites:** open `https://geosignalai.com`, `https://app.geosignalai.com` and `https://task.hasanoud.in`.
+
+Then continue with steps 7 (first-time data), 8 (backup cron only) and 9 (monitoring) above.
+
+**Undo** (the other site keeps running throughout):
+
+```bash
+sudo rm /etc/nginx/sites-enabled/signal-ai.conf && sudo systemctl reload nginx
+docker compose down        # never add -v: that deletes the database
+```
+
+## Moving to Kubernetes later
+
+The Compose setup is built to move over without code changes:
+
+| Here (Compose) | On Kubernetes |
+|---|---|
+| `api` container | Deployment + Service, scale with replicas. Liveness probe `GET /healthz`, readiness probe `GET /readyz` on port 8080 |
+| `worker` container | Deployment (no Service). Probes on port 8081, same paths. Scale with replicas; BullMQ shares the jobs between them |
+| `frontend`, `website` | Deployments + Services (static nginx) |
+| `nginx` edge + certbot | Ingress (ingress-nginx) + cert-manager. Rate limits move to Ingress annotations (`nginx.ingress.kubernetes.io/limit-rps`) |
+| `mongo`, `redis` | Managed services (MongoDB Atlas, managed Redis) or StatefulSets with persistent volumes |
+| `.env` | ConfigMap + Secret |
+| `autoheal` | Not needed: liveness probes restart pods |
+| `uptime-kuma` | Keep as a Deployment with a volume, or use your cloud's monitoring |
+
+Both processes stop cleanly on `SIGTERM` (in-flight requests and running jobs finish, 25 s limit), so rolling updates don't lose work.
+

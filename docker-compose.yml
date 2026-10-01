@@ -169,11 +169,12 @@ services:
 
   # Uptime monitoring with alerts (email, Telegram, webhooks...). Set up at https://status.${DOMAIN}
   uptime-kuma:
-    image: louislam/uptime-kuma:1
+    # Major-version tag: gets v2 bug and security fixes (v1 is no longer maintained)
+    image: louislam/uptime-kuma:2
     restart: unless-stopped
     volumes:
       - uptime_kuma_data:/app/data
-    mem_limit: 256m
+    mem_limit: 384m
     logging: *logging
 
   # Let's Encrypt. Not started by `up`; used by deploy/init-ssl.sh and deploy/renew-ssl.sh

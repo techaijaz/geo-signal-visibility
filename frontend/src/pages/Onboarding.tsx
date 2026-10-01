@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../utils/axios';
+import { useAuth } from '../context/AuthContext';
 import { usePlanLimits } from '../hooks/usePlanLimits';
 import { generateCategoryQueries, type QueryItem } from '../utils/categoryQueryGenerator';
 
@@ -52,6 +53,8 @@ const SUGGESTED_COMPETITORS: string[] = [];
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const { limits, plan } = usePlanLimits();
   const maxQueries = limits?.maxQueries ?? 15;
   const maxCompetitors = limits?.maxCompetitors ?? 5;
@@ -66,6 +69,16 @@ export default function Onboarding() {
   const [categoriesList, setCategoriesList] = useState<string[]>(FALLBACK_CATEGORIES);
   const [region, setRegion] = useState('India');
   const [step1Error, setStep1Error] = useState('');
+
+  // Exit setup and Cancel go to / , which sends a user without a brand straight back here.
+  // So they only show when there is a dashboard to return to (null while loading)
+  const [hasBrands, setHasBrands] = useState<boolean | null>(null);
+  useEffect(() => {
+    api
+      .get('/orgs/brands')
+      .then((res) => setHasBrands((res.data?.data?.brands || []).length > 0))
+      .catch(() => setHasBrands(false));
+  }, []);
 
   // Fetch categories from DB on mount
   useEffect(() => {
@@ -307,9 +320,20 @@ export default function Onboarding() {
           <span className="dot"></span>
           <span>Signal</span>
         </Link>
-        <button className="btn btn-ghost" onClick={() => navigate('/')}>
-          Exit setup
-        </button>
+        {/* Admins get one way out, back to the admin portal */}
+        {isAdmin ? (
+          <button className="btn btn-ghost" style={{ color: 'var(--amber)' }} onClick={() => navigate('/admin')}>
+            ⚡ Admin Panel
+          </button>
+        ) : hasBrands ? (
+          <button className="btn btn-ghost" onClick={() => navigate('/')}>
+            Exit setup
+          </button>
+        ) : hasBrands === false ? (
+          <button className="btn btn-ghost" onClick={logout}>
+            Log out
+          </button>
+        ) : null}
       </div>
 
       {/* Stepper */}
@@ -406,9 +430,13 @@ export default function Onboarding() {
             {step1Error && <p className="error-text" style={{ marginBottom: '16px' }}>{step1Error}</p>}
 
             <div className="onb-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => navigate('/')}>
-                Cancel
-              </button>
+              {!isAdmin && hasBrands ? (
+                <button type="button" className="btn btn-ghost" onClick={() => navigate('/')}>
+                  Cancel
+                </button>
+              ) : (
+                <span />
+              )}
               <button type="submit" className="btn btn-primary">
                 Continue →
               </button>

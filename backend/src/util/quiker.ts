@@ -42,7 +42,7 @@ export default {
                 isoCode: 'IN',
                 internationalNumber: phoneNumber
             }
-        } catch (error) {
+        } catch {
             return {
                 countryCode: '91',
                 isoCode: 'IN',

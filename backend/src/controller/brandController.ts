@@ -18,6 +18,8 @@ const extractDomain = (url: string): string => {
     return clean.split('/')[0].split('?')[0]
 }
 
+// Callers pass the returned org document where an org id is expected; Mongoose casts it to its _id.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ensureUserOrg = async (userId: string, userName: string): Promise<any> => {
     let org = await databseService.findOrgByOwnerId(userId)
     if (!org) {

@@ -4,6 +4,7 @@ import { IAuditData } from '../types/auditTypes'
 import { IMention } from '../types/mentionTypes'
 import { IRecommendationData } from '../types/recommendationTypes'
 import aiService from './aiService'
+import logger from '../util/loger'
 
 const buildAuditSummary = (audit: IAuditData): string => {
     if (!audit) return 'Audit data unavailable'
@@ -17,7 +18,7 @@ const buildMentionStats = (mentions: IMention[], brand: IBrand): string => {
     return `Mentioned in ${mentioned}/${mentions.length} queries for ${brand.name}.`
 }
 
-const safelyParseJSON = (str: string): any => {
+const safelyParseJSON = (str: string): unknown => {
     try {
         const jsonMatch = str.match(/\[[\s\S]*\]/) || str.match(/\{[\s\S]*\}/)
         return JSON.parse(jsonMatch ? jsonMatch[0] : str)
@@ -46,7 +47,7 @@ export const generateRecommendations = async (
     Category: ${brand.category}
     Business Type / Niche: ${brand.businessType || 'ecommerce'}
     Website: ${brand.website}
-    Competitors: ${brand.competitors?.map((c: any) => c.name).join(', ') || 'N/A'}
+    Competitors: ${brand.competitors?.map((c) => c.name).join(', ') || 'N/A'}
     
     AUDIT RESULTS:
     ${auditSummary}
@@ -85,9 +86,13 @@ export const generateRecommendations = async (
             return parsed.slice(0, 8).map((rec) => ({
                 brandId: brand._id.toString(),
                 text: rec.text,
-                category: (['Technical', 'Content', 'Off-site'].includes(rec.category) ? rec.category : 'Content') as any,
-                effort: (['Low effort', 'Medium effort', 'High effort'].includes(rec.effort) ? rec.effort : 'Medium effort') as any,
-                impact: (['High impact', 'Medium impact', 'Low impact'].includes(rec.impact) ? rec.impact : 'High impact') as any,
+                category: (['Technical', 'Content', 'Off-site'].includes(rec.category) ? rec.category : 'Content') as IRecommendationData['category'],
+                effort: (['Low effort', 'Medium effort', 'High effort'].includes(rec.effort)
+                    ? rec.effort
+                    : 'Medium effort') as IRecommendationData['effort'],
+                impact: (['High impact', 'Medium impact', 'Low impact'].includes(rec.impact)
+                    ? rec.impact
+                    : 'High impact') as IRecommendationData['impact'],
                 reasoning: rec.reasoning || 'Actionable recommendation for improving AI crawler indexability and mention frequency.',
                 snippet: rec.fixSnippet || rec.snippet || '',
                 isCompleted: false,
@@ -95,7 +100,7 @@ export const generateRecommendations = async (
             }))
         }
     } catch (err) {
-        console.error('Error generating AI recommendations:', err)
+        logger.error('Error generating AI recommendations', { meta: { err } })
     }
 
     return []

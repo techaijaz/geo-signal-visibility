@@ -23,7 +23,7 @@ export const fetchRobotsTxt = async (domain: string): Promise<string | null> => 
             headers: { 'User-Agent': 'SignalBot/1.0 (+https://geosignalai.com)' }
         })
         return res.data
-    } catch (error) {
+    } catch {
         try {
             const res = await axios.get(`http://${domain}/robots.txt`, { timeout: 8000 })
             return res.data
@@ -43,7 +43,7 @@ export const fetchLlmsTxt = async (domain: string): Promise<string | null> => {
     }
 }
 
-export const fetchHomePageMeta = async (domain: string): Promise<any | null> => {
+export const fetchHomePageMeta = async (domain: string): Promise<unknown> => {
     if (!domain) return null
     try {
         const res = await axios.get(`https://${domain}`, { timeout: 10000 })

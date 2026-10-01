@@ -9,7 +9,7 @@ export const extractSchemaMarkup = async (url: string): Promise<string[]> => {
         const $ = cheerio.load(res.data)
         const foundSchemas: string[] = []
 
-        $('script[type="application/ld+json"]').each((_: any, el: any) => {
+        $('script[type="application/ld+json"]').each((_, el) => {
             const raw = $(el).html() || ''
             try {
                 const data = JSON.parse(raw)

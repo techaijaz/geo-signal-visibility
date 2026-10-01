@@ -98,12 +98,7 @@ const aiService = {
     /**
      * Call any OpenAI-compatible chat completions API (OpenAI, DeepSeek, Perplexity, xAI Grok, OpenRouter, OmniRoute)
      */
-    callOpenAiCompatible: async (
-        provider: string,
-        prompt: string,
-        modelOverride?: string,
-        maxTokens = 400
-    ): Promise<string | null> => {
+    callOpenAiCompatible: async (provider: string, prompt: string, modelOverride?: string, maxTokens = 400): Promise<string | null> => {
         const spec = OPENAI_COMPATIBLE_PROVIDERS[provider]
         if (!spec) return null
         const apiKey = await databseService.getDecryptedApiKey(spec.keyName)
@@ -114,7 +109,7 @@ const aiService = {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
+                    Authorization: `Bearer ${apiKey}`,
                     ...spec.extraHeaders?.()
                 },
                 body: JSON.stringify({
@@ -322,8 +317,8 @@ const aiService = {
         const positiveKeywords = ['best', 'top', 'great', 'excellent', 'highly recommended', 'popular', 'effective', 'fav', 'love']
         const negativeKeywords = ['bad', 'avoid', 'poor', 'expensive', 'overrated', 'issue', 'problem', 'disappointing']
 
-        const positiveCount = positiveKeywords.filter(k => lowerText.includes(k)).length
-        const negativeCount = negativeKeywords.filter(k => lowerText.includes(k)).length
+        const positiveCount = positiveKeywords.filter((k) => lowerText.includes(k)).length
+        const negativeCount = negativeKeywords.filter((k) => lowerText.includes(k)).length
 
         if (positiveCount > negativeCount && positiveCount > 0) {
             sentiment = 'Positive'

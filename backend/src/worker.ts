@@ -36,7 +36,7 @@ const HEALTH_PORT = Number(process.env.WORKER_HEALTH_PORT) || 8081
 
         logger.info('BULLMQ WORKERS ACTIVE AND READY FOR JOBS', {
             meta: {
-                workers: activeWorkers.map(w => w.name)
+                workers: activeWorkers.map((w) => w.name)
             }
         })
     } catch (error) {

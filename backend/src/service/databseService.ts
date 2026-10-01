@@ -21,6 +21,7 @@ import { IBrand, IUpdateBrandRequestBody } from '../types/brandTypes'
 import { IMention, IVisibilityTrendPoint } from '../types/mentionTypes'
 import { IAuditData } from '../types/auditTypes'
 import { IReport } from '../types/reportTypes'
+import { IInvoice } from '../types/billingTypes'
 import { IRecommendationData } from '../types/recommendationTypes'
 import { EUserRole } from '../constent/userConstent'
 import aiService from './aiService'
@@ -33,7 +34,6 @@ const RESCAN_QUOTA_FIELDS: Record<RescanKind, [string, string]> = {
     recommendation: ['recommendationRescanDay', 'recommendationRescanCount']
 }
 import logger from '../util/loger'
-
 
 // Decrypted keys are cached briefly: a scan makes hundreds of AI calls. Worker processes pick up key edits within the TTL.
 const API_KEY_CACHE_TTL_MS = 60 * 1000
@@ -92,15 +92,10 @@ const databseService = {
         })
     },
     deleteRefreshToken: (token: string) => {
-        return userModel.findOneAndUpdate(
-            { 'refreshToken.token': token },
-            { $set: { 'refreshToken.token': null } }
-        )
+        return userModel.findOneAndUpdate({ 'refreshToken.token': token }, { $set: { 'refreshToken.token': null } })
     },
     getRefreshTokan: (token: string) => {
-        return userModel.findOne(
-            { 'refreshToken.token': token }
-        )
+        return userModel.findOne({ 'refreshToken.token': token })
     },
     updateUserById: (userId: string, payload: Partial<IUser>) => {
         return userModel.findByIdAndUpdate(userId, { $set: payload }, { new: true }).select('-password')
@@ -153,9 +148,7 @@ const databseService = {
             const seeded = await mentionModel.find({ brandId })
             if (seeded.length === 0) {
                 const newMentions: IMention[] = await databseService.seedDefaultMentions(brandId)
-                mentions = modelFilter && modelFilter !== 'All models'
-                    ? newMentions.filter((m: IMention) => m.model === modelFilter)
-                    : newMentions
+                mentions = modelFilter && modelFilter !== 'All models' ? newMentions.filter((m: IMention) => m.model === modelFilter) : newMentions
             }
         }
         return mentions
@@ -183,10 +176,7 @@ const databseService = {
             { $inc: { [countField]: 1 } }
         )
         if (sameDay.modifiedCount === 1) return true
-        const newDay = await brandModel.updateOne(
-            { _id: brandId, [dayField]: { $ne: today } },
-            { $set: { [dayField]: today, [countField]: 1 } }
-        )
+        const newDay = await brandModel.updateOne({ _id: brandId, [dayField]: { $ne: today } }, { $set: { [dayField]: today, [countField]: 1 } })
         return newDay.modifiedCount === 1
     },
     // Give back a re-run when the job could not be started
@@ -243,9 +233,11 @@ const databseService = {
     // Recommendation methods
     findRecommendationsByBrandId: async (brandId: string) => {
         let recommendations = await recommendationModel.find({ brandId }).sort({ createdAt: 1 })
-        
+
         // Auto-clean legacy recommendations containing hardcoded Nykaa/Amazon references
-        const hasLegacyEntries = recommendations.some(r => r.text && (r.text.includes('Nykaa') || (r.text.includes('Amazon') && r.text.includes('reviews'))))
+        const hasLegacyEntries = recommendations.some(
+            (r) => r.text && (r.text.includes('Nykaa') || (r.text.includes('Amazon') && r.text.includes('reviews')))
+        )
         if (hasLegacyEntries) {
             await recommendationModel.deleteMany({ brandId, text: { $regex: /Nykaa|Amazon/i } })
             recommendations = await recommendationModel.find({ brandId }).sort({ createdAt: 1 })
@@ -384,19 +376,11 @@ const databseService = {
         return shareDoc.sharedEmails
     },
     addSharedEmailToBrand: async (brandId: string, email: string) => {
-        const doc = await reportShareModel.findOneAndUpdate(
-            { brandId },
-            { $addToSet: { sharedEmails: email } },
-            { upsert: true, new: true }
-        )
+        const doc = await reportShareModel.findOneAndUpdate({ brandId }, { $addToSet: { sharedEmails: email } }, { upsert: true, new: true })
         return doc.sharedEmails
     },
     removeSharedEmailFromBrand: async (brandId: string, email: string) => {
-        const doc = await reportShareModel.findOneAndUpdate(
-            { brandId },
-            { $pull: { sharedEmails: email } },
-            { new: true }
-        )
+        const doc = await reportShareModel.findOneAndUpdate({ brandId }, { $pull: { sharedEmails: email } }, { new: true })
         return doc ? doc.sharedEmails : []
     },
 
@@ -450,7 +434,7 @@ const databseService = {
 
         // Identify available models present in mentions or default active models
         const availableModels = Array.from(new Set(mentions.map((m: IMention) => m.model)))
-        
+
         let modelList: string[] = []
         if (availableModels.length > 0) {
             modelList = availableModels
@@ -485,12 +469,12 @@ const databseService = {
             })
 
             const latestList = Array.from(latestPerQuery.values())
-            const totalQ = totalBrandQueries > 0 ? totalBrandQueries : (latestList.length > 0 ? latestList.length : 0)
+            const totalQ = totalBrandQueries > 0 ? totalBrandQueries : latestList.length > 0 ? latestList.length : 0
             const count = latestList.filter((item: IMention) => item.mentioned).length
             const score = totalQ > 0 ? Math.min(100, Math.round((count / totalQ) * 100)) : 0
 
             // Find matching meta entry or default
-            const metaKey = Object.keys(modelMetaMap).find(k => mName.toLowerCase().includes(k.toLowerCase())) || mName
+            const metaKey = Object.keys(modelMetaMap).find((k) => mName.toLowerCase().includes(k.toLowerCase())) || mName
             const meta = modelMetaMap[metaKey] || { color: '#FFC857', dotBg: '#FFC857' }
 
             const positiveCount = latestList.filter((item: IMention) => item.mentioned && item.sentiment === 'Positive').length
@@ -511,12 +495,12 @@ const databseService = {
             }
         })
 
-        const totalQueriesTracked = totalBrandQueries > 0 ? totalBrandQueries : (mentions.length > 0 ? new Set(mentions.map((m: IMention) => m.queryText)).size : 0)
-        
+        const totalQueriesTracked =
+            totalBrandQueries > 0 ? totalBrandQueries : mentions.length > 0 ? new Set(mentions.map((m: IMention) => m.queryText)).size : 0
+
         // Calculate Blended Score from actual model stats or audit healthScore
-        const blendedScore = mentions.length > 0 && modelStats.length > 0
-            ? Math.round(modelStats.reduce((acc, curr) => acc + curr.score, 0) / modelStats.length)
-            : 0
+        const blendedScore =
+            mentions.length > 0 && modelStats.length > 0 ? Math.round(modelStats.reduce((acc, curr) => acc + curr.score, 0) / modelStats.length) : 0
 
         const trend = await databseService.getVisibilityTrendByBrandId(brandId)
 
@@ -526,7 +510,9 @@ const databseService = {
             trendPoints = trend.map((t) => t.score)
         } else if (reports && reports.length > 0) {
             // Sort reports ascending by date/createdAt
-            const sortedReports = [...reports].sort((a: IReport, b: IReport) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
+            const sortedReports = [...reports].sort(
+                (a: IReport, b: IReport) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+            )
             trendPoints = sortedReports.map((r: IReport) => r.score)
         }
 
@@ -542,7 +528,9 @@ const databseService = {
             const deltaSymbol = deltaValue >= 0 ? '▲' : '▼'
             deltaText = `${deltaSymbol} ${Math.abs(deltaValue)} pts since last scan (was ${previousScore})`
         } else if (reports && reports.length >= 2) {
-            const sortedReports = [...reports].sort((a: IReport, b: IReport) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
+            const sortedReports = [...reports].sort(
+                (a: IReport, b: IReport) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+            )
             previousScore = sortedReports[sortedReports.length - 2].score
             const deltaValue = blendedScore - previousScore
             const deltaSymbol = deltaValue >= 0 ? '▲' : '▼'
@@ -555,7 +543,7 @@ const databseService = {
 
         // Category Benchmark calculation across brands in DB
         const categoryBrands = await brandModel.find({ category })
-        const categoryAvg = categoryBrands.length > 1 ? 48 : (blendedScore > 0 ? Math.max(20, blendedScore - 5) : 0)
+        const categoryAvg = categoryBrands.length > 1 ? 48 : blendedScore > 0 ? Math.max(20, blendedScore - 5) : 0
 
         // Sort modelStats to identify strongest and weakest performing surfaces
         const sortedStats = [...modelStats].sort((a, b) => b.score - a.score)
@@ -596,41 +584,216 @@ const databseService = {
         const count = await categoryModel.countDocuments()
         if (count === 0) {
             const defaultCategories = [
-                { name: 'SaaS & Software', slug: 'saas-software', description: 'Software as a Service, cloud tools, and B2B platforms', isActive: true },
-                { name: 'E-Commerce & Retail', slug: 'ecommerce-retail', description: 'Online shopping, DTC brands, storefronts, and retail', isActive: true },
-                { name: 'FinTech & Banking', slug: 'fintech-banking', description: 'Financial technology, banking, investments, loans & payments', isActive: true },
-                { name: 'HealthTech & Healthcare', slug: 'healthtech-healthcare', description: 'Health apps, medical services, digital diagnostics, and telehealth', isActive: true },
-                { name: 'EdTech & Learning', slug: 'edtech-learning', description: 'Educational tech, online courses, test prep, and learning platforms', isActive: true },
-                { name: 'Skincare & Personal Care', slug: 'skincare-personal-care', description: 'Skincare, grooming, personal hygiene, and self-care products', isActive: true },
-                { name: 'Beauty & Cosmetics', slug: 'beauty-cosmetics', description: 'Makeup, cosmetics, haircare, and beauty accessories', isActive: true },
-                { name: 'Food & Beverage', slug: 'food-beverage', description: 'Restaurants, food delivery apps, packaged food & beverages', isActive: true },
-                { name: 'Travel & Hospitality', slug: 'travel-hospitality', description: 'Airlines, hotels, travel booking, homestays & tourism', isActive: true },
-                { name: 'Real Estate & Property', slug: 'realestate-property', description: 'Property listings, commercial space, rentals, and co-working', isActive: true },
-                { name: 'Automotive & Mobility', slug: 'automotive-mobility', description: 'Cars, electric vehicles (EV), bikes, and mobility services', isActive: true },
-                { name: 'Consumer Electronics & Gadgets', slug: 'consumer-electronics', description: 'Smartphones, audio gear, wearables, and tech gadgets', isActive: true },
-                { name: 'Home, Furniture & Living', slug: 'home-furniture-living', description: 'Home decor, furniture, lighting, and kitchen appliances', isActive: true },
-                { name: 'Fashion, Apparel & Accessories', slug: 'fashion-apparel-accessories', description: 'Clothing, footwear, bags, watches, and fashion wear', isActive: true },
-                { name: 'Media, Gaming & Entertainment', slug: 'media-gaming-entertainment', description: 'Streaming services, video games, esports, and news media', isActive: true },
-                { name: 'Artificial Intelligence & ML', slug: 'ai-ml', description: 'AI tools, Generative AI models, and machine learning platforms', isActive: true },
-                { name: 'Cybersecurity & Data Privacy', slug: 'cybersecurity-privacy', description: 'Data protection, network security, IAM, and privacy tools', isActive: true },
-                { name: 'Cloud, DevOps & Infrastructure', slug: 'cloud-devops-infra', description: 'Cloud hosting, DevOps CI/CD, databases, and IT infra', isActive: true },
-                { name: 'Marketing, Advertising & PR', slug: 'marketing-advertising-pr', description: 'Digital marketing software, ad platforms, SEO, and PR agencies', isActive: true },
-                { name: 'HRTech & Recruitment', slug: 'hrtech-recruitment', description: 'HR software, job portals, payroll, and talent acquisition', isActive: true },
-                { name: 'LegalTech & Compliance', slug: 'legaltech-compliance', description: 'Legal practice management, contract AI, and compliance tools', isActive: true },
-                { name: 'Logistics, Supply Chain & Delivery', slug: 'logistics-supplychain-delivery', description: 'Courier, warehousing, hyper-local delivery, and supply chain tech', isActive: true },
-                { name: 'Fitness, Sports & Wellness', slug: 'fitness-sports-wellness', description: 'Gyms, fitness gear, nutrition supplements, and wellness apps', isActive: true },
-                { name: 'Jewelry, Watches & Luxury Goods', slug: 'jewelry-watches-luxury', description: 'Fine jewelry, luxury watches, and high-end lifestyle goods', isActive: true },
-                { name: 'Mother, Baby & Kids Care', slug: 'mother-baby-kids', description: 'Baby products, toys, maternity care, and kids fashion', isActive: true },
-                { name: 'Pet Care & Supplies', slug: 'pet-care-supplies', description: 'Pet food, grooming, veterinary care, and pet accessories', isActive: true },
-                { name: 'Agriculture & AgriTech', slug: 'agriculture-agritech', description: 'Farming technology, ag-commerce, equipment, and produce', isActive: true },
-                { name: 'Renewable Energy & CleanTech', slug: 'renewable-energy-cleantech', description: 'Solar power, clean technology, recycling, and sustainability', isActive: true },
-                { name: 'Crypto, Web3 & Blockchain', slug: 'crypto-web3-blockchain', description: 'Crypto exchanges, Web3 protocols, wallets, and DeFi', isActive: true },
-                { name: 'Construction & Architecture', slug: 'construction-architecture', description: 'Building materials, architectural services, and ConTech', isActive: true },
-                { name: 'Professional & Business Services', slug: 'professional-business-services', description: 'Consulting, accounting, auditing, and enterprise services', isActive: true },
-                { name: 'Non-Profit, NGO & Social Impact', slug: 'nonprofit-ngo-social', description: 'Charities, social enterprises, fundraising, and NGOs', isActive: true },
-                { name: 'Events, Ticketing & Entertainment', slug: 'events-ticketing-entertainment', description: 'Concerts, conferences, event planning, and ticketing', isActive: true },
-                { name: 'Industrial, Manufacturing & B2B', slug: 'industrial-manufacturing-b2b', description: 'Machinery, raw materials, industrial supplies, and B2B tech', isActive: true },
-                { name: 'Insurance & InsurTech', slug: 'insurance-insurtech', description: 'Health, life, vehicle, property insurance, and InsurTech', isActive: true },
+                {
+                    name: 'SaaS & Software',
+                    slug: 'saas-software',
+                    description: 'Software as a Service, cloud tools, and B2B platforms',
+                    isActive: true
+                },
+                {
+                    name: 'E-Commerce & Retail',
+                    slug: 'ecommerce-retail',
+                    description: 'Online shopping, DTC brands, storefronts, and retail',
+                    isActive: true
+                },
+                {
+                    name: 'FinTech & Banking',
+                    slug: 'fintech-banking',
+                    description: 'Financial technology, banking, investments, loans & payments',
+                    isActive: true
+                },
+                {
+                    name: 'HealthTech & Healthcare',
+                    slug: 'healthtech-healthcare',
+                    description: 'Health apps, medical services, digital diagnostics, and telehealth',
+                    isActive: true
+                },
+                {
+                    name: 'EdTech & Learning',
+                    slug: 'edtech-learning',
+                    description: 'Educational tech, online courses, test prep, and learning platforms',
+                    isActive: true
+                },
+                {
+                    name: 'Skincare & Personal Care',
+                    slug: 'skincare-personal-care',
+                    description: 'Skincare, grooming, personal hygiene, and self-care products',
+                    isActive: true
+                },
+                {
+                    name: 'Beauty & Cosmetics',
+                    slug: 'beauty-cosmetics',
+                    description: 'Makeup, cosmetics, haircare, and beauty accessories',
+                    isActive: true
+                },
+                {
+                    name: 'Food & Beverage',
+                    slug: 'food-beverage',
+                    description: 'Restaurants, food delivery apps, packaged food & beverages',
+                    isActive: true
+                },
+                {
+                    name: 'Travel & Hospitality',
+                    slug: 'travel-hospitality',
+                    description: 'Airlines, hotels, travel booking, homestays & tourism',
+                    isActive: true
+                },
+                {
+                    name: 'Real Estate & Property',
+                    slug: 'realestate-property',
+                    description: 'Property listings, commercial space, rentals, and co-working',
+                    isActive: true
+                },
+                {
+                    name: 'Automotive & Mobility',
+                    slug: 'automotive-mobility',
+                    description: 'Cars, electric vehicles (EV), bikes, and mobility services',
+                    isActive: true
+                },
+                {
+                    name: 'Consumer Electronics & Gadgets',
+                    slug: 'consumer-electronics',
+                    description: 'Smartphones, audio gear, wearables, and tech gadgets',
+                    isActive: true
+                },
+                {
+                    name: 'Home, Furniture & Living',
+                    slug: 'home-furniture-living',
+                    description: 'Home decor, furniture, lighting, and kitchen appliances',
+                    isActive: true
+                },
+                {
+                    name: 'Fashion, Apparel & Accessories',
+                    slug: 'fashion-apparel-accessories',
+                    description: 'Clothing, footwear, bags, watches, and fashion wear',
+                    isActive: true
+                },
+                {
+                    name: 'Media, Gaming & Entertainment',
+                    slug: 'media-gaming-entertainment',
+                    description: 'Streaming services, video games, esports, and news media',
+                    isActive: true
+                },
+                {
+                    name: 'Artificial Intelligence & ML',
+                    slug: 'ai-ml',
+                    description: 'AI tools, Generative AI models, and machine learning platforms',
+                    isActive: true
+                },
+                {
+                    name: 'Cybersecurity & Data Privacy',
+                    slug: 'cybersecurity-privacy',
+                    description: 'Data protection, network security, IAM, and privacy tools',
+                    isActive: true
+                },
+                {
+                    name: 'Cloud, DevOps & Infrastructure',
+                    slug: 'cloud-devops-infra',
+                    description: 'Cloud hosting, DevOps CI/CD, databases, and IT infra',
+                    isActive: true
+                },
+                {
+                    name: 'Marketing, Advertising & PR',
+                    slug: 'marketing-advertising-pr',
+                    description: 'Digital marketing software, ad platforms, SEO, and PR agencies',
+                    isActive: true
+                },
+                {
+                    name: 'HRTech & Recruitment',
+                    slug: 'hrtech-recruitment',
+                    description: 'HR software, job portals, payroll, and talent acquisition',
+                    isActive: true
+                },
+                {
+                    name: 'LegalTech & Compliance',
+                    slug: 'legaltech-compliance',
+                    description: 'Legal practice management, contract AI, and compliance tools',
+                    isActive: true
+                },
+                {
+                    name: 'Logistics, Supply Chain & Delivery',
+                    slug: 'logistics-supplychain-delivery',
+                    description: 'Courier, warehousing, hyper-local delivery, and supply chain tech',
+                    isActive: true
+                },
+                {
+                    name: 'Fitness, Sports & Wellness',
+                    slug: 'fitness-sports-wellness',
+                    description: 'Gyms, fitness gear, nutrition supplements, and wellness apps',
+                    isActive: true
+                },
+                {
+                    name: 'Jewelry, Watches & Luxury Goods',
+                    slug: 'jewelry-watches-luxury',
+                    description: 'Fine jewelry, luxury watches, and high-end lifestyle goods',
+                    isActive: true
+                },
+                {
+                    name: 'Mother, Baby & Kids Care',
+                    slug: 'mother-baby-kids',
+                    description: 'Baby products, toys, maternity care, and kids fashion',
+                    isActive: true
+                },
+                {
+                    name: 'Pet Care & Supplies',
+                    slug: 'pet-care-supplies',
+                    description: 'Pet food, grooming, veterinary care, and pet accessories',
+                    isActive: true
+                },
+                {
+                    name: 'Agriculture & AgriTech',
+                    slug: 'agriculture-agritech',
+                    description: 'Farming technology, ag-commerce, equipment, and produce',
+                    isActive: true
+                },
+                {
+                    name: 'Renewable Energy & CleanTech',
+                    slug: 'renewable-energy-cleantech',
+                    description: 'Solar power, clean technology, recycling, and sustainability',
+                    isActive: true
+                },
+                {
+                    name: 'Crypto, Web3 & Blockchain',
+                    slug: 'crypto-web3-blockchain',
+                    description: 'Crypto exchanges, Web3 protocols, wallets, and DeFi',
+                    isActive: true
+                },
+                {
+                    name: 'Construction & Architecture',
+                    slug: 'construction-architecture',
+                    description: 'Building materials, architectural services, and ConTech',
+                    isActive: true
+                },
+                {
+                    name: 'Professional & Business Services',
+                    slug: 'professional-business-services',
+                    description: 'Consulting, accounting, auditing, and enterprise services',
+                    isActive: true
+                },
+                {
+                    name: 'Non-Profit, NGO & Social Impact',
+                    slug: 'nonprofit-ngo-social',
+                    description: 'Charities, social enterprises, fundraising, and NGOs',
+                    isActive: true
+                },
+                {
+                    name: 'Events, Ticketing & Entertainment',
+                    slug: 'events-ticketing-entertainment',
+                    description: 'Concerts, conferences, event planning, and ticketing',
+                    isActive: true
+                },
+                {
+                    name: 'Industrial, Manufacturing & B2B',
+                    slug: 'industrial-manufacturing-b2b',
+                    description: 'Machinery, raw materials, industrial supplies, and B2B tech',
+                    isActive: true
+                },
+                {
+                    name: 'Insurance & InsurTech',
+                    slug: 'insurance-insurtech',
+                    description: 'Health, life, vehicle, property insurance, and InsurTech',
+                    isActive: true
+                },
                 { name: 'Other / General', slug: 'other-general', description: 'Other categories and niche industries', isActive: true }
             ]
             await categoryModel.insertMany(defaultCategories)
@@ -670,7 +833,7 @@ const databseService = {
         const allUsers = await userModel.find().select('_id orgId role').lean()
         const allOrgs = await orgModel.find().select('_id ownerId plan').lean()
         const orgMap = new Map<string, string>()
-        allOrgs.forEach(o => {
+        allOrgs.forEach((o) => {
             orgMap.set(o._id.toString(), o.plan || 'free')
             if (o.ownerId) {
                 orgMap.set(`owner_${o.ownerId.toString()}`, o.plan || 'free')
@@ -684,13 +847,11 @@ const databseService = {
             agency: 0
         }
 
-        allUsers.forEach(u => {
+        allUsers.forEach((u) => {
             // Exclude Admin accounts from customer plan metrics
             if (u.role === EUserRole.ADMIN) return
 
-            const userOrgPlan = (u.orgId && orgMap.get(u.orgId.toString())) ||
-                orgMap.get(`owner_${u._id.toString()}`) ||
-                'free'
+            const userOrgPlan = (u.orgId && orgMap.get(u.orgId.toString())) || orgMap.get(`owner_${u._id.toString()}`) || 'free'
 
             if (userOrgPlan in planBreakdown) {
                 planBreakdown[userOrgPlan]++
@@ -717,10 +878,7 @@ const databseService = {
     findAllUsersPaginated: async (queryStr?: string, role?: string, page = 1, limit = 20) => {
         const query: FilterQuery<IUser> = {}
         if (queryStr) {
-            query.$or = [
-                { name: { $regex: queryStr, $options: 'i' } },
-                { email: { $regex: queryStr, $options: 'i' } }
-            ]
+            query.$or = [{ name: { $regex: queryStr, $options: 'i' } }, { email: { $regex: queryStr, $options: 'i' } }]
         }
         if (role) {
             query.role = role
@@ -794,12 +952,72 @@ const databseService = {
     seedDefaultAiModels: async () => {
         // One direct-API model per AI; OpenRouter/OmniRoute gateways are disabled for scans
         const defaultModels: Array<Partial<IAiModel>> = [
-            { name: 'ChatGPT (GPT-4o Mini)', modelId: 'gpt-4o-mini', provider: 'OpenAI', description: 'OpenAI ChatGPT', isActive: true, isDefault: true, inputCostPer1k: 0.00015, outputCostPer1k: 0.0006, maxTokens: 4096 },
-            { name: 'Gemini 2.0 Flash', modelId: 'gemini-2.0-flash', provider: 'Google', description: 'Google Gemini', isActive: true, isDefault: false, inputCostPer1k: 0.0001, outputCostPer1k: 0.0004, maxTokens: 8192 },
-            { name: 'Claude Haiku 4.5', modelId: 'claude-haiku-4-5-20251001', provider: 'Anthropic', description: 'Anthropic Claude', isActive: true, isDefault: false, inputCostPer1k: 0.001, outputCostPer1k: 0.005, maxTokens: 4096 },
-            { name: 'Grok 3 Mini', modelId: 'grok-3-mini', provider: 'xAI', description: 'xAI Grok', isActive: true, isDefault: false, inputCostPer1k: 0.0003, outputCostPer1k: 0.0005, maxTokens: 4096 },
-            { name: 'DeepSeek v4 Flash', modelId: 'deepseek-v4-flash', provider: 'DeepSeek', description: 'DeepSeek', isActive: true, isDefault: false, inputCostPer1k: 0.00014, outputCostPer1k: 0.00028, maxTokens: 4096 },
-            { name: 'Perplexity Sonar', modelId: 'sonar', provider: 'Perplexity', description: 'Perplexity web-search grounded answers', isActive: true, isDefault: false, inputCostPer1k: 0.001, outputCostPer1k: 0.001, maxTokens: 4096 }
+            {
+                name: 'ChatGPT (GPT-4o Mini)',
+                modelId: 'gpt-4o-mini',
+                provider: 'OpenAI',
+                description: 'OpenAI ChatGPT',
+                isActive: true,
+                isDefault: true,
+                inputCostPer1k: 0.00015,
+                outputCostPer1k: 0.0006,
+                maxTokens: 4096
+            },
+            {
+                name: 'Gemini 2.0 Flash',
+                modelId: 'gemini-2.0-flash',
+                provider: 'Google',
+                description: 'Google Gemini',
+                isActive: true,
+                isDefault: false,
+                inputCostPer1k: 0.0001,
+                outputCostPer1k: 0.0004,
+                maxTokens: 8192
+            },
+            {
+                name: 'Claude Haiku 4.5',
+                modelId: 'claude-haiku-4-5-20251001',
+                provider: 'Anthropic',
+                description: 'Anthropic Claude',
+                isActive: true,
+                isDefault: false,
+                inputCostPer1k: 0.001,
+                outputCostPer1k: 0.005,
+                maxTokens: 4096
+            },
+            {
+                name: 'Grok 3 Mini',
+                modelId: 'grok-3-mini',
+                provider: 'xAI',
+                description: 'xAI Grok',
+                isActive: true,
+                isDefault: false,
+                inputCostPer1k: 0.0003,
+                outputCostPer1k: 0.0005,
+                maxTokens: 4096
+            },
+            {
+                name: 'DeepSeek v4 Flash',
+                modelId: 'deepseek-v4-flash',
+                provider: 'DeepSeek',
+                description: 'DeepSeek',
+                isActive: true,
+                isDefault: false,
+                inputCostPer1k: 0.00014,
+                outputCostPer1k: 0.00028,
+                maxTokens: 4096
+            },
+            {
+                name: 'Perplexity Sonar',
+                modelId: 'sonar',
+                provider: 'Perplexity',
+                description: 'Perplexity web-search grounded answers',
+                isActive: true,
+                isDefault: false,
+                inputCostPer1k: 0.001,
+                outputCostPer1k: 0.001,
+                maxTokens: 4096
+            }
         ]
         return aiModel.insertMany(defaultModels)
     },
@@ -897,19 +1115,28 @@ const databseService = {
 
         const statusList = providers.map((prov) => {
             const match = dbRecords.find((r) => r.provider === prov)
-            const envValue = prov === 'OPENAI' ? config.AI_KEYS.OPENAI
-                : prov === 'DEEPSEEK' ? config.AI_KEYS.DEEPSEEK
-                : prov === 'GEMINI' ? config.AI_KEYS.GEMINI
-                : prov === 'ANTHROPIC' ? config.AI_KEYS.ANTHROPIC
-                : prov === 'PERPLEXITY' ? config.AI_KEYS.PERPLEXITY
-                : prov === 'XAI' ? config.AI_KEYS.XAI
-                : prov === 'OMNIROUTE' ? config.AI_KEYS.OMNIROUTE
-                : prov === 'OPENROUTER' ? config.AI_KEYS.OPENROUTER
-                : ''
+            const envValue =
+                prov === 'OPENAI'
+                    ? config.AI_KEYS.OPENAI
+                    : prov === 'DEEPSEEK'
+                      ? config.AI_KEYS.DEEPSEEK
+                      : prov === 'GEMINI'
+                        ? config.AI_KEYS.GEMINI
+                        : prov === 'ANTHROPIC'
+                          ? config.AI_KEYS.ANTHROPIC
+                          : prov === 'PERPLEXITY'
+                            ? config.AI_KEYS.PERPLEXITY
+                            : prov === 'XAI'
+                              ? config.AI_KEYS.XAI
+                              : prov === 'OMNIROUTE'
+                                ? config.AI_KEYS.OMNIROUTE
+                                : prov === 'OPENROUTER'
+                                  ? config.AI_KEYS.OPENROUTER
+                                  : ''
 
             const isConfigured = !!(match?.maskedKey || envValue)
             const maskedPreview = match?.maskedKey || (envValue ? maskApiKey(envValue) : 'Not configured')
-            const source = match ? 'Database (Encrypted)' : (envValue ? 'Environment (.env)' : 'None')
+            const source = match ? 'Database (Encrypted)' : envValue ? 'Environment (.env)' : 'None'
 
             return {
                 provider: prov,
@@ -977,15 +1204,12 @@ const databseService = {
     },
 
     getAdminInvoicesPaginated: async (queryStr?: string, statusFilter?: string, page = 1, limit = 20) => {
-        const query: FilterQuery<any> = {}
+        const query: FilterQuery<IInvoice> = {}
         if (statusFilter) {
             query.status = statusFilter
         }
         if (queryStr) {
-            query.$or = [
-                { invoiceNumber: { $regex: queryStr, $options: 'i' } },
-                { paymentMethod: { $regex: queryStr, $options: 'i' } }
-            ]
+            query.$or = [{ invoiceNumber: { $regex: queryStr, $options: 'i' } }, { paymentMethod: { $regex: queryStr, $options: 'i' } }]
         }
 
         const skip = (page - 1) * limit
@@ -1049,6 +1273,3 @@ const databseService = {
 }
 
 export default databseService
-
-
-

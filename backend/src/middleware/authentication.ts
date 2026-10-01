@@ -39,4 +39,3 @@ export default async (request: Request, _res: Response, next: NextFunction) => {
         httpError(next, error, request, 500)
     }
 }
-

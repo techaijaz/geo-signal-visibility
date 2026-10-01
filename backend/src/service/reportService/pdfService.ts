@@ -3,8 +3,7 @@
 import puppeteer from 'puppeteer'
 import { IReportData } from './reportData'
 
-const esc = (v: unknown) =>
-    String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
+const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 
 const fmtDate = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' }) : 'not scanned yet'
@@ -13,7 +12,9 @@ const badgeClass = (b: string) => (b === 'badge-ok' ? 'ok' : b === 'badge-bad' ?
 
 const trendSvg = (points: IReportData['trend']) => {
     if (points.length < 2) return ''
-    const W = 640, H = 140, P = 16
+    const W = 640,
+        H = 140,
+        P = 16
     const x = (i: number) => P + (i * (W - 2 * P)) / (points.length - 1)
     const y = (v: number) => H - P - (v / 100) * (H - 2 * P)
     const d = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.score).toFixed(1)}`).join(' ')
@@ -30,9 +31,11 @@ const trendSvg = (points: IReportData['trend']) => {
 export const renderReportHtml = (r: IReportData) => {
     const delta = r.previousVisibility === null ? null : r.visibility - r.previousVisibility
     const deltaText =
-        delta === null ? 'First scan in this report history'
-        : delta === 0 ? 'No change since the previous scan'
-        : `${delta > 0 ? '+' : '−'}${Math.abs(delta)} points since the previous scan`
+        delta === null
+            ? 'First scan in this report history'
+            : delta === 0
+              ? 'No change since the previous scan'
+              : `${delta > 0 ? '+' : '−'}${Math.abs(delta)} points since the previous scan`
     const totalAnswers = r.engines.reduce((a, e) => a + e.total, 0)
     const namedIn = r.engines.reduce((a, e) => a + e.mentioned, 0)
 
@@ -95,73 +98,112 @@ export const renderReportHtml = (r: IReportData) => {
           : 'No scan results yet. Your first scan runs automatically after you add questions.'
   }</p>
 
-  ${r.engines.length ? `
+  ${
+      r.engines.length
+          ? `
   <div class="avoid-break">
   <h2>By AI assistant</h2>
   <table>
     <thead><tr><th>Assistant</th><th style="width:40%">Share of answers naming you</th><th class="num">Score</th><th class="num">Named in</th><th class="num">Avg. position</th></tr></thead>
     <tbody>
-      ${r.engines.map((e) => `<tr>
+      ${r.engines
+          .map(
+              (e) => `<tr>
         <td><b>${esc(e.name)}</b></td>
         <td><div class="meter"><span style="width:${e.score}%"></span></div></td>
         <td class="num"><b>${e.score}%</b></td>
         <td class="num">${e.mentioned}/${e.total}</td>
         <td class="num">${e.avgPosition === null ? '–' : `#${e.avgPosition}`}</td>
-      </tr>`).join('')}
+      </tr>`
+          )
+          .join('')}
     </tbody>
   </table>
-  </div>` : ''}
+  </div>`
+          : ''
+  }
 
   ${r.trend.length >= 2 ? `<div class="avoid-break"><h2>Visibility over the last ${r.trend.length} scans</h2>${trendSvg(r.trend)}</div>` : ''}
 
-  ${r.questions.length ? `
+  ${
+      r.questions.length
+          ? `
   <h2>Question by question</h2>
   <p class="muted small" style="margin-bottom:8px">Your position in each AI's answer. A dash means you were not named.</p>
   <table>
     <thead><tr><th>Question</th>${r.engines.map((e) => `<th class="num">${esc(e.name)}</th>`).join('')}</tr></thead>
     <tbody>
-      ${r.questions.map((q) => `<tr class="avoid-break"><td>${esc(q.text)}</td>${q.results
-          .map((c) => (c.mentioned ? `<td class="cell hit">${c.position ? `#${c.position}` : '✓'}</td>` : '<td class="cell miss">–</td>'))
-          .join('')}</tr>`).join('')}
+      ${r.questions
+          .map(
+              (q) =>
+                  `<tr class="avoid-break"><td>${esc(q.text)}</td>${q.results
+                      .map((c) => (c.mentioned ? `<td class="cell hit">${c.position ? `#${c.position}` : '✓'}</td>` : '<td class="cell miss">–</td>'))
+                      .join('')}</tr>`
+          )
+          .join('')}
     </tbody>
-  </table>` : ''}
+  </table>`
+          : ''
+  }
 
   <div class="avoid-break">
   <h2>Share of voice</h2>
-  ${r.shareOfVoice && r.shareOfVoice.length > 1 ? `
+  ${
+      r.shareOfVoice && r.shareOfVoice.length > 1
+          ? `
   <p class="muted small" style="margin-bottom:8px">How often each brand is named across these AI answers.</p>
   <table><tbody>
-    ${r.shareOfVoice.map((s) => `<tr>
+    ${r.shareOfVoice
+        .map(
+            (s) => `<tr>
       <td style="width:30%"><b>${esc(s.name)}</b>${s.isYou ? ' <span class="muted">(you)</span>' : ''}</td>
       <td><div class="meter ${s.isYou ? 'you' : ''}"><span style="width:${s.pct}%"></span></div></td>
       <td class="num" style="width:12%"><b>${s.pct}%</b></td>
       <td class="num muted" style="width:14%">${s.count} answer${s.count === 1 ? '' : 's'}</td>
-    </tr>`).join('')}
-  </tbody></table>` : `<p class="muted">${
-      r.shareOfVoice ? 'Add competitors in Settings to compare how often AI names them against you.' : 'Share of voice appears from your next scan.'
-  }</p>`}
+    </tr>`
+        )
+        .join('')}
+  </tbody></table>`
+          : `<p class="muted">${
+                r.shareOfVoice
+                    ? 'Add competitors in Settings to compare how often AI names them against you.'
+                    : 'Share of voice appears from your next scan.'
+            }</p>`
+  }
   </div>
 
-  ${r.audit ? `
+  ${
+      r.audit
+          ? `
   <div class="avoid-break">
   <h2>Can AI read your site? <span class="muted" style="font-weight:400">Site health ${r.audit.healthScore}/100</span></h2>
   <div class="cols">
     <div><table><thead><tr><th>AI crawler</th><th class="num">Status</th></tr></thead><tbody>
       ${r.audit.crawlers.map((c) => `<tr><td>${esc(c.name)}</td><td class="num"><span class="chip ${badgeClass(c.badgeType)}">${esc(c.status)}</span></td></tr>`).join('')}
     </tbody></table></div>
-    ${r.audit.schema.length ? `<div><table><thead><tr><th>Structured data</th><th class="num">Status</th></tr></thead><tbody>
+    ${
+        r.audit.schema.length
+            ? `<div><table><thead><tr><th>Structured data</th><th class="num">Status</th></tr></thead><tbody>
       ${r.audit.schema.map((c) => `<tr><td>${esc(c.name)}</td><td class="num"><span class="chip ${badgeClass(c.badgeType)}">${esc(c.status)}</span></td></tr>`).join('')}
-    </tbody></table></div>` : ''}
+    </tbody></table></div>`
+            : ''
+    }
   </div>
-  </div>` : ''}
+  </div>`
+          : ''
+  }
 
-  ${r.recommendations.length ? `
+  ${
+      r.recommendations.length
+          ? `
   <div class="avoid-break">
   <h2>What to do next</h2>
   <ol class="recs">
     ${r.recommendations.map((x) => `<li>${esc(x.text)} <span class="impact">${esc(x.impact)}</span></li>`).join('')}
   </ol>
-  </div>` : ''}
+  </div>`
+          : ''
+  }
 
   <p class="muted small" style="margin-top:22px">AI answers can vary from one request to the next. This report shows the answers from the scan dated above.</p>
 </body></html>`
@@ -182,13 +224,15 @@ const release = () => {
 
 export const generateReportPdf = async (data: IReportData): Promise<Buffer> => {
     await acquire()
-    const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-    }).catch((err) => {
-        release()
-        throw err
-    })
+    const browser = await puppeteer
+        .launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        })
+        .catch((err) => {
+            release()
+            throw err
+        })
     try {
         const page = await browser.newPage()
         await page.setContent(renderReportHtml(data), { waitUntil: 'domcontentloaded' })

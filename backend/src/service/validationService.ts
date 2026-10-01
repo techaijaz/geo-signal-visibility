@@ -12,7 +12,11 @@ import { EBrandRole, ICreateBrandRequestBody, IUpdateBrandRequestBody } from '..
 export const validationRegisterBody = Joi.object<IRegisterRequestBody>({
     name: Joi.string().required().min(3).max(72).trim(),
     email: Joi.string().email().required(),
-    phone: Joi.string().optional().allow('').pattern(/^\+?[0-9]{10,15}$/).message('Phone number must be a valid 10 to 15 digit number'),
+    phone: Joi.string()
+        .optional()
+        .allow('')
+        .pattern(/^\+?[0-9]{10,15}$/)
+        .message('Phone number must be a valid 10 to 15 digit number'),
     password: Joi.string().min(8).max(72).required().trim(),
     consent: Joi.boolean().required().valid(true),
     weeklyReportEmails: Joi.boolean().optional().default(false)
@@ -58,7 +62,10 @@ export const validationCreateBrandBody = Joi.object<ICreateBrandRequestBody>({
     website: Joi.string().uri({ allowRelative: true }).required().trim(),
     category: Joi.string().required().trim(),
     region: Joi.string().optional().default('India').trim(),
-    role: Joi.string().valid(...Object.values(EBrandRole)).optional().default(EBrandRole.OWNER),
+    role: Joi.string()
+        .valid(...Object.values(EBrandRole))
+        .optional()
+        .default(EBrandRole.OWNER),
     competitors: Joi.array().items(competitorJoiSchema).optional().default([]),
     queries: Joi.array().items(queryJoiSchema).optional().default([]),
     languages: Joi.array().items(Joi.string().trim()).optional().default(['en', 'hi-en'])
@@ -69,7 +76,9 @@ export const validationUpdateBrandBody = Joi.object<IUpdateBrandRequestBody>({
     website: Joi.string().uri({ allowRelative: true }).optional().trim(),
     category: Joi.string().optional().trim(),
     region: Joi.string().optional().trim(),
-    role: Joi.string().valid(...Object.values(EBrandRole)).optional(),
+    role: Joi.string()
+        .valid(...Object.values(EBrandRole))
+        .optional(),
     competitors: Joi.array().items(competitorJoiSchema).optional(),
     queries: Joi.array().items(queryJoiSchema).optional(),
     languages: Joi.array().items(Joi.string().trim()).optional()

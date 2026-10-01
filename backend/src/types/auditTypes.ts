@@ -14,7 +14,7 @@ export interface IAuditData {
     structuredData?: IAuditGridItem[]
     offSiteFootprint?: IAuditGridItem[]
     marketplaceReadability?: IAuditGridItem[]
-    checks?: any
+    checks?: unknown
     lastAuditedAt?: Date
 }
 

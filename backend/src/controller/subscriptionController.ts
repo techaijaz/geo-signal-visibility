@@ -6,7 +6,7 @@ import httpResponse from '../util/httpResponse'
 import httpError from '../util/httpError'
 import responceseMessage from '../constent/responceseMessage'
 import { EUserRole } from '../constent/userConstent'
-import { getPlanLimits } from '../config/planLimits'
+import { getPlanLimits, type PlanName } from '../config/planLimits'
 import { SubscriptionPlan } from '../types/billingTypes'
 import { SubscriptionModel } from '../model/billingModel'
 
@@ -232,7 +232,7 @@ export default {
             const org = await ensureUserOrg(authenticatedUser._id.toString(), authenticatedUser.name)
 
             const effectivePlan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : org.plan || 'free'
-            const planLimits = getPlanLimits(effectivePlan as any)
+            const planLimits = getPlanLimits(effectivePlan as PlanName)
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 plan: effectivePlan,

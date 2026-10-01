@@ -6,7 +6,11 @@ import { extractDomain, fetchRobotsTxt, parseRobotsForCrawler, fetchLlmsTxt, fet
 import { extractSchemaMarkup } from './schemaService'
 import { analyzeContentStructure } from './contentService'
 
-export const computeHealthScore = (crawlerChecks: any[], schemaTypes: any[], contentAnalysis: any): number => {
+export const computeHealthScore = (
+    crawlerChecks: { allowed: boolean | null }[],
+    schemaTypes: string[],
+    contentAnalysis: { hasDirectAnswer?: boolean } | null
+): number => {
     let score = 50
     if (crawlerChecks.some((c) => c.allowed)) score += 20
     if (schemaTypes.length > 0) score += 15

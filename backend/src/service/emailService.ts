@@ -88,6 +88,7 @@ export default {
         }
 
         // No provider configured: local development
+        /* eslint-disable no-console */
         console.log('\n==================================================')
         console.log(`📧 [EMAIL NOT SENT: no ${config.EMAIL.PROVIDER} credentials configured]`)
         console.log(`TO: ${to.join(', ')}`)
@@ -96,6 +97,7 @@ export default {
         if (options.attachments?.length)
             console.log(`ATTACHMENTS: ${options.attachments.map((a) => `${a.filename} (${a.content.length} bytes)`).join(', ')}`)
         console.log('==================================================\n')
+        /* eslint-enable no-console */
         loger.info('EMAIL_SERVICE: Mock email dispatch', { meta: { to, subject } })
         return { status: 'mocked' }
     }

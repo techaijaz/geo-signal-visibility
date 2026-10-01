@@ -20,8 +20,10 @@ export default tseslint.config({
             'error',
             'single',
             {
+                avoidEscape: true,
                 allowTemplateLiterals: true
             }
-        ]
+        ],
+        '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }]
     }
 })

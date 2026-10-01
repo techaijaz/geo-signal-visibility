@@ -21,6 +21,7 @@ import { IBrand, IUpdateBrandRequestBody } from '../types/brandTypes'
 import { IMention, IVisibilityTrendPoint } from '../types/mentionTypes'
 import { IAuditData } from '../types/auditTypes'
 import { IReport } from '../types/reportTypes'
+import { IInvoice } from '../types/billingTypes'
 import { IRecommendationData } from '../types/recommendationTypes'
 import { EUserRole } from '../constent/userConstent'
 import aiService from './aiService'
@@ -1203,7 +1204,7 @@ const databseService = {
     },
 
     getAdminInvoicesPaginated: async (queryStr?: string, statusFilter?: string, page = 1, limit = 20) => {
-        const query: FilterQuery<any> = {}
+        const query: FilterQuery<IInvoice> = {}
         if (statusFilter) {
             query.status = statusFilter
         }

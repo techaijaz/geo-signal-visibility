@@ -6,7 +6,7 @@ import httpResponse from '../util/httpResponse'
 import httpError from '../util/httpError'
 import responceseMessage from '../constent/responceseMessage'
 import { EUserRole } from '../constent/userConstent'
-import { getPlanLimits } from '../config/planLimits'
+import { getPlanLimits, type PlanName } from '../config/planLimits'
 import { SubscriptionPlan } from '../types/billingTypes'
 import { SubscriptionModel } from '../model/billingModel'
 
@@ -31,13 +31,7 @@ const PLANS_DATA = [
         price: '₹0',
         billingPeriod: ' /mo',
         description: 'See the problem before you commit to fixing it.',
-        features: [
-            '1 brand',
-            '3 tracked queries',
-            'Weekly scan',
-            'ChatGPT, Gemini & Claude',
-            '1 site audit re-run per day'
-        ],
+        features: ['1 brand', '3 tracked queries', 'Weekly scan', 'ChatGPT, Gemini & Claude', '1 site audit re-run per day'],
         buttonText: 'Downgrade'
     },
     {
@@ -220,7 +214,6 @@ export default {
         }
     },
 
-
     getInvoices: async (req: Request, res: Response, next: NextFunction) => {
         try {
             const { authenticatedUser } = req as IAuthenticatedRequest
@@ -238,8 +231,8 @@ export default {
             const { authenticatedUser } = req as IAuthenticatedRequest
             const org = await ensureUserOrg(authenticatedUser._id.toString(), authenticatedUser.name)
 
-            const effectivePlan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : (org.plan || 'free')
-            const planLimits = getPlanLimits(effectivePlan as any)
+            const effectivePlan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : org.plan || 'free'
+            const planLimits = getPlanLimits(effectivePlan as PlanName)
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 plan: effectivePlan,

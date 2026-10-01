@@ -54,7 +54,6 @@ const byEngineOrder = (a: string, b: string) => {
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b)
 }
 
-
 export const buildReportData = async (brandId: string): Promise<IReportData> => {
     const brand = await brandModel.findById(brandId).lean()
     if (!brand) throw new Error(`Brand ${brandId} not found`)
@@ -99,7 +98,7 @@ export const buildReportData = async (brandId: string): Promise<IReportData> => 
     const questionMap = new Map<string, Map<string, { position: number | null; mentioned: boolean }>>()
     for (const m of mentions) {
         const row = questionMap.get(m.queryText) || new Map()
-        row.set(engineLabel(m.model), { position: m.mentioned ? m.position ?? null : null, mentioned: !!m.mentioned })
+        row.set(engineLabel(m.model), { position: m.mentioned ? (m.position ?? null) : null, mentioned: !!m.mentioned })
         questionMap.set(m.queryText, row)
     }
     const engineNames = engines.map((e) => e.name)
@@ -112,9 +111,7 @@ export const buildReportData = async (brandId: string): Promise<IReportData> => 
     const competitors = (brand.competitors || []).map((c) => c.name).filter(Boolean)
     const stats = computeCompetitorStats(brand.name, competitors, mentions)
     const shareOfVoice: IReportData['shareOfVoice'] = stats.answerTextAvailable
-        ? stats.rows
-              .map((r) => ({ name: r.name, count: r.answersNamed, pct: r.share, isYou: r.isYou }))
-              .sort((x, y) => y.count - x.count)
+        ? stats.rows.map((r) => ({ name: r.name, count: r.answersNamed, pct: r.share, isYou: r.isYou })).sort((x, y) => y.count - x.count)
         : null
 
     const audit = await auditModel.findOne({ brandId }).lean()

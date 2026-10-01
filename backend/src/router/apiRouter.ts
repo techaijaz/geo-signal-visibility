@@ -60,7 +60,10 @@ router.route('/brands/:id/recommendations/rescan').post(authentication, recommen
 
 // Reports router
 // Public: link in the weekly report email (GET) and one-click unsubscribe from mail clients (POST)
-router.route('/reports/unsubscribe').get(reportController.unsubscribeWeeklyReport).post(express.urlencoded({ extended: false }), reportController.unsubscribeWeeklyReport)
+router
+    .route('/reports/unsubscribe')
+    .get(reportController.unsubscribeWeeklyReport)
+    .post(express.urlencoded({ extended: false }), reportController.unsubscribeWeeklyReport)
 router.route('/brands/:id/reports').get(authentication, reportController.getBrandReports)
 router.route('/brands/:id/reports/generate').post(authentication, reportController.generateReport)
 router.route('/brands/:id/reports/:reportId/download').get(authentication, reportController.downloadReportPdf)

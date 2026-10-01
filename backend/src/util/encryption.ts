@@ -3,7 +3,10 @@ import config from '../config/config'
 
 const ALGORITHM = 'aes-256-cbc'
 // Ensure 32-byte key from secret
-const SECRET_KEY = crypto.createHash('sha256').update(config.ACCESS_TOKEN.SECRET || 'signal-ai-geo-secret-key-2026').digest()
+const SECRET_KEY = crypto
+    .createHash('sha256')
+    .update(config.ACCESS_TOKEN.SECRET || 'signal-ai-geo-secret-key-2026')
+    .digest()
 
 export function encrypt(text: string): { encryptedData: string; iv: string } {
     const iv = crypto.randomBytes(16)

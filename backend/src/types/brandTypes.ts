@@ -50,6 +50,7 @@ export interface IUpdateBrandRequestBody {
 }
 
 export interface IBrand {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     _id?: any
     orgId: Types.ObjectId | string
     name: string

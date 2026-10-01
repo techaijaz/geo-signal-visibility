@@ -27,9 +27,7 @@ export default {
             }
         }
     },
-    parsePhoneNumber: (
-        phoneNumber: string
-    ): { countryCode: string; isoCode: string; internationalNumber: string } => {
+    parsePhoneNumber: (phoneNumber: string): { countryCode: string; isoCode: string; internationalNumber: string } => {
         try {
             const parsedPhoneNumber = parsePhoneNumberWithError(phoneNumber)
             if (parsedPhoneNumber && parsedPhoneNumber.countryCallingCode && parsedPhoneNumber.country) {
@@ -44,7 +42,7 @@ export default {
                 isoCode: 'IN',
                 internationalNumber: phoneNumber
             }
-        } catch (error) {
+        } catch {
             return {
                 countryCode: '91',
                 isoCode: 'IN',

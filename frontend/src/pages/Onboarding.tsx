@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../utils/axios';
+import { useAuth } from '../context/AuthContext';
 import { usePlanLimits } from '../hooks/usePlanLimits';
 import { generateCategoryQueries, type QueryItem } from '../utils/categoryQueryGenerator';
 
@@ -52,6 +53,7 @@ const SUGGESTED_COMPETITORS: string[] = [];
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { limits, plan } = usePlanLimits();
   const maxQueries = limits?.maxQueries ?? 15;
   const maxCompetitors = limits?.maxCompetitors ?? 5;
@@ -307,9 +309,17 @@ export default function Onboarding() {
           <span className="dot"></span>
           <span>Signal</span>
         </Link>
-        <button className="btn btn-ghost" onClick={() => navigate('/')}>
-          Exit setup
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {/* Admins without a brand bounce back here from /, so this is their way back to the admin portal */}
+          {user?.role === 'admin' && (
+            <button className="btn btn-ghost" style={{ color: 'var(--amber)' }} onClick={() => navigate('/admin')}>
+              ⚡ Admin Panel
+            </button>
+          )}
+          <button className="btn btn-ghost" onClick={() => navigate('/')}>
+            Exit setup
+          </button>
+        </div>
       </div>
 
       {/* Stepper */}

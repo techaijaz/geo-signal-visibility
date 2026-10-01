@@ -43,6 +43,12 @@ export default function Login() {
       }
       login(accessToken, userPayload);
 
+      // Admins land on the admin portal; they don't need a brand of their own to use it
+      if (userPayload?.role === 'admin') {
+        navigate('/admin');
+        return;
+      }
+
       try {
         const brandsRes = await api.get('/orgs/brands');
         const brands = brandsRes.data?.data?.brands || [];

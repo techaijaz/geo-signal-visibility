@@ -6,3 +6,6 @@
 Dockerfile text eol=lf
 docker-compose.yml text eol=lf
 .env.docker.example text eol=lf
+
+# Git hooks are run by sh, a CRLF would break them
+backend/.husky/* text eol=lf

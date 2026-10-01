@@ -10,6 +10,8 @@
         "start:api": "cross-env NODE_ENV=production node dist/server.js",
         "start:worker": "cross-env NODE_ENV=production node dist/worker.js",
         "lint": "eslint",
+        "test": "vitest run",
+        "test:watch": "vitest",
         "lint:fix": "eslint --fix",
         "format:check": "prettier . --check",
         "format:fix": "prettier . --fix",
@@ -46,7 +48,8 @@
         "prettier": "3.3.3",
         "ts-node": "^10.9.2",
         "typescript": "^5.6.3",
-        "typescript-eslint": "^8.13.0"
+        "typescript-eslint": "^8.13.0",
+        "vitest": "^5.0.3"
     },
     "dependencies": {
         "@types/cookie-parser": "^1.4.7",

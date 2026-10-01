@@ -133,6 +133,11 @@ cd geo-signal-visibility
    npm run worker
    ```
 
+6. *(Optional)* Run the backend unit tests (no MongoDB, Redis or payment keys needed):
+   ```bash
+   npm test
+   ```
+
 ---
 
 ### Step 3: Frontend Setup

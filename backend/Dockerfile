@@ -41,8 +41,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Tell Puppeteer to use installed Chromium executable
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+# Use the Chromium installed above; skip Puppeteer's own Chrome download during npm ci
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app

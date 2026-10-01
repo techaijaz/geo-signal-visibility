@@ -62,9 +62,9 @@ export default {
     //AI Model Variant Selection
     AI_MODELS: {
         DEEPSEEK: process.env.DEEPSEEK_MODEL_NAME || 'deepseek-v4-flash', // 'deepseek-v4-flash' or 'deepseek-v4-pro'
-        GEMINI: process.env.GEMINI_MODEL_NAME || 'gemini-1.5-flash',   // 'gemini-1.5-flash' or 'gemini-1.5-pro'
+        GEMINI: process.env.GEMINI_MODEL_NAME || 'gemini-1.5-flash', // 'gemini-1.5-flash' or 'gemini-1.5-pro'
         CLAUDE: process.env.CLAUDE_MODEL_NAME || 'claude-haiku-4-5-20251001',
-        OPENAI: process.env.OPENAI_MODEL_NAME || 'gpt-4o-mini',        // 'gpt-4o-mini' or 'gpt-4o'
+        OPENAI: process.env.OPENAI_MODEL_NAME || 'gpt-4o-mini', // 'gpt-4o-mini' or 'gpt-4o'
         PERPLEXITY: process.env.PERPLEXITY_MODEL_NAME || 'sonar',
         GROK: process.env.GROK_MODEL_NAME || 'grok-3-mini',
         OMNIROUTE: process.env.OMNIROUTE_MODEL_NAME || 'omniroute-auto'

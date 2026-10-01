@@ -125,7 +125,7 @@ export const paymentService = {
             return {
                 isFree: false,
                 gateway: 'stripe',
-                orderId: paymentIntent.id,           // used as reference on confirm
+                orderId: paymentIntent.id, // used as reference on confirm
                 clientSecret: paymentIntent.client_secret, // sent to frontend for stripe.confirmCardPayment()
                 amount,
                 currency: 'INR',
@@ -168,15 +168,11 @@ export const paymentService = {
         plan: SubscriptionPlan
         billingCycle?: 'monthly' | 'yearly'
         gateway?: 'razorpay' | 'stripe' | 'mock'
-        gatewayOrderId?: string      // Razorpay: razorpay_order_id | Stripe: paymentIntent.id
-        gatewayPaymentId?: string    // Razorpay: razorpay_payment_id
-        gatewaySignature?: string    // Razorpay: razorpay_signature (HMAC)
+        gatewayOrderId?: string // Razorpay: razorpay_order_id | Stripe: paymentIntent.id
+        gatewayPaymentId?: string // Razorpay: razorpay_payment_id
+        gatewaySignature?: string // Razorpay: razorpay_signature (HMAC)
     }) => {
-        const {
-            userId, orgId, plan, billingCycle = 'monthly',
-            gateway,
-            gatewayOrderId, gatewayPaymentId, gatewaySignature
-        } = params
+        const { userId, orgId, plan, billingCycle = 'monthly', gateway, gatewayOrderId, gatewayPaymentId, gatewaySignature } = params
 
         let paymentMethod = 'Unknown'
         // Charged amount comes from the gateway (or the price list for sandbox), never from the client
@@ -195,10 +191,7 @@ export const paymentService = {
                 throw new Error('Razorpay: order_id, payment_id and signature are required for verification')
             }
             const keySecret = config.PAYMENT.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET || ''
-            const expectedSignature = crypto
-                .createHmac('sha256', keySecret)
-                .update(`${gatewayOrderId}|${gatewayPaymentId}`)
-                .digest('hex')
+            const expectedSignature = crypto.createHmac('sha256', keySecret).update(`${gatewayOrderId}|${gatewayPaymentId}`).digest('hex')
 
             if (expectedSignature !== gatewaySignature) {
                 throw new PaymentError('Razorpay payment signature verification failed — possible fraud attempt')
@@ -249,9 +242,7 @@ export const paymentService = {
         const existing = await SubscriptionModel.findOne({ orgId }).lean()
         const now = new Date()
         const currentPeriodStart =
-            existing?.plan === plan && existing.status === 'active' && existing.expiresAt && existing.expiresAt > now
-                ? existing.expiresAt
-                : now
+            existing?.plan === plan && existing.status === 'active' && existing.expiresAt && existing.expiresAt > now ? existing.expiresAt : now
         const currentPeriodEnd = new Date(currentPeriodStart.getTime() + periodDays * 24 * 60 * 60 * 1000)
 
         const sub = await SubscriptionModel.findOneAndUpdate(

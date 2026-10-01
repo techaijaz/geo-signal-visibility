@@ -14,8 +14,7 @@ export interface IEmailOptions {
     headers?: Record<string, string>
 }
 
-const plainToHtml = (text: string) =>
-    text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>')
+const plainToHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>')
 
 let smtpTransport: Transporter | null = null
 const getSmtp = () => {
@@ -94,7 +93,8 @@ export default {
         console.log(`TO: ${to.join(', ')}`)
         console.log(`SUBJECT: ${subject}`)
         console.log(`CONTENT:\n${text}`)
-        if (options.attachments?.length) console.log(`ATTACHMENTS: ${options.attachments.map((a) => `${a.filename} (${a.content.length} bytes)`).join(', ')}`)
+        if (options.attachments?.length)
+            console.log(`ATTACHMENTS: ${options.attachments.map((a) => `${a.filename} (${a.content.length} bytes)`).join(', ')}`)
         console.log('==================================================\n')
         loger.info('EMAIL_SERVICE: Mock email dispatch', { meta: { to, subject } })
         return { status: 'mocked' }

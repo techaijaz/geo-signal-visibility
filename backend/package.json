@@ -12,8 +12,8 @@
         "lint": "eslint",
         "lint:fix": "eslint --fix",
         "format:check": "prettier . --check",
-        "format:fix": "prettier . --fix",
-        "prepare": "husky",
+        "format:fix": "prettier . --write",
+        "prepare": "cd .. && husky backend/.husky",
         "migrate:dev": "cross-env MIGRATE_MODE=development node script/migration.js",
         "migrate:prod": "cross-env MIGRATE_MODE=production node script/migration.js",
         "cleanup:brands": "node script/cleanup-brands.js",
@@ -23,9 +23,10 @@
     "license": "ISC",
     "lint-staged": {
         "*.ts": [
-            "npm run lint:fix",
-            "npm run format:fix"
-        ]
+            "eslint --fix",
+            "prettier --write"
+        ],
+        "*.{js,mjs,cjs,json,md,yml,yaml}": "prettier --write"
     },
     "devDependencies": {
         "@commitlint/cli": "^19.5.0",

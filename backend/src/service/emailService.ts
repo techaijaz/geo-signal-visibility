@@ -1,6 +1,7 @@
 import nodemailer, { Transporter } from 'nodemailer'
 import { Resend } from 'resend'
 import config from '../config/config'
+import { EApplicationEnvionment } from '../constent/application'
 import loger from '../util/loger'
 
 export interface IEmailAttachment {
@@ -87,7 +88,14 @@ export default {
             }
         }
 
-        // No provider configured: local development
+        // No provider configured. In production the email body can hold reset links and tokens,
+        // so it must never end up in the container logs
+        if (config.ENV === EApplicationEnvionment.PRODUCTION) {
+            loger.error('EMAIL_SERVICE: Email not sent, no provider credentials configured', { meta: { to, subject } })
+            return { status: 'not_sent' }
+        }
+
+        // Local development: print the email to the terminal instead of sending it
         /* eslint-disable no-console */
         console.log('\n==================================================')
         console.log(`📧 [EMAIL NOT SENT: no ${config.EMAIL.PROVIDER} credentials configured]`)

@@ -63,7 +63,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
-    mem_limit: 2g
+    mem_limit: ${MONGO_MEM_LIMIT:-2g}
     logging: *logging
 
   # BullMQ broker. noeviction: BullMQ must never have its keys evicted
@@ -94,7 +94,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 40s
-    mem_limit: 1536m
+    mem_limit: ${API_MEM_LIMIT:-1536m}
 
   # BullMQ workers: scans, audits, recommendations, scheduler, plan expiry
   worker:
@@ -106,7 +106,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 40s
-    mem_limit: 1536m
+    mem_limit: ${WORKER_MEM_LIMIT:-1536m}
 
   frontend:
     build:

@@ -22,12 +22,7 @@ export default {
             const pageNum = parseInt(page as string, 10) || 1
             const limitNum = parseInt(limit as string, 10) || 20
 
-            const result = await databseService.findAllUsersPaginated(
-                q as string,
-                role as string,
-                pageNum,
-                limitNum
-            )
+            const result = await databseService.findAllUsersPaginated(q as string, role as string, pageNum, limitNum)
             httpResponse(req, res, 200, responceseMessage.SUCCESS, result)
         } catch (error) {
             httpError(next, error, req, 500)
@@ -176,11 +171,7 @@ export default {
                 return httpError(next, new Error('Provider and apiKey are required'), req, 422)
             }
 
-            const updatedDoc = await databseService.saveEncryptedApiKey(
-                provider,
-                apiKey,
-                (req as IAuthenticatedRequest).authenticatedUser?._id
-            )
+            const updatedDoc = await databseService.saveEncryptedApiKey(provider, apiKey, (req as IAuthenticatedRequest).authenticatedUser?._id)
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 provider: updatedDoc.provider,
@@ -218,12 +209,7 @@ export default {
             const pageNum = parseInt(page as string, 10) || 1
             const limitNum = parseInt(limit as string, 10) || 20
 
-            const result = await databseService.getAdminInvoicesPaginated(
-                q as string,
-                status as string,
-                pageNum,
-                limitNum
-            )
+            const result = await databseService.getAdminInvoicesPaginated(q as string, status as string, pageNum, limitNum)
             httpResponse(req, res, 200, responceseMessage.SUCCESS, result)
         } catch (error) {
             httpError(next, error, req, 500)

@@ -96,7 +96,7 @@ export default {
 
             // * Timezone
             const timezoneList = isoCode ? quiker.countryTimezone(isoCode) : null
-            const userTimezone = (timezoneList && timezoneList.length > 0) ? timezoneList[0].name : 'Asia/Kolkata'
+            const userTimezone = timezoneList && timezoneList.length > 0 ? timezoneList[0].name : 'Asia/Kolkata'
 
             // * check if user already exist using
             const user = await databseService.findUserByEmail(email)

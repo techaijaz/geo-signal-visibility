@@ -19,7 +19,10 @@ export const WEEKLY_REPORT_PLANS = ['starter', 'growth', 'agency']
 // ---- Unsubscribe links -------------------------------------------------------------------------
 
 const unsubscribeKey = () =>
-    crypto.createHash('sha256').update(`weekly-report-unsubscribe:${config.ACCESS_TOKEN.SECRET || 'dev'}`).digest()
+    crypto
+        .createHash('sha256')
+        .update(`weekly-report-unsubscribe:${config.ACCESS_TOKEN.SECRET || 'dev'}`)
+        .digest()
 
 export const unsubscribeToken = (brandId: string, email: string) =>
     crypto.createHmac('sha256', unsubscribeKey()).update(`${brandId}:${email.toLowerCase()}`).digest('base64url')
@@ -37,8 +40,7 @@ export const unsubscribeUrl = (brandId: string, email: string) =>
 
 // ---- Email content -----------------------------------------------------------------------------
 
-const esc = (v: unknown) =>
-    String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
+const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 
 const deltaLine = (d: IReportData) => {
     if (d.previousVisibility === null) return 'Your first weekly report'
@@ -80,8 +82,12 @@ export const renderWeeklyEmail = (d: IReportData, unsubscribe: string) => {
   <tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px">
     ${d.engines.map((e) => row(esc(e.name), `${e.score}%`)).join('')}
   </table></td></tr>
-  ${recs.length ? `<tr><td style="font-size:15px;font-weight:bold;padding:22px 0 8px">What to do next</td></tr>
-  <tr><td style="font-size:14px;line-height:1.5"><ol style="margin:0;padding-left:20px">${recs.map((r) => `<li style="margin-bottom:6px">${esc(r.text)}</li>`).join('')}</ol></td></tr>` : ''}
+  ${
+      recs.length
+          ? `<tr><td style="font-size:15px;font-weight:bold;padding:22px 0 8px">What to do next</td></tr>
+  <tr><td style="font-size:14px;line-height:1.5"><ol style="margin:0;padding-left:20px">${recs.map((r) => `<li style="margin-bottom:6px">${esc(r.text)}</li>`).join('')}</ol></td></tr>`
+          : ''
+  }
   <tr><td style="padding:24px 0 8px"><a href="${esc(dashboard)}" style="display:inline-block;background:#FFC857;color:#0F2629;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:8px">Open your dashboard</a></td></tr>
   <tr><td style="font-size:13px;color:#52676A">The full report, question by question, is attached as a PDF.</td></tr>
 </table>
@@ -114,8 +120,11 @@ export const sendWeeklyReport = async (brandId: string): Promise<{ sent: number;
     const owner = await userModel.findById(org.ownerId).select('email weeklyReportEmails').lean()
     const share = await reportShareModel.findOne({ brandId }).lean()
     const unsubscribed = new Set((share?.unsubscribed || []).map((e) => e.toLowerCase()))
-    const recipients = [...new Set([owner?.weeklyReportEmails ? owner.email : null, ...(share?.sharedEmails || [])].filter(Boolean).map((e) => String(e).toLowerCase()))]
-        .filter((e) => !unsubscribed.has(e))
+    const recipients = [
+        ...new Set(
+            [owner?.weeklyReportEmails ? owner.email : null, ...(share?.sharedEmails || [])].filter(Boolean).map((e) => String(e).toLowerCase())
+        )
+    ].filter((e) => !unsubscribed.has(e))
     if (recipients.length === 0) return { sent: 0, skipped: 'no recipients opted in' }
 
     const databseService = (await import('../databseService')).default

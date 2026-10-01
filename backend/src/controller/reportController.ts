@@ -13,7 +13,10 @@ import orgModel from '../model/orgModel'
 import userModel from '../model/userModel'
 import mongoose from 'mongoose'
 
-const unsubscribePage = (title: string, body: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
+const unsubscribePage = (
+    title: string,
+    body: string
+) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
 <body style="margin:0;background:#F2F4F1;font-family:Arial,Helvetica,sans-serif;color:#0F2629;display:grid;place-items:center;min-height:100vh">
 <main style="max-width:440px;padding:32px;background:#fff;border:1px solid #D3DBD8;border-radius:12px"><h1 style="font-size:22px;margin:0 0 10px">${title}</h1><p style="margin:0;color:#52676A;line-height:1.5">${body}</p></main></body></html>`
 
@@ -27,7 +30,12 @@ export default {
             const token = String(src.t || '')
             res.type('html')
             if (!mongoose.isValidObjectId(brandId) || !email || !verifyUnsubscribeToken(brandId, email, token)) {
-                res.status(400).send(unsubscribePage('This link is not valid', 'The unsubscribe link is incomplete or has been changed. Use the link from the latest weekly email, or reply to that email and we will remove you.'))
+                res.status(400).send(
+                    unsubscribePage(
+                        'This link is not valid',
+                        'The unsubscribe link is incomplete or has been changed. Use the link from the latest weekly email, or reply to that email and we will remove you.'
+                    )
+                )
                 return
             }
             // The brand owner's link turns off their Settings checkbox; anyone else goes on the brand's unsubscribe list
@@ -39,7 +47,12 @@ export default {
             } else {
                 await reportShareModel.updateOne({ brandId }, { $addToSet: { unsubscribed: email } }, { upsert: true })
             }
-            res.status(200).send(unsubscribePage('You are unsubscribed', `${email.replace(/[<>&"]/g, '')} will no longer get the weekly AI visibility report for this brand. Account owners can turn it back on in Settings.`))
+            res.status(200).send(
+                unsubscribePage(
+                    'You are unsubscribed',
+                    `${email.replace(/[<>&"]/g, '')} will no longer get the weekly AI visibility report for this brand. Account owners can turn it back on in Settings.`
+                )
+            )
         } catch (error) {
             httpError(next, error, req, 500)
         }

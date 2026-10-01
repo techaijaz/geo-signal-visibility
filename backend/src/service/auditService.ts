@@ -39,7 +39,10 @@ export const auditService = {
             if (colonIdx === -1) continue
 
             const key = line.substring(0, colonIdx).trim().toLowerCase()
-            const val = line.substring(colonIdx + 1).trim().toLowerCase()
+            const val = line
+                .substring(colonIdx + 1)
+                .trim()
+                .toLowerCase()
 
             if (key === 'user-agent') {
                 if (currentAgents.length > 0 && !key.startsWith('disallow') && !key.startsWith('allow')) {
@@ -51,13 +54,13 @@ export const auditService = {
                     if (currentAgents.includes('*')) {
                         globalDisallowAll = true
                     }
-                    if (currentAgents.some(a => a.includes(botId))) {
+                    if (currentAgents.some((a) => a.includes(botId))) {
                         botSpecificDisallow = true
                     }
                 }
             } else if (key === 'allow') {
                 if (val === '/' || val === '/*') {
-                    if (currentAgents.some(a => a.includes(botId))) {
+                    if (currentAgents.some((a) => a.includes(botId))) {
                         botSpecificAllow = true
                     }
                 }
@@ -194,7 +197,7 @@ export const auditService = {
             const robotsRes = await axios.get(`${targetUrl}/robots.txt`, {
                 timeout: 6000,
                 headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) GEOAudit/1.0' },
-                validateStatus: status => status < 500
+                validateStatus: (status) => status < 500
             })
             if (robotsRes.status === 200 && typeof robotsRes.data === 'string') {
                 robotsTxtContent = robotsRes.data.toLowerCase()
@@ -226,7 +229,7 @@ export const auditService = {
         try {
             const llmsRes = await axios.get(`${targetUrl}/llms.txt`, {
                 timeout: 5000,
-                validateStatus: status => status === 200
+                validateStatus: (status) => status === 200
             })
             if (llmsRes.status === 200) {
                 llmsTxtFound = true
@@ -266,10 +269,12 @@ export const auditService = {
             const $ = cheerio.load(htmlContent)
 
             // Extract JSON-LD scripts
-            const jsonLdScripts = $('script[type="application/ld+json"]').map((_, el) => $(el).html()).get()
+            const jsonLdScripts = $('script[type="application/ld+json"]')
+                .map((_, el) => $(el).html())
+                .get()
             const foundSchemas: string[] = []
 
-            jsonLdScripts.forEach(scriptStr => {
+            jsonLdScripts.forEach((scriptStr) => {
                 try {
                     const parsed = JSON.parse(scriptStr || '{}')
                     const pushType = (t: unknown) => {
@@ -277,7 +282,7 @@ export const auditService = {
                     }
 
                     if (Array.isArray(parsed)) {
-                        parsed.forEach(item => {
+                        parsed.forEach((item) => {
                             if (item['@type']) pushType(item['@type'])
                         })
                     } else if (parsed['@type']) {
@@ -302,11 +307,17 @@ export const auditService = {
             })
 
             // Check key schemas for GEO & Search Indexing
-            const hasOrgSchema = foundSchemas.some(s => s.includes('organization') || s.includes('brand') || s.includes('corporation') || s.includes('localbusiness'))
-            const hasWebSiteSchema = foundSchemas.some(s => s.includes('website') || s.includes('sitenavigationelement') || s.includes('breadcrumblist'))
-            const hasProductOrServiceSchema = foundSchemas.some(s => s.includes('product') || s.includes('softwareapplication') || s.includes('service') || s.includes('article'))
-            const hasFaqSchema = foundSchemas.some(s => s.includes('faqpage') || s.includes('question'))
-            const hasReviewSchema = foundSchemas.some(s => s.includes('review') || s.includes('aggregaterating'))
+            const hasOrgSchema = foundSchemas.some(
+                (s) => s.includes('organization') || s.includes('brand') || s.includes('corporation') || s.includes('localbusiness')
+            )
+            const hasWebSiteSchema = foundSchemas.some(
+                (s) => s.includes('website') || s.includes('sitenavigationelement') || s.includes('breadcrumblist')
+            )
+            const hasProductOrServiceSchema = foundSchemas.some(
+                (s) => s.includes('product') || s.includes('softwareapplication') || s.includes('service') || s.includes('article')
+            )
+            const hasFaqSchema = foundSchemas.some((s) => s.includes('faqpage') || s.includes('question'))
+            const hasReviewSchema = foundSchemas.some((s) => s.includes('review') || s.includes('aggregaterating'))
 
             const bType = brand.businessType || 'ecommerce'
             let entitySchemaLabel = 'Product / Service schema'
@@ -367,7 +378,13 @@ export const auditService = {
                 if (lowerHref.includes('facebook.com')) socialLinksFound.push('Facebook')
                 if (lowerHref.includes('reddit.com')) socialLinksFound.push('Reddit')
 
-                if (lowerHref.includes('/docs') || lowerHref.includes('docs.') || lowerHref.includes('/documentation') || lowerHref.includes('/help') || lowerHref.includes('/developer')) {
+                if (
+                    lowerHref.includes('/docs') ||
+                    lowerHref.includes('docs.') ||
+                    lowerHref.includes('/documentation') ||
+                    lowerHref.includes('/help') ||
+                    lowerHref.includes('/developer')
+                ) {
                     hasDocsLink = true
                 }
                 if (lowerHref.includes('/api') || lowerHref.includes('api.')) {
@@ -446,9 +463,7 @@ export const auditService = {
         }
 
         // AI Mentions footprint check in GEO DB
-        const dbMentionsCount = await mentionModel.countDocuments(
-            brand.lastScanId ? { brandId, scanId: brand.lastScanId } : { brandId }
-        )
+        const dbMentionsCount = await mentionModel.countDocuments(brand.lastScanId ? { brandId, scanId: brand.lastScanId } : { brandId })
 
         const offSiteFootprint: IAuditGridItem[] = [
             {
@@ -470,10 +485,10 @@ export const auditService = {
 
         // 4. Marketplace & Sales Platform Readability (User-Specific Platform Detection)
         const marketplaceReadability: IAuditGridItem[] = []
-        const uniquePlatforms = Array.from(new Map(detectedPlatforms.map(p => [p.name, p])).values())
+        const uniquePlatforms = Array.from(new Map(detectedPlatforms.map((p) => [p.name, p])).values())
 
         if (uniquePlatforms.length > 0) {
-            uniquePlatforms.forEach(p => {
+            uniquePlatforms.forEach((p) => {
                 marketplaceReadability.push({
                     name: `${p.name} Listing Readability`,
                     status: 'Linked & AI Readable',
@@ -515,7 +530,7 @@ export const auditService = {
         const holdingBack: string[] = [...htmlIssues]
 
         // Add blocked crawlers to holdingBack
-        const blockedCrawlers = crawlerAccess.filter(c => c.status === 'Blocked').map(c => `${c.name} crawler currently blocked in robots.txt`)
+        const blockedCrawlers = crawlerAccess.filter((c) => c.status === 'Blocked').map((c) => `${c.name} crawler currently blocked in robots.txt`)
         holdingBack.push(...blockedCrawlers)
 
         if (!llmsTxtFound) {
@@ -524,7 +539,7 @@ export const auditService = {
 
         // Calculate dynamic Health Score (0 - 100)
         const allItems = [...crawlerAccess, ...structuredData, ...offSiteFootprint, ...marketplaceReadability]
-        const passedCount = allItems.filter(i => i.badgeType === 'badge-ok').length
+        const passedCount = allItems.filter((i) => i.badgeType === 'badge-ok').length
         const totalItems = allItems.length
         let healthScore = totalItems > 0 ? Math.round((passedCount / totalItems) * 100) : 50
 

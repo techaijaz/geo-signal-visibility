@@ -2,10 +2,17 @@
 #
 #   https://${DOMAIN}       marketing website
 #   https://app.${DOMAIN}   React app + API (/api/v1)
+#   https://status.${DOMAIN} Uptime Kuma (uptime monitoring and alerts)
 #
 # Reads secrets from ./.env (copy .env.docker.example). Compose refuses to start if a required
 # variable (marked :?) is missing, instead of booting with broken auth or DB.
-# Only nginx publishes ports (80/443); MongoDB and Redis are reachable inside the Docker network only.
+# Only nginx publishes ports; MongoDB and Redis are reachable inside the Docker network only.
+#
+# Two ways to run (set in .env, see DEPLOY.md):
+#   Own server      nginx takes ports 80/443 and handles HTTPS itself (defaults below)
+#   Shared server   another site already uses 80/443 through the server's nginx: set
+#                   NGINX_HTTP_BIND=127.0.0.1:8088, NGINX_HTTPS_BIND=127.0.0.1:8443 and
+#                   NGINX_TEMPLATES=./nginx/templates-behind-proxy, and let the host nginx proxy to it
 
 x-backend: &backend
   env_file: .env
@@ -20,10 +27,14 @@ x-backend: &backend
     - REDIS_PASSWORD=${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     - FRONTEND_URL=https://app.${DOMAIN:?Set DOMAIN in .env}
     - SERVER_URL=https://app.${DOMAIN}
+    - WORKER_HEALTH_PORT=8081
   build:
     context: ./backend
     dockerfile: Dockerfile
   restart: unless-stopped
+  # autoheal restarts containers with this label when their healthcheck keeps failing
+  labels:
+    autoheal: 'true'
   depends_on:
     mongo:
       condition: service_healthy
@@ -40,7 +51,7 @@ services:
     image: mongo:7
     restart: unless-stopped
     # Cap MongoDB's cache so it leaves room for the app on a small VPS
-    command: ['--wiredTigerCacheSizeGB', '1']
+    command: ['--wiredTigerCacheSizeGB', '${MONGO_CACHE_GB:-1}']
     environment:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
@@ -76,12 +87,25 @@ services:
   api:
     <<: *backend
     command: npm run start:api
+    # Liveness: /healthz answers while the process is alive. /readyz (Mongo + Redis) is for Kubernetes readiness
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:8080/healthz || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     mem_limit: 1536m
 
   # BullMQ workers: scans, audits, recommendations, scheduler, plan expiry
   worker:
     <<: *backend
     command: npm run start:worker
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:8081/healthz || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     mem_limit: 1536m
 
   frontend:
@@ -109,19 +133,47 @@ services:
     image: nginx:alpine
     restart: unless-stopped
     ports:
-      - '80:80'
-      - '443:443'
+      - '${NGINX_HTTP_BIND:-80}:80'
+      - '${NGINX_HTTPS_BIND:-443}:443'
     environment:
       - DOMAIN=${DOMAIN}
     volumes:
-      - ./nginx/templates:/etc/nginx/templates:ro
+      - ${NGINX_TEMPLATES:-./nginx/templates}:/etc/nginx/templates:ro
       - ./data/certbot/conf:/etc/letsencrypt:ro
       - ./data/certbot/www:/var/www/certbot:ro
     depends_on:
-      - api
-      - frontend
-      - website
+      api:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+      website:
+        condition: service_started
+      uptime-kuma:
+        condition: service_started
     mem_limit: 128m
+    logging: *logging
+
+  # Restarts api/worker when their healthcheck keeps failing (Compose itself only restarts on exit).
+  # Needs the Docker socket; on Kubernetes liveness probes do this job instead
+  autoheal:
+    image: willfarrell/autoheal:latest
+    restart: unless-stopped
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      - AUTOHEAL_INTERVAL=30
+      - AUTOHEAL_START_PERIOD=60
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    mem_limit: 64m
+    logging: *logging
+
+  # Uptime monitoring with alerts (email, Telegram, webhooks...). Set up at https://status.${DOMAIN}
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    restart: unless-stopped
+    volumes:
+      - uptime_kuma_data:/app/data
+    mem_limit: 256m
     logging: *logging
 
   # Let's Encrypt. Not started by `up`; used by deploy/init-ssl.sh and deploy/renew-ssl.sh
@@ -135,3 +187,4 @@ services:
 volumes:
   mongo_data:
   redis_data:
+  uptime_kuma_data:

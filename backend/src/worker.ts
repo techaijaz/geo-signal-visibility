@@ -3,6 +3,9 @@ import databseService from './service/databseService'
 import logger from './util/loger'
 import { startWorkers } from './service/workerService'
 import { startScheduler } from './service/schedulerService'
+import { startHealthServer } from './util/health'
+
+const HEALTH_PORT = Number(process.env.WORKER_HEALTH_PORT) || 8081
 
 ;(async () => {
     try {
@@ -12,6 +15,20 @@ import { startScheduler } from './service/schedulerService'
         })
 
         const activeWorkers = startWorkers()
+        const healthServer = startHealthServer(HEALTH_PORT)
+
+        // SIGTERM (container stop / pod eviction): let running jobs finish, then exit. Unfinished jobs
+        // are picked up again by another worker because BullMQ only removes a job once it completes
+        const shutdown = async (signal: string) => {
+            logger.info(`${signal} received, closing workers`)
+            healthServer.close()
+            setTimeout(() => process.exit(0), 25000).unref()
+            await Promise.allSettled(activeWorkers.map((w) => w.close()))
+            await databseService.disconnect().catch(() => undefined)
+            process.exit(0)
+        }
+        process.on('SIGTERM', () => void shutdown('SIGTERM'))
+        process.on('SIGINT', () => void shutdown('SIGINT'))
 
         // Register the repeating scheduler tick in Redis (safe to call from every worker instance)
         await startScheduler()

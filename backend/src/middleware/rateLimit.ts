@@ -9,6 +9,10 @@ export default (req: Request, _: Response, next: NextFunction) => {
     if (config.ENV === EApplicationEnvionment.DEVELOPMENT) {
         return next()
     }
+    // Not initialised until MongoDB connects; let the request through rather than leaving it hanging
+    if (!rateLimiterMongo) {
+        return next()
+    }
     if (rateLimiterMongo) {
         rateLimiterMongo
             .consume(req.ip as string, 1)

@@ -49,6 +49,9 @@ const databseService = {
             throw error
         }
     },
+    disconnect: async () => {
+        await mongoose.disconnect()
+    },
     findUserByEmail: (email: string, select: string = '') => {
         return userModel.findOne({ email }).select(select)
     },

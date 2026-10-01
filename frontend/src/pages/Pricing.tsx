@@ -112,7 +112,7 @@ const Pricing: React.FC = () => {
   const handlePlanChange = async (planId: string) => {
     if (planId === currentPlan) return;
     if (planId === 'agency') {
-      setMessage({ text: 'Contact sales team at sales@signal-ai.com', type: 'success' });
+      setMessage({ text: 'Contact sales team at sales@geosignalai.com', type: 'success' });
       return;
     }
     // Paid plans go through the real Razorpay / Stripe checkout on the Billing page

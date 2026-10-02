@@ -99,6 +99,11 @@ export default function Workspace() {
                 <button onClick={(e) => { e.stopPropagation(); navigate('/settings?tab=profile'); setIsUserMenuOpen(false); }}>
                   Profile settings
                 </button>
+                {user?.role === 'admin' && (
+                  <button onClick={(e) => { e.stopPropagation(); navigate('/admin'); setIsUserMenuOpen(false); }}>
+                    ⚡ Admin Panel
+                  </button>
+                )}
                 <hr />
                 <button onClick={(e) => { e.stopPropagation(); navigate('/login'); setIsUserMenuOpen(false); }}>
                   Log out

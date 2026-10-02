@@ -13,6 +13,10 @@
 #   Shared server   another site already uses 80/443 through the server's nginx: set
 #                   NGINX_HTTP_BIND=127.0.0.1:8088, NGINX_HTTPS_BIND=127.0.0.1:8443 and
 #                   NGINX_TEMPLATES=./nginx/templates-behind-proxy, and let the host nginx proxy to it
+#
+# Images: api, worker, frontend and website run the images GitHub Actions pushes to ghcr.io.
+# IMAGE_TAG (a commit SHA, written to .env by deploy/deploy.sh) picks the version. `build:` stays
+# so `docker compose build` still works on a machine without access to the registry.
 
 x-backend: &backend
   env_file: .env
@@ -28,6 +32,7 @@ x-backend: &backend
     - FRONTEND_URL=https://app.${DOMAIN:?Set DOMAIN in .env}
     - SERVER_URL=https://app.${DOMAIN}
     - WORKER_HEALTH_PORT=8081
+  image: ${IMAGE_REGISTRY:-ghcr.io/techaijaz}/signal-ai-backend:${IMAGE_TAG:-main}
   build:
     context: ./backend
     dockerfile: Dockerfile
@@ -109,6 +114,7 @@ services:
     mem_limit: ${WORKER_MEM_LIMIT:-1536m}
 
   frontend:
+    image: ${IMAGE_REGISTRY:-ghcr.io/techaijaz}/signal-ai-frontend:${IMAGE_TAG:-main}
     build:
       context: ./frontend
       args:
@@ -120,6 +126,7 @@ services:
     logging: *logging
 
   website:
+    image: ${IMAGE_REGISTRY:-ghcr.io/techaijaz}/signal-ai-website:${IMAGE_TAG:-main}
     build:
       context: ./website
       args:

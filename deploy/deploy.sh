@@ -2,6 +2,7 @@
 # Deploys one commit: the code (compose file, nginx config, scripts) from git, the images from ghcr.io.
 # The Deploy workflow runs it over SSH as the deploy user, always the copy from the commit being deployed:
 #   cd /opt/signal-ai && git fetch -q origin && bash <(git show <sha>:deploy/deploy.sh) <sha>
+# Production lives in /opt/signal-ai, staging in /opt/signal-ai-staging (APP_DIR picks one).
 # Takes a MongoDB backup first. If api or worker are not healthy after the switch, it puts the
 # previous version (code and images) back and exits with an error.
 set -euo pipefail
@@ -12,11 +13,13 @@ cd "${APP_DIR:-/opt/signal-ai}"
 services=(api worker frontend website)
 registry=$(grep -E '^IMAGE_REGISTRY=' .env | cut -d= -f2- || true)
 registry="${registry:-ghcr.io/techaijaz}"
+# -staging on staging, whose frontend and website are built for the staging domains
+variant=$(grep -E '^IMAGE_VARIANT=' .env | cut -d= -f2- || true)
 
 log() { echo "[deploy $(date -u +%H:%M:%S)] $*"; }
 
 # api and worker share the backend image
-image_of() { case "$1" in api | worker) echo backend ;; *) echo "$1" ;; esac; }
+image_of() { case "$1" in api | worker) echo backend ;; *) echo "$1$variant" ;; esac; }
 
 # Remember the tag in .env, so a manual `docker compose up -d` keeps running this version
 save_tag() {

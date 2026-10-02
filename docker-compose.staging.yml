@@ -1,0 +1,11 @@
+# Staging overrides, on the same server as production. Staging's .env loads it with
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.staging.yml
+# See DEPLOY.md ("Staging"). Production does not use this file.
+
+services:
+  # Production's autoheal already watches every container labelled autoheal=true on this server,
+  # staging's api and worker included, and production's Uptime Kuma can monitor staging too
+  autoheal:
+    profiles: [production-only]
+  uptime-kuma:
+    profiles: [production-only]

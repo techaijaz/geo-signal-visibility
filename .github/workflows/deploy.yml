@@ -1,6 +1,7 @@
 name: Deploy
 
-# Deploys a commit of main to the production server (Actions > Deploy > Run workflow).
+# Deploys a commit of main to staging or production (Actions > Deploy > Run workflow).
+# Both run on the same server: production in /opt/signal-ai, staging in /opt/signal-ai-staging.
 # The images must already be on ghcr.io, so wait for the Images workflow of that commit to finish.
 # Needs the DEPLOY_HOST, DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS repository secrets. The user is not a
 # secret (GitHub would mask the word "deploy" everywhere in the logs); DEPLOY_USER variable, default deploy.
@@ -8,14 +9,19 @@ name: Deploy
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: Where to deploy
+        type: choice
+        options: [staging, production]
+        default: staging
       sha:
         description: Full commit SHA to deploy (empty = latest main)
         required: false
         default: ''
 
-# One deploy at a time; a second one waits instead of cancelling the first halfway
+# One deploy at a time per environment; a second one waits instead of cancelling the first halfway
 concurrency:
-  group: deploy-production
+  group: deploy-${{ inputs.environment }}
   cancel-in-progress: false
 
 permissions:
@@ -23,12 +29,16 @@ permissions:
 
 jobs:
   deploy:
-    name: Deploy to production
+    name: Deploy to ${{ inputs.environment }}
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
-      name: production
-      url: https://app.geosignalai.com
+      name: ${{ inputs.environment }}
+      url: ${{ inputs.environment == 'staging' && 'https://app.staging.geosignalai.com' || 'https://app.geosignalai.com' }}
+    env:
+      APP_DIR: ${{ inputs.environment == 'staging' && '/opt/signal-ai-staging' || '/opt/signal-ai' }}
+      # Staging's frontend and website are built for the staging domains
+      VARIANT: ${{ inputs.environment == 'staging' && '-staging' || '' }}
     steps:
       - name: Pick the commit
         id: commit
@@ -47,9 +57,9 @@ jobs:
           SHA: ${{ steps.commit.outputs.sha }}
           OWNER: ${{ github.repository_owner }}
         run: |
-          for s in backend frontend website; do
-            if ! docker buildx imagetools inspect "ghcr.io/$OWNER/signal-ai-$s:$SHA" > /dev/null; then
-              echo "::error::No $s image for $SHA yet. Wait for the Images workflow of this commit to finish."
+          for image in backend "frontend$VARIANT" "website$VARIANT"; do
+            if ! docker buildx imagetools inspect "ghcr.io/$OWNER/signal-ai-$image:$SHA" > /dev/null; then
+              echo "::error::No $image image for $SHA yet. Wait for the Images workflow of this commit to finish."
               exit 1
             fi
           done
@@ -70,4 +80,4 @@ jobs:
           TARGET: ${{ vars.DEPLOY_USER || 'deploy' }}@${{ secrets.DEPLOY_HOST }}
         run: |
           ssh -o StrictHostKeyChecking=yes "$TARGET" \
-            "cd /opt/signal-ai && git fetch -q origin && bash <(git show $SHA:deploy/deploy.sh) $SHA" < /dev/null
+            "cd $APP_DIR && git fetch -q origin && APP_DIR=$APP_DIR bash <(git show $SHA:deploy/deploy.sh) $SHA" < /dev/null

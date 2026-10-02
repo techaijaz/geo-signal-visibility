@@ -2,7 +2,8 @@ name: Deploy
 
 # Deploys a commit of main to the production server (Actions > Deploy > Run workflow).
 # The images must already be on ghcr.io, so wait for the Images workflow of that commit to finish.
-# Needs the DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS repository secrets.
+# Needs the DEPLOY_HOST, DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS repository secrets. The user is not a
+# secret (GitHub would mask the word "deploy" everywhere in the logs); DEPLOY_USER variable, default deploy.
 
 on:
   workflow_dispatch:
@@ -66,7 +67,7 @@ jobs:
       - name: Deploy
         env:
           SHA: ${{ steps.commit.outputs.sha }}
-          TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+          TARGET: ${{ vars.DEPLOY_USER || 'deploy' }}@${{ secrets.DEPLOY_HOST }}
         run: |
           ssh -o StrictHostKeyChecking=yes "$TARGET" \
             "cd /opt/signal-ai && git fetch -q origin && bash <(git show $SHA:deploy/deploy.sh) $SHA" < /dev/null

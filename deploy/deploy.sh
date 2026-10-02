@@ -54,10 +54,16 @@ wait_healthy() {
 prev_sha=$(git rev-parse HEAD)
 log "running $prev_sha, deploying $sha"
 
-# Tag the images running now as :rollback, the way back if the new version fails
+# Tag the images running now as :rollback, the way back if the new version fails. An image that lost
+# its name (rebuilt while the container kept running) can't be tagged by ID on the containerd image
+# store, so fall back to the name the container was started from
 for s in "${services[@]}"; do
     id=$(container_of "$s")
-    [ -n "$id" ] && docker tag "$(docker inspect -f '{{.Image}}' "$id")" "$registry/signal-ai-$(image_of "$s"):rollback"
+    [ -n "$id" ] || continue
+    ref="$registry/signal-ai-$(image_of "$s"):rollback"
+    docker tag "$(docker inspect -f '{{.Image}}' "$id")" "$ref" 2>/dev/null ||
+        docker tag "$(docker inspect -f '{{.Config.Image}}' "$id")" "$ref" ||
+        log "warning: no rollback image for $s"
 done
 
 log "backing up MongoDB"

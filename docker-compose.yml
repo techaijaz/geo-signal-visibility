@@ -15,8 +15,9 @@
 #                   NGINX_TEMPLATES=./nginx/templates-behind-proxy, and let the host nginx proxy to it
 #
 # Images: api, worker, frontend and website run the images GitHub Actions pushes to ghcr.io.
-# IMAGE_TAG (a commit SHA, written to .env by deploy/deploy.sh) picks the version. `build:` stays
-# so `docker compose build` still works on a machine without access to the registry.
+# IMAGE_TAG (a commit SHA, written to .env by deploy/deploy.sh) picks the version. The frontend and
+# website bake their URLs in at build time, so staging runs its own builds (IMAGE_VARIANT=-staging).
+# `build:` stays so `docker compose build` still works on a machine without access to the registry.
 
 x-backend: &backend
   env_file: .env
@@ -114,7 +115,7 @@ services:
     mem_limit: ${WORKER_MEM_LIMIT:-1536m}
 
   frontend:
-    image: ${IMAGE_REGISTRY:-ghcr.io/techaijaz}/signal-ai-frontend:${IMAGE_TAG:-main}
+    image: ${IMAGE_REGISTRY:-ghcr.io/techaijaz}/signal-ai-frontend${IMAGE_VARIANT:-}:${IMAGE_TAG:-main}
     build:
       context: ./frontend
       args:
@@ -126,7 +127,7 @@ services:
     logging: *logging
 
   website:
-    image: ${IMAGE_REGISTRY:-ghcr.io/techaijaz}/signal-ai-website:${IMAGE_TAG:-main}
+    image: ${IMAGE_REGISTRY:-ghcr.io/techaijaz}/signal-ai-website${IMAGE_VARIANT:-}:${IMAGE_TAG:-main}
     build:
       context: ./website
       args:
@@ -155,8 +156,10 @@ services:
         condition: service_started
       website:
         condition: service_started
+      # Not required: staging runs without Uptime Kuma (docker-compose.staging.yml)
       uptime-kuma:
         condition: service_started
+        required: false
     mem_limit: 128m
     logging: *logging
 

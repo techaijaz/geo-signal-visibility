@@ -146,7 +146,7 @@ Self-healing: `api` and `worker` have healthchecks (`/healthz`). If one stops an
 
 | Task | Command |
 |---|---|
-| Deploy a new version | `git pull && docker compose up -d --build` |
+| Deploy a new version | GitHub: **Actions > Deploy > Run workflow** (see [Deploying from GitHub](#deploying-from-github)) |
 | See logs | `docker compose logs -f api worker` |
 | Restart one service | `docker compose restart api` |
 | Check memory use | `docker stats --no-stream` |
@@ -233,6 +233,39 @@ Then continue with steps 7 (first-time data), 8 (backup cron only) and 9 (monito
 sudo rm /etc/nginx/sites-enabled/signal-ai.conf && sudo systemctl reload nginx
 docker compose down        # never add -v: that deletes the database
 ```
+
+## Deploying from GitHub
+
+Every merge to `main` builds the images (`.github/workflows/images.yml`) and pushes them to `ghcr.io/techaijaz/signal-ai-*`, tagged with the commit SHA. **Actions > Deploy > Run workflow** (or `gh workflow run deploy.yml --ref main -f environment=staging`) then deploys a commit: wait for the Images run of that commit to finish first.
+
+The workflow logs in as the `deploy` user (repository secrets `DEPLOY_HOST`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`) and runs `deploy/deploy.sh`, which backs up MongoDB, checks out the commit, pulls the images and switches the containers. If `api` or `worker` aren't healthy within 3 minutes it puts the previous version back. The running version is `IMAGE_TAG` in `.env`.
+
+Roll back by hand: run the workflow again with the SHA of an older commit.
+
+## Staging
+
+A second copy of the stack on the same server, at `staging.geosignalai.com` and `app.staging.geosignalai.com`, behind a password. It has its own MongoDB, Redis and secrets, its own frontend and website builds (`signal-ai-frontend-staging`, `signal-ai-website-staging`), and runs without autoheal and Uptime Kuma (`docker-compose.staging.yml`; production's autoheal watches staging's containers too).
+
+One-time setup (DNS A records `staging` and `app.staging` pointing to the server first):
+
+```bash
+# as root
+mkdir /opt/signal-ai-staging && chown deploy:deploy /opt/signal-ai-staging
+
+# as deploy (su - deploy)
+git clone https://github.com/techaijaz/geo-signal-visibility.git /opt/signal-ai-staging
+bash /opt/signal-ai-staging/deploy/make-staging-env.sh    # add --copy-ai-keys to share production's AI keys
+
+# as root: host nginx site, password, certificate
+cp /opt/signal-ai-staging/deploy/host-nginx/signal-ai-staging.conf /etc/nginx/sites-available/
+ln -s /etc/nginx/sites-available/signal-ai-staging.conf /etc/nginx/sites-enabled/
+printf 'tester:%s\n' "$(openssl passwd -apr1)" > /etc/nginx/signal-ai-staging.htpasswd
+chown root:www-data /etc/nginx/signal-ai-staging.htpasswd && chmod 640 /etc/nginx/signal-ai-staging.htpasswd
+nginx -t && systemctl reload nginx
+certbot --nginx -d staging.geosignalai.com -d app.staging.geosignalai.com
+```
+
+Then deploy to staging from GitHub, and add the first-time data in `/opt/signal-ai-staging` (section 7).
 
 ## Moving to Kubernetes later
 

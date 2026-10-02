@@ -18,19 +18,26 @@ permissions:
   contents: read
   packages: write
 
-env:
-  # The frontend and website bake their URLs in at build time. Set the PROD_DOMAIN and
-  # STRIPE_PUBLISHABLE_KEY repository variables (Settings > Secrets and variables > Actions > Variables)
-  DOMAIN: ${{ vars.PROD_DOMAIN || 'geosignalai.com' }}
+# The frontend and website bake their URLs in at build time, so they are built once per environment:
+# signal-ai-frontend for production, signal-ai-frontend-staging for staging. The backend reads its
+# URLs at runtime and is one image for both. Domains come from the PROD_DOMAIN and STAGING_DOMAIN
+# repository variables (Settings > Secrets and variables > Actions > Variables), with these defaults.
 
 jobs:
   image:
-    name: Image ${{ matrix.service }}
+    name: Image ${{ matrix.image }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        service: [backend, frontend, website]
+        include:
+          - { service: backend, image: backend, env: production }
+          - { service: frontend, image: frontend, env: production }
+          - { service: website, image: website, env: production }
+          - { service: frontend, image: frontend-staging, env: staging }
+          - { service: website, image: website-staging, env: staging }
+    env:
+      DOMAIN: ${{ matrix.env == 'staging' && (vars.STAGING_DOMAIN || 'staging.geosignalai.com') || (vars.PROD_DOMAIN || 'geosignalai.com') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -52,7 +59,7 @@ jobs:
             case "${{ matrix.service }}" in
               frontend)
                 echo "VITE_API_BASE_URL=/api/v1"
-                echo "VITE_STRIPE_PUBLISHABLE_KEY=${{ vars.STRIPE_PUBLISHABLE_KEY }}"
+                echo "VITE_STRIPE_PUBLISHABLE_KEY=${{ vars[matrix.env == 'staging' && 'STAGING_STRIPE_PUBLISHABLE_KEY' || 'STRIPE_PUBLISHABLE_KEY'] }}"
                 echo "VITE_SITE_URL=https://${DOMAIN}"
                 ;;
               website)
@@ -69,10 +76,10 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           build-args: ${{ steps.args.outputs.list }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/signal-ai-${{ matrix.service }}:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/signal-ai-${{ matrix.service }}:main
+            ghcr.io/${{ github.repository_owner }}/signal-ai-${{ matrix.image }}:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/signal-ai-${{ matrix.image }}:main
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}

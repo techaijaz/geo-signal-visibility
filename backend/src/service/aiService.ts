@@ -69,7 +69,8 @@ const OPENAI_COMPATIBLE_PROVIDERS: Record<string, IOpenAiCompatibleProvider> = {
         url: () => 'https://api.deepseek.com/chat/completions',
         defaultModel: () => config.AI_MODELS.DEEPSEEK || 'deepseek-v4-flash',
         fallbackModel: 'deepseek-chat',
-        extraBody: { temperature: 0.7 }
+        // v4 models think before answering; within our token budget that left the answer empty
+        extraBody: { temperature: 0.7, thinking: { type: 'disabled' } }
     },
     Perplexity: {
         keyName: 'PERPLEXITY',
@@ -92,6 +93,15 @@ const OPENAI_COMPATIBLE_PROVIDERS: Record<string, IOpenAiCompatibleProvider> = {
         url: () => config.OMNIROUTE_BASE_URL,
         defaultModel: () => config.AI_MODELS.OMNIROUTE || 'omniroute-auto'
     }
+}
+
+const GEMINI_FALLBACK_MODEL = 'gemini-flash-latest'
+
+// Without this a failed call only showed up as "n/m AI calls failed"; the provider's message says why
+// (no credits, retired model, bad key...)
+const logProviderFailure = async (provider: string, model: string, response: Response) => {
+    const body = await response.text().catch(() => '')
+    logger.warn(`[aiService] ${provider} ${model} returned ${response.status}: ${body.replace(/\s+/g, ' ').slice(0, 300)}`)
 }
 
 const aiService = {
@@ -123,6 +133,7 @@ const aiService = {
                 })
             })
             if (!response.ok) {
+                await logProviderFailure(provider, model, response)
                 if (spec.fallbackModel && model !== spec.fallbackModel) {
                     return aiService.callOpenAiCompatible(provider, prompt, spec.fallbackModel, maxTokens)
                 }
@@ -142,51 +153,40 @@ const aiService = {
     callGemini: async (prompt: string, modelOverride?: string, maxTokens = 400): Promise<string | null> => {
         const apiKey = await databseService.getDecryptedApiKey('GEMINI')
         if (!apiKey) return null
-        let modelName = (modelOverride || config.AI_MODELS.GEMINI || 'gemini-1.5-flash').trim()
+        const modelName = (modelOverride || config.AI_MODELS.GEMINI).trim()
 
-        // Normalize common user-entered model names to valid Google Gemini REST API model slugs
-        const lower = modelName.toLowerCase()
-        if (lower.includes('lite')) {
-            modelName = 'gemini-2.0-flash-lite'
-        } else if (lower.includes('2.0')) {
-            modelName = 'gemini-2.0-flash'
-        } else if (lower.includes('pro')) {
-            modelName = 'gemini-1.5-pro'
-        } else if (!modelName.startsWith('gemini-')) {
-            modelName = 'gemini-1.5-flash'
-        }
-
-        try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`
-            const response = await aiFetch('GEMINI', url, {
+        const generate = (model: string) =>
+            aiFetch('GEMINI', `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { maxOutputTokens: maxTokens }
+                    // Flash models think before answering by default, and the thinking counts against
+                    // maxOutputTokens, which cut answers off after a few words
+                    generationConfig: { maxOutputTokens: maxTokens, thinkingConfig: { thinkingBudget: 0 } }
                 })
             })
+
+        try {
+            let response = await generate(modelName)
             if (!response.ok) {
-                // If model slug fails, fallback to standard gemini-1.5-flash
-                if (modelName !== 'gemini-1.5-flash') {
-                    const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`
-                    const fallbackRes = await aiFetch('GEMINI', fallbackUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }],
-                            generationConfig: { maxOutputTokens: maxTokens }
-                        })
-                    })
-                    if (fallbackRes.ok) {
-                        const fallbackData = (await fallbackRes.json()) as IGeminiResponse
-                        return fallbackData.candidates?.[0]?.content?.parts?.[0]?.text || null
-                    }
+                await logProviderFailure('Gemini', modelName, response)
+                // Google retires model versions; the -latest alias always points at a current one
+                if (modelName === GEMINI_FALLBACK_MODEL) return null
+                response = await generate(GEMINI_FALLBACK_MODEL)
+                if (!response.ok) {
+                    await logProviderFailure('Gemini', GEMINI_FALLBACK_MODEL, response)
+                    return null
                 }
-                return null
             }
             const data = (await response.json()) as IGeminiResponse
-            return data.candidates?.[0]?.content?.parts?.[0]?.text || null
+            // An answer can come back in several parts
+            return (
+                data.candidates?.[0]?.content?.parts
+                    ?.map((p) => p.text || '')
+                    .join('')
+                    .trim() || null
+            )
         } catch (error) {
             logger.error('Gemini API Error:', { meta: error })
             return null
@@ -214,7 +214,10 @@ const aiService = {
                     messages: [{ role: 'user', content: prompt }]
                 })
             })
-            if (!response.ok) return null
+            if (!response.ok) {
+                await logProviderFailure('Claude', modelName, response)
+                return null
+            }
             const data = (await response.json()) as IClaudeResponse
             return data.content?.[0]?.text || null
         } catch (error) {

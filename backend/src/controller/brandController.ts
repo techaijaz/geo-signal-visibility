@@ -127,6 +127,7 @@ export default {
                 name: value.name,
                 website: value.website,
                 category: value.category,
+                businessType: value.businessType,
                 region: value.region || 'India',
                 role: value.role || EBrandRole.OWNER,
                 competitors: value.competitors || [],

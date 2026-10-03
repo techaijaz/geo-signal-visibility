@@ -64,8 +64,9 @@ export default function Onboarding() {
   // Step 1 State: Brand Info
   const [brandName, setBrandName] = useState('');
   const [website, setWebsite] = useState('');
-  const [category, setCategory] = useState('SaaS & Software');
-  const [businessType, setBusinessType] = useState<'ecommerce' | 'saas' | 'service' | 'local_business' | 'content_media'>('saas');
+  // Signal is built for D2C stores, so start from e-commerce
+  const [category, setCategory] = useState('E-Commerce & Retail');
+  const [businessType, setBusinessType] = useState<'ecommerce' | 'saas' | 'service' | 'local_business' | 'content_media'>('ecommerce');
   const [categoriesList, setCategoriesList] = useState<string[]>(FALLBACK_CATEGORIES);
   const [region, setRegion] = useState('India');
   const [step1Error, setStep1Error] = useState('');
@@ -106,15 +107,22 @@ export default function Onboarding() {
   const [step2Error, setStep2Error] = useState('');
 
   // Step 3 State: Category-based Queries
-  const [queries, setQueries] = useState<QueryItem[]>(() => generateCategoryQueries('SaaS & Software', ''));
+  const [queries, setQueries] = useState<QueryItem[]>(() => generateCategoryQueries('E-Commerce & Retail', ''));
   const [customQueryInput, setCustomQueryInput] = useState('');
   const [step3Error, setStep3Error] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Pre-tick only as many queries as the plan allows; the others stay in the list, unticked
+  const queriesWithinPlan = (items: QueryItem[]) => {
+    let ticked = 0;
+    return items.map((q) => ({ ...q, enabled: q.enabled && ++ticked <= maxQueries }));
+  };
+
   // Dynamically update queries when Category or Brand Name changes
   useEffect(() => {
-    setQueries(generateCategoryQueries(category, brandName));
-  }, [category, brandName]);
+    setQueries(queriesWithinPlan(generateCategoryQueries(category, brandName)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category, brandName, maxQueries]);
 
   const activeQueriesCount = queries.filter((q) => q.enabled).length;
 
@@ -562,7 +570,7 @@ export default function Onboarding() {
               type="button"
               className="btn btn-ghost"
               style={{ fontSize: '12px', padding: '4px 10px' }}
-              onClick={() => setQueries(generateCategoryQueries(category, brandName))}
+              onClick={() => setQueries(queriesWithinPlan(generateCategoryQueries(category, brandName)))}
               title={`Reset queries for ${category}`}
             >
               ↻ Reset for {category}

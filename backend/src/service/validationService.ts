@@ -7,7 +7,7 @@ import {
     IChangePasswordRequestBody,
     IUpdateProfileRequestBody
 } from '../types/userTypes'
-import { EBrandRole, ICreateBrandRequestBody, IUpdateBrandRequestBody } from '../types/brandTypes'
+import { EBrandRole, EBusinessType, ICreateBrandRequestBody, IUpdateBrandRequestBody } from '../types/brandTypes'
 
 export const validationRegisterBody = Joi.object<IRegisterRequestBody>({
     name: Joi.string().required().min(3).max(72).trim(),
@@ -61,6 +61,10 @@ export const validationCreateBrandBody = Joi.object<ICreateBrandRequestBody>({
     name: Joi.string().required().min(2).max(100).trim(),
     website: Joi.string().uri({ allowRelative: true }).required().trim(),
     category: Joi.string().required().trim(),
+    businessType: Joi.string()
+        .valid(...Object.values(EBusinessType))
+        .optional()
+        .default(EBusinessType.ECOMMERCE),
     region: Joi.string().optional().default('India').trim(),
     role: Joi.string()
         .valid(...Object.values(EBrandRole))
@@ -75,6 +79,9 @@ export const validationUpdateBrandBody = Joi.object<IUpdateBrandRequestBody>({
     name: Joi.string().min(2).max(100).optional().trim(),
     website: Joi.string().uri({ allowRelative: true }).optional().trim(),
     category: Joi.string().optional().trim(),
+    businessType: Joi.string()
+        .valid(...Object.values(EBusinessType))
+        .optional(),
     region: Joi.string().optional().trim(),
     role: Joi.string()
         .valid(...Object.values(EBrandRole))

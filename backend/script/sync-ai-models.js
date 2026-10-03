@@ -46,13 +46,15 @@ const targetModels = [
         maxTokens: 4096
     },
     {
-        name: 'Gemini 2.0 Flash',
-        modelId: 'gemini-2.0-flash',
+        // gemini-2.0-flash was retired; the -latest alias follows Google's current Flash model.
+        // Check the costs against Google's price list when it moves to a new version
+        name: 'Gemini Flash (latest)',
+        modelId: 'gemini-flash-latest',
         provider: 'Google',
         description: 'Google Gemini',
         isDefault: false,
-        inputCostPer1k: 0.0001,
-        outputCostPer1k: 0.0004,
+        inputCostPer1k: 0.0003,
+        outputCostPer1k: 0.0025,
         maxTokens: 8192
     },
     {

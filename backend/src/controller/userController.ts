@@ -28,6 +28,7 @@ import databseService from '../service/databseService'
 import { EUserRole } from '../constent/userConstent'
 
 import emailService from '../service/emailService'
+import emailTemplates from '../service/emailTemplates'
 import loger from '../util/loger'
 import config from '../config/config'
 import dayjs from 'dayjs'
@@ -146,10 +147,9 @@ export default {
             // * send verification email
             const confirmationalURL = `${config.FRONTEND_URL}/confirmation/${token}?code=${code}`
             const to = [email]
-            const subject = 'Confirm your account'
-            const text = `Hey ${name}, Please confirm your email by clicking on this link: ${confirmationalURL}\n\n`
+            const { subject, text, html } = emailTemplates.confirmAccount(name, confirmationalURL)
 
-            emailService.sendEmail(to, subject, text).catch((err) => loger.error('EMAIL_SERVICE', { meta: err }))
+            emailService.sendEmail(to, subject, text, { html }).catch((err) => loger.error('EMAIL_SERVICE', { meta: err }))
 
             httpResponse(req, res, 201, responceseMessage.SUCCESS, {
                 _id: newUser._id,
@@ -181,9 +181,8 @@ export default {
 
             // * send confirmation email
             const to = [user.email]
-            const subject = 'Account Confirmed'
-            const text = `Hey ${user.name}, Your account has been successfully confirmed.\n\n`
-            emailService.sendEmail(to, subject, text).catch((error) => loger.error('EMAIL_SERVICE', { meta: error }))
+            const { subject, text, html } = emailTemplates.accountConfirmed(user.name, `${config.FRONTEND_URL}/login`)
+            emailService.sendEmail(to, subject, text, { html }).catch((error) => loger.error('EMAIL_SERVICE', { meta: error }))
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 email: user.email,
                 confirmed: true
@@ -217,10 +216,9 @@ export default {
 
             const confirmationalURL = `${config.FRONTEND_URL}/confirmation/${token}?code=${code}`
             const to = [email]
-            const subject = 'Confirm your account'
-            const text = `Hey ${user.name}, Please confirm your email by clicking on this link: ${confirmationalURL}\n\n`
+            const { subject, text, html } = emailTemplates.confirmAccount(user.name, confirmationalURL)
 
-            emailService.sendEmail(to, subject, text).catch((err) => loger.error('EMAIL_SERVICE', { meta: err }))
+            emailService.sendEmail(to, subject, text, { html }).catch((err) => loger.error('EMAIL_SERVICE', { meta: err }))
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 message: 'Confirmation email sent successfully.'
@@ -450,10 +448,9 @@ export default {
 
             const resetlURL = `${config.FRONTEND_URL}/reset-password/${token}`
             const to = [email]
-            const subject = 'Account Password Reset requested'
-            const text = `Hey ${user.name}, Please reset your email by clicking on this link below \n\nLink will expire in 15 minutes.\n\n ${resetlURL}`
+            const { subject, text, html } = emailTemplates.passwordReset(user.name, resetlURL)
 
-            emailService.sendEmail(to, subject, text).catch((error) => loger.error('EMAIL_SERVICE', { meta: error }))
+            emailService.sendEmail(to, subject, text, { html }).catch((error) => loger.error('EMAIL_SERVICE', { meta: error }))
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, null)
         } catch (error) {
@@ -501,9 +498,8 @@ export default {
 
             // * send email
             const to = [user.email]
-            const subject = 'Reset account password'
-            const text = `Hey ${user.name}, Your password has been successfully reset.`
-            emailService.sendEmail(to, subject, text).catch((error) => {
+            const { subject, text, html } = emailTemplates.passwordResetDone(user.name, `${config.FRONTEND_URL}/login`)
+            emailService.sendEmail(to, subject, text, { html }).catch((error) => {
                 loger.error('EMAIL_SERVICE', { meta: error })
             })
             httpResponse(req, res, 200, responceseMessage.SUCCESS, null)
@@ -539,9 +535,8 @@ export default {
 
             // * send email
             const to = [user.email]
-            const subject = 'Password changed.'
-            const text = `Hey ${user.name}, Your account password has been change successfully.`
-            emailService.sendEmail(to, subject, text).catch((error) => {
+            const { subject, text, html } = emailTemplates.passwordChanged(user.name, `${config.FRONTEND_URL}/login`)
+            emailService.sendEmail(to, subject, text, { html }).catch((error) => {
                 loger.error('EMAIL_SERVICE', { meta: error })
             })
             httpResponse(req, res, 200, responceseMessage.SUCCESS, null)

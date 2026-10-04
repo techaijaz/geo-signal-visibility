@@ -432,9 +432,12 @@ const aiService = {
             seenProviders.add(m.provider)
             return true
         })
+        const failScan = (message: string) =>
+            brandModel.updateOne({ _id: brandId }, { $set: { lastScanError: { message, at: new Date() } } }).then(() => [])
+
         if (modelsToRun.length === 0) {
             logger.error(`[aiService] Scan for brand ${brandId}: no active AI model allowed for plan ${org?.plan || 'free'}`)
-            return []
+            return failScan('No AI engine is available for your plan right now, so the scan could not run. Please contact support.')
         }
 
         // Every query x model pair runs concurrently; aiFetch caps in-flight calls per provider
@@ -473,7 +476,9 @@ const aiService = {
         if (results.length === 0) {
             // Keep the previous scan as the latest; the scheduler lease retries this brand later
             logger.error(`[aiService] Scan for brand ${brandId} produced no answers (check API keys / provider status)`)
-            return []
+            return failScan(
+                'None of the AI engines answered, so this scan saved no results. Any earlier results are kept, and we will retry automatically.'
+            )
         }
 
         // Keep previous scans as history; readers use brand.lastScanId to get the latest set
@@ -483,7 +488,7 @@ const aiService = {
         const scannedAt = new Date()
         await brandModel.updateOne(
             { _id: brandId },
-            { $set: { lastScanId: scanId, lastScannedAt: scannedAt, nextScanAt: getNextScanAt(org?.plan, scannedAt) } }
+            { $set: { lastScanId: scanId, lastScannedAt: scannedAt, nextScanAt: getNextScanAt(org?.plan, scannedAt), lastScanError: null } }
         )
         return inserted
     }

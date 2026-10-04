@@ -580,7 +580,9 @@ const databseService = {
             },
             summaryText,
             totalQueriesTracked,
-            healthScore: audit?.healthScore || blendedScore
+            healthScore: audit?.healthScore || blendedScore,
+            lastScannedAt: brand?.lastScannedAt ?? null,
+            lastScanError: brand?.lastScanError ?? null
         }
     },
 

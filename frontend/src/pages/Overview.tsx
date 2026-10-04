@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import api from '../utils/axios';
 import VisibilityTrendChart, { type VisibilityTrendPoint } from '../components/VisibilityTrendChart';
+import ScanErrorBanner, { type ScanError } from '../components/ScanErrorBanner';
 
 interface ModelStat {
   name: string;
@@ -36,6 +37,8 @@ interface OverviewData {
   summaryText: string;
   totalQueriesTracked: number;
   healthScore: number;
+  lastScannedAt?: string | null;
+  lastScanError?: ScanError | null;
 }
 
 interface OutletContextType {
@@ -108,11 +111,13 @@ const Overview: React.FC = () => {
 
   return (
     <div>
+      <ScanErrorBanner error={data?.lastScanError} />
       {/* Top Metric Cards Matrix */}
       <div className="cards-row">
         <div className="card">
           <div className="label">Blended visibility score</div>
-          <div className="score-big">{blendedScore}%</div>
+          {/* No scan yet is not the same as 0% visibility */}
+          <div className="score-big">{data?.lastScannedAt ? `${blendedScore}%` : '—'}</div>
           <div className={deltaClass}>{deltaText}</div>
         </div>
 

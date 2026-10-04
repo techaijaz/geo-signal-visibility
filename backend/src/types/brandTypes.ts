@@ -64,6 +64,7 @@ export interface IBrand {
     languages: string[]
     lastScanId?: string | null
     lastScannedAt?: Date | null
+    lastScanError?: { message: string; at: Date } | null
     nextScanAt?: Date | null
     manualRescanDay?: string | null
     manualRescanCount?: number

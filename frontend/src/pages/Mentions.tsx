@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import api from '../utils/axios';
 import { timeAgo } from '../utils/timeAgo';
+import ScanErrorBanner, { type ScanError } from '../components/ScanErrorBanner';
+
+interface ScanState {
+  lastScannedAt: string | null;
+  lastScanError: ScanError | null;
+}
 
 interface MentionItem {
   _id: string;
@@ -33,6 +39,7 @@ export default function Mentions() {
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
+  const [scanState, setScanState] = useState<ScanState>({ lastScannedAt: null, lastScanError: null });
 
   // Fetch active AI models dynamically from MongoDB database
   useEffect(() => {
@@ -57,7 +64,7 @@ export default function Mentions() {
     return () => { isMounted = false; };
   }, []);
 
-  const fetchMentions = async (isMounted = true) => {
+  const fetchMentions = async (isMounted = true): Promise<ScanState | null> => {
     setIsLoading(true);
     if (!activeBrandId) {
       const filtered = activeModel === 'All models'
@@ -67,21 +74,25 @@ export default function Mentions() {
         setMentions(filtered);
         setIsLoading(false);
       }
-      return;
+      return null;
     }
 
     try {
       const modelParam = activeModel !== 'All models' ? `?model=${encodeURIComponent(activeModel)}` : '';
       const res = await api.get(`/brands/${activeBrandId}/mentions${modelParam}`);
       const data: MentionItem[] = res.data?.data?.mentions || [];
+      const state: ScanState = { lastScannedAt: res.data?.data?.lastScannedAt ?? null, lastScanError: res.data?.data?.lastScanError ?? null };
       if (isMounted) {
         setMentions(data);
+        setScanState(state);
       }
+      return state;
     } catch (err) {
       console.error('Failed to fetch mentions', err);
       if (isMounted) {
         setMentions([]);
       }
+      return null;
     } finally {
       if (isMounted) setIsLoading(false);
     }
@@ -102,18 +113,22 @@ export default function Mentions() {
     try {
       const res = await api.post(`/brands/${activeBrandId}/mentions/rescan`);
       if (res.data?.data?.status === 'queued') {
-        setScanMessage('AI query scan queued in background worker! Polling updates...');
+        setScanMessage('Scan started. Results appear here in a minute or two...');
+        // The scan is done when either timestamp moves past what we had before clicking
+        const before = scanState;
         let attempts = 0;
         const interval = setInterval(async () => {
           attempts++;
-          await fetchMentions(true);
-          if (attempts >= 6) {
+          const now = await fetchMentions(true);
+          const failed = now?.lastScanError && now.lastScanError.at !== before.lastScanError?.at;
+          const done = now?.lastScannedAt && now.lastScannedAt !== before.lastScannedAt;
+          if (failed || done || attempts >= 36) {
             clearInterval(interval);
             setIsScanning(false);
-            setScanMessage('Background scan job is running in worker queue.');
-            setTimeout(() => setScanMessage(null), 4000);
+            setScanMessage(failed ? null : done ? 'Scan complete.' : 'The scan is taking longer than usual. Results will show here when it finishes.');
+            if (!failed) setTimeout(() => setScanMessage(null), 6000);
           }
-        }, 3000);
+        }, 5000);
       } else {
         const fresh: MentionItem[] = res.data?.data?.mentions || [];
         setMentions(fresh);
@@ -167,6 +182,8 @@ export default function Mentions() {
           {isScanning ? 'Scanning Queries...' : 'Run AI Query Scan'}
         </button>
       </div>
+
+      {!isScanning && <ScanErrorBanner error={scanState.lastScanError} />}
 
       {scanMessage && (
         <div

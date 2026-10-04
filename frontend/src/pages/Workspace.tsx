@@ -151,7 +151,7 @@ export default function Workspace() {
           <div className="workspace-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px', marginTop: '28px' }}>
             {brands.map((brand) => {
               const isClient = brand.role === 'Client';
-              const queryCount = brand.queries?.length || 8;
+              const queryCount = brand.queries?.length ?? 0;
               return (
                 <div
                   key={brand._id}

@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Link } from 'react-router-dom';
 import api from '../utils/axios';
+import { SITE_URL } from '../utils/siteUrl';
 
 const signupSchema = z.object({
   fullName: z.string().min(2, 'Name is required'),
@@ -17,8 +18,6 @@ const signupSchema = z.object({
   weeklyReportEmails: z.boolean(),
 });
 
-// Legal pages live on the marketing site
-const SITE_URL = (import.meta.env.VITE_SITE_URL || (import.meta.env.DEV ? 'http://localhost:4321' : '')).replace(/\/$/, '');
 
 type SignupFormValues = z.infer<typeof signupSchema>;
 
@@ -208,8 +207,6 @@ export default function Signup() {
                   {isSubmitting ? 'Creating account...' : 'Create account →'}
                 </button>
               </form>
-              <div className="divider-row">or</div>
-              <button type="button" className="btn btn-block">Continue with Google</button>
               <p className="foot-note">Already have an account? <Link to="/login">Log in</Link></p>
             </div>
 

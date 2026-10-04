@@ -6,7 +6,7 @@ import Footer from './Footer';
 import api from '../utils/axios';
 
 export default function AppLayout() {
-  const [brands, setBrands] = useState<Array<{ _id?: string; name: string; role?: string }>>([]);
+  const [brands, setBrands] = useState<Array<{ _id?: string; name: string; role?: string; lastScannedAt?: string | null }>>([]);
   const [currentBrand, setCurrentBrand] = useState<{ _id?: string; name: string; role: string }>({ _id: '', name: '', role: 'Owner' });
   const [loadingBrands, setLoadingBrands] = useState(true);
   const [shouldRedirectToOnboarding, setShouldRedirectToOnboarding] = useState(false);
@@ -17,7 +17,7 @@ export default function AppLayout() {
     const fetchBrands = async () => {
       try {
         const res = await api.get('/orgs/brands');
-        const fetchedBrands: Array<{ _id?: string; name: string; role?: string }> = res.data?.data?.brands || [];
+        const fetchedBrands: Array<{ _id?: string; name: string; role?: string; lastScannedAt?: string | null }> = res.data?.data?.brands || [];
         if (isMounted) {
           if (fetchedBrands.length === 0) {
             setShouldRedirectToOnboarding(true);
@@ -115,8 +115,10 @@ export default function AppLayout() {
       <main className="main">
         {/* Header Component */}
         <Header 
-          title={getPageTitle()} 
-          brandName={currentBrand.name} 
+          title={getPageTitle()}
+          brandId={currentBrand._id}
+          brandName={currentBrand.name}
+          lastScannedAt={brands.find((b) => b._id === currentBrand._id)?.lastScannedAt}
           userRole={currentBrand.role} 
         />
 

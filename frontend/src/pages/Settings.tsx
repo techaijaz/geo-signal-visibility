@@ -711,10 +711,11 @@ export default function Settings() {
           {/* 3. PLAN & BILLING PANEL */}
           <div className="panel">
             <h3>Plan & billing</h3>
-            <p className="sub">Starter plan · 8 queries tracked · renews monthly</p>
-            <div className="onb-actions" style={{ borderTop: 'none', paddingTop: '6px', marginTop: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span className="mono" style={{ color: 'var(--text-dim)', fontSize: '12.5px' }}>Next invoice on the 4th</span>
-              <button type="button" className="btn" onClick={() => navigate('/pricing')}>Manage plan</button>
+            <p className="sub">
+              {`${plan.charAt(0).toUpperCase() + plan.slice(1)} plan · ${queries.length} / ${limits?.maxQueries ?? '…'} queries tracked${brandName ? ` for ${brandName}` : ''}`}
+            </p>
+            <div className="onb-actions" style={{ borderTop: 'none', paddingTop: '6px', marginTop: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn" onClick={() => navigate('/billing')}>Manage plan</button>
             </div>
           </div>
         </>

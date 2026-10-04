@@ -10,6 +10,7 @@ import mentionModel from '../model/mentionModel'
 import { IMention } from '../types/mentionTypes'
 import logger from '../util/loger'
 import databseService from './databseService'
+import { recordAiUsage, withAiCallContext } from './costLogService'
 
 interface IOpenAiChatResponse {
     choices?: Array<{
@@ -17,6 +18,7 @@ interface IOpenAiChatResponse {
             content?: string
         }
     }>
+    usage?: { prompt_tokens?: number; completion_tokens?: number }
 }
 
 interface IGeminiResponse {
@@ -27,12 +29,14 @@ interface IGeminiResponse {
             }>
         }
     }>
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number }
 }
 
 interface IClaudeResponse {
     content?: Array<{
         text?: string
     }>
+    usage?: { input_tokens?: number; output_tokens?: number }
 }
 
 export interface IAiScanResult {
@@ -115,6 +119,7 @@ const aiService = {
         if (!apiKey) return null
         const model = modelOverride || spec.defaultModel()
         try {
+            const startedAt = Date.now()
             const response = await aiFetch(spec.keyName, spec.url(), {
                 method: 'POST',
                 headers: {
@@ -140,6 +145,14 @@ const aiService = {
                 return null
             }
             const data = (await response.json()) as IOpenAiChatResponse
+            await recordAiUsage({
+                provider,
+                model,
+                inputTokens: data.usage?.prompt_tokens ?? 0,
+                outputTokens: data.usage?.completion_tokens ?? 0,
+                latencyMs: Date.now() - startedAt,
+                prompt
+            })
             return data.choices?.[0]?.message?.content || null
         } catch (error) {
             logger.error(`${provider} API Error:`, { meta: error })
@@ -168,11 +181,14 @@ const aiService = {
             })
 
         try {
+            const startedAt = Date.now()
+            let usedModel = modelName
             let response = await generate(modelName)
             if (!response.ok) {
                 await logProviderFailure('Gemini', modelName, response)
                 // Google retires model versions; the -latest alias always points at a current one
                 if (modelName === GEMINI_FALLBACK_MODEL) return null
+                usedModel = GEMINI_FALLBACK_MODEL
                 response = await generate(GEMINI_FALLBACK_MODEL)
                 if (!response.ok) {
                     await logProviderFailure('Gemini', GEMINI_FALLBACK_MODEL, response)
@@ -180,6 +196,14 @@ const aiService = {
                 }
             }
             const data = (await response.json()) as IGeminiResponse
+            await recordAiUsage({
+                provider: 'Google',
+                model: usedModel,
+                inputTokens: data.usageMetadata?.promptTokenCount ?? 0,
+                outputTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+                latencyMs: Date.now() - startedAt,
+                prompt
+            })
             // An answer can come back in several parts
             return (
                 data.candidates?.[0]?.content?.parts
@@ -201,6 +225,7 @@ const aiService = {
         if (!apiKey) return null
         const modelName = modelOverride || config.AI_MODELS.CLAUDE || 'claude-haiku-4-5-20251001'
         try {
+            const startedAt = Date.now()
             const response = await aiFetch('ANTHROPIC', 'https://api.anthropic.com/v1/messages', {
                 method: 'POST',
                 headers: {
@@ -219,6 +244,14 @@ const aiService = {
                 return null
             }
             const data = (await response.json()) as IClaudeResponse
+            await recordAiUsage({
+                provider: 'Anthropic',
+                model: modelName,
+                inputTokens: data.usage?.input_tokens ?? 0,
+                outputTokens: data.usage?.output_tokens ?? 0,
+                latencyMs: Date.now() - startedAt,
+                prompt
+            })
             return data.content?.[0]?.text || null
         } catch (error) {
             logger.error('Claude API Error:', { meta: error })
@@ -406,12 +439,14 @@ const aiService = {
 
         // Every query x model pair runs concurrently; aiFetch caps in-flight calls per provider
         const pairs = queries.flatMap((queryText) => modelsToRun.map((model) => ({ queryText, model })))
-        const answers = await Promise.all(
-            pairs.map(async ({ queryText, model }) => ({
-                queryText,
-                model,
-                rawText: await aiService.callModelCached(model.provider, model.modelId, queryText)
-            }))
+        const answers = await withAiCallContext({ brandId, purpose: 'scan' }, () =>
+            Promise.all(
+                pairs.map(async ({ queryText, model }) => ({
+                    queryText,
+                    model,
+                    rawText: await aiService.callModelCached(model.provider, model.modelId, queryText)
+                }))
+            )
         )
 
         // Failed calls are dropped, not recorded as "not mentioned", so outages don't fake a visibility drop

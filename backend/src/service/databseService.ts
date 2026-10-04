@@ -25,7 +25,7 @@ import { IInvoice } from '../types/billingTypes'
 import { IRecommendationData } from '../types/recommendationTypes'
 import { EUserRole } from '../constent/userConstent'
 import aiService from './aiService'
-import { generateRecommendations } from './recommendationService'
+import { generateRecommendations, isResolvedByAudit } from './recommendationService'
 import type { RescanKind } from '../config/planLimits'
 
 const RESCAN_QUOTA_FIELDS: Record<RescanKind, [string, string]> = {
@@ -257,10 +257,11 @@ const databseService = {
         const category = brand?.category || 'your category'
 
         // Attempt dynamic AI recommendations based on audit and mention data
+        let audit: IAuditData | null = null
         try {
-            const audit = await databseService.findAuditByBrandId(brandId)
+            audit = (await databseService.findAuditByBrandId(brandId)) as unknown as IAuditData
             const mentions = await databseService.findMentionsByBrandId(brandId)
-            const aiRecs = await generateRecommendations(brand as unknown as IBrand, audit as unknown as IAuditData, mentions, [])
+            const aiRecs = await generateRecommendations(brand as unknown as IBrand, audit, mentions, [])
             if (aiRecs && aiRecs.length > 0) {
                 return await recommendationModel.insertMany(aiRecs)
             }
@@ -329,7 +330,7 @@ const databseService = {
             }
         ]
 
-        return recommendationModel.insertMany(defaultList)
+        return recommendationModel.insertMany(defaultList.filter((r) => !isResolvedByAudit(r.text, audit)))
     },
     toggleRecommendationCompleted: async (recId: string, isCompleted: boolean) => {
         return recommendationModel.findByIdAndUpdate(recId, { isCompleted }, { new: true })

@@ -1,6 +1,6 @@
 // backend/src/service/recommendationService.ts
 import { IBrand } from '../types/brandTypes'
-import { IAuditData } from '../types/auditTypes'
+import { IAuditData, IAuditGridItem } from '../types/auditTypes'
 import { IMention } from '../types/mentionTypes'
 import { IRecommendationData } from '../types/recommendationTypes'
 import aiService from './aiService'
@@ -8,8 +8,27 @@ import logger from '../util/loger'
 
 const buildAuditSummary = (audit: IAuditData): string => {
     if (!audit) return 'Audit data unavailable'
-    const marketplaceList = audit.marketplaceReadability?.map((m) => `${m.name}: ${m.status}`).join(', ') || 'None detected'
-    return `Health Score: ${audit.healthScore}. Structured Data: ${audit.structuredData?.length || 0} schemas found. Detected Sales/Marketplace Channels: ${marketplaceList}`
+    const list = (items?: IAuditGridItem[]) => items?.map((i) => `${i.name}: ${i.status}`).join(', ') || 'None detected'
+    return [
+        `Health Score: ${audit.healthScore}.`,
+        `Crawler Access: ${list(audit.crawlerAccess)}.`,
+        `Structured Data: ${list(audit.structuredData)}.`,
+        `Detected Sales/Marketplace Channels: ${list(audit.marketplaceReadability)}.`
+    ].join('\n    ')
+}
+
+const isOk = (items: IAuditGridItem[] | undefined, name: RegExp) => !!items?.some((i) => name.test(i.name) && i.badgeType === 'badge-ok')
+
+// True when the audit already shows this recommendation is done (llms.txt found, no crawler blocked,
+// schema found), so we never tell a brand to fix something the audit page says is fine
+export const isResolvedByAudit = (text: string, audit: IAuditData | null | undefined): boolean => {
+    if (!audit) return false
+    const crawlers = (audit.crawlerAccess || []).filter((c) => !/llms\.txt|SSL/i.test(c.name))
+    if (/llms\.txt/i.test(text)) return isOk(audit.crawlerAccess, /llms\.txt/i)
+    if (/unblock|robots\.txt/i.test(text)) return crawlers.length > 0 && crawlers.every((c) => c.badgeType === 'badge-ok')
+    if (/faq/i.test(text) && /schema/i.test(text)) return isOk(audit.structuredData, /FAQPage/i)
+    if (/organization/i.test(text) && /schema/i.test(text)) return isOk(audit.structuredData, /Organization/i)
+    return false
 }
 
 const buildMentionStats = (mentions: IMention[], brand: IBrand): string => {
@@ -65,6 +84,7 @@ export const generateRecommendations = async (
     4. For Services/Local Business: Focus on Service/LocalBusiness schema, Google Business Profile, local reviews, and location landing pages.
     5. For Content/Media: Focus on Article/NewsArticle schema, author entity verification, and citation authority.
     6. Suggest review sources or citations appropriate for their business type.
+    7. Do not recommend anything the audit already shows as found or allowed.
 
     Based on this data, generate 6-8 specific, actionable recommendations ranked by impact.
     Return JSON array with:
@@ -83,7 +103,8 @@ export const generateRecommendations = async (
         const parsed = safelyParseJSON(response || '')
 
         if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.slice(0, 8).map((rec) => ({
+            const fresh = parsed.filter((rec) => typeof rec?.text === 'string' && !isResolvedByAudit(rec.text, audit))
+            return fresh.slice(0, 8).map((rec) => ({
                 brandId: brand._id.toString(),
                 text: rec.text,
                 category: (['Technical', 'Content', 'Off-site'].includes(rec.category) ? rec.category : 'Content') as IRecommendationData['category'],

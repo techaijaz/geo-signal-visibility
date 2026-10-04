@@ -32,7 +32,9 @@ export default {
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 brandId,
                 brandName: brand.name,
-                mentions
+                mentions,
+                lastScannedAt: brand.lastScannedAt ?? null,
+                lastScanError: brand.lastScanError ?? null
             })
         } catch (error) {
             httpError(next, error, req, 500)

@@ -100,6 +100,11 @@ const brandSchema = new mongoose.Schema<IBrand>(
             type: Date,
             default: null
         },
+        // Why the latest scan saved nothing (shown to the user); cleared by the next good scan
+        lastScanError: {
+            type: new mongoose.Schema({ message: String, at: Date }, { _id: false }),
+            default: null
+        },
         // Manual rescan quota: IST day (YYYY-MM-DD) the count belongs to
         manualRescanDay: {
             type: String,

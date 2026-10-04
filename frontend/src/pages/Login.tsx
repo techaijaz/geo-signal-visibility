@@ -159,6 +159,9 @@ export default function Login() {
                 {...register('password')}
               />
               {errors.password && <p className="error-text">{errors.password.message}</p>}
+              <p style={{ textAlign: 'right', margin: '6px 0 0', fontSize: '12.5px' }}>
+                <Link to="/forgot-password" style={{ color: 'var(--amber)', fontWeight: 600 }}>Forgot password?</Link>
+              </p>
             </div>
             <button type="submit" className="btn btn-primary btn-block" disabled={isSubmitting}>
               {isSubmitting ? 'Logging in...' : 'Log in →'}

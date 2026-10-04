@@ -9,6 +9,8 @@ import Onboarding from './pages/Onboarding';
 import Settings from './pages/Settings';
 import Workspace from './pages/Workspace';
 import EmailConfirmation from './pages/EmailConfirmation';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './components/PublicRoute';
 import WebsiteAudit from './pages/WebsiteAudit';
@@ -139,6 +141,14 @@ export const router = createBrowserRouter([
       {
         path: '/confirmation/:token',
         element: <EmailConfirmation />,
+      },
+      {
+        path: '/forgot-password',
+        element: <ForgotPassword />,
+      },
+      {
+        path: '/reset-password/:token',
+        element: <ResetPassword />,
       },
     ],
   },

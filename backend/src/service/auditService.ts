@@ -3,6 +3,8 @@ import * as cheerio from 'cheerio'
 import auditModel from '../model/auditModel'
 import brandModel from '../model/brandModel'
 import mentionModel from '../model/mentionModel'
+import recommendationModel from '../model/recommendationModel'
+import { isResolvedByAudit } from './recommendationService'
 import { IAuditGridItem } from '../types/auditTypes'
 import logger from '../util/loger'
 
@@ -546,6 +548,16 @@ export const auditService = {
         // If website fetch failed, deduct penalty
         if (!fetchSuccess) {
             healthScore = Math.max(10, healthScore - 25)
+        }
+
+        // Recommendations made before this audit (or against an older one) may ask for things now in place
+        const stale = await recommendationModel
+            .find({ brandId, isCompleted: { $ne: true } })
+            .select('text')
+            .lean()
+        const resolvedIds = stale.filter((r) => isResolvedByAudit(r.text, { brandId, healthScore, crawlerAccess, structuredData })).map((r) => r._id)
+        if (resolvedIds.length > 0) {
+            await recommendationModel.updateMany({ _id: { $in: resolvedIds } }, { isCompleted: true })
         }
 
         // Update or recreate audit in database

@@ -8,6 +8,52 @@ import { isResolvedByAudit } from './recommendationService'
 import { IAuditGridItem } from '../types/auditTypes'
 import logger from '../util/loger'
 
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) GEOAudit/1.0'
+const PRODUCT_PAGES_TO_CHECK = 3
+
+// Lower-cased schema.org types from JSON-LD at any depth (Product > aggregateRating, @graph, arrays)
+// and microdata itemtypes
+const schemaTypesIn = (html: string): string[] => {
+    const $ = cheerio.load(html)
+    const types: string[] = []
+    const push = (t: unknown) => {
+        for (const v of Array.isArray(t) ? t : [t]) if (typeof v === 'string') types.push(v.toLowerCase())
+    }
+    const walk = (node: unknown): void => {
+        if (Array.isArray(node)) return node.forEach(walk)
+        if (!node || typeof node !== 'object') return
+        push((node as Record<string, unknown>)['@type'])
+        Object.values(node).forEach(walk)
+    }
+    $('script[type="application/ld+json"]').each((_, el) => {
+        try {
+            walk(JSON.parse($(el).html() || '{}'))
+        } catch {
+            // invalid JSON-LD script
+        }
+    })
+    $('[itemtype]').each((_, el) => push($(el).attr('itemtype')))
+    return types
+}
+
+// Same-site product links on the homepage (Shopify /products/, WooCommerce /product/): product schema
+// usually lives there, not on the homepage.
+// ponytail: homepage links only; read sitemap.xml if stores without product links on the homepage show up
+const productLinksIn = (html: string, siteUrl: string): string[] => {
+    const host = new URL(siteUrl).hostname
+    const $ = cheerio.load(html)
+    const links = new Set<string>()
+    $('a[href]').each((_, el) => {
+        try {
+            const url = new URL($(el).attr('href') || '', siteUrl)
+            if (url.hostname === host && /\/products?\/[^/]+/.test(url.pathname)) links.add(url.origin + url.pathname)
+        } catch {
+            // malformed href
+        }
+    })
+    return [...links].slice(0, PRODUCT_PAGES_TO_CHECK)
+}
+
 export const auditService = {
     /**
      * Helper to sanitize domain URL
@@ -110,7 +156,7 @@ export const auditService = {
                 const sslTest = await axios.get(httpsUrl, {
                     timeout: 6000,
                     maxRedirects: 5,
-                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) GEOAudit/1.0' }
+                    headers: { 'User-Agent': BROWSER_UA }
                 })
                 if (sslTest.status === 200 || sslTest.status === 301 || sslTest.status === 302) {
                     isHttpsSecure = true
@@ -198,7 +244,7 @@ export const auditService = {
         try {
             const robotsRes = await axios.get(`${targetUrl}/robots.txt`, {
                 timeout: 6000,
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) GEOAudit/1.0' },
+                headers: { 'User-Agent': BROWSER_UA },
                 validateStatus: (status) => status < 500
             })
             if (robotsRes.status === 200 && typeof robotsRes.data === 'string') {
@@ -255,7 +301,7 @@ export const auditService = {
         try {
             const htmlRes = await axios.get(targetUrl, {
                 timeout: 8000,
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) GEOAudit/1.0' }
+                headers: { 'User-Agent': BROWSER_UA }
             })
             if (htmlRes.status === 200) {
                 htmlContent = htmlRes.data
@@ -270,43 +316,16 @@ export const auditService = {
         if (fetchSuccess && htmlContent) {
             const $ = cheerio.load(htmlContent)
 
-            // Extract JSON-LD scripts
-            const jsonLdScripts = $('script[type="application/ld+json"]')
-                .map((_, el) => $(el).html())
-                .get()
-            const foundSchemas: string[] = []
-
-            jsonLdScripts.forEach((scriptStr) => {
-                try {
-                    const parsed = JSON.parse(scriptStr || '{}')
-                    const pushType = (t: unknown) => {
-                        if (typeof t === 'string') foundSchemas.push(t.toLowerCase())
-                    }
-
-                    if (Array.isArray(parsed)) {
-                        parsed.forEach((item) => {
-                            if (item['@type']) pushType(item['@type'])
-                        })
-                    } else if (parsed['@type']) {
-                        pushType(parsed['@type'])
-                    }
-                    if (parsed['@graph'] && Array.isArray(parsed['@graph'])) {
-                        parsed['@graph'].forEach((item: Record<string, unknown>) => {
-                            if (item['@type']) pushType(item['@type'])
-                        })
-                    }
-                } catch {
-                    // invalid JSON-LD script
-                }
-            })
-
-            // Also extract HTML Microdata itemtypes
-            $('[itemtype]').each((_, el) => {
-                const itemType = $(el).attr('itemtype')
-                if (itemType) {
-                    foundSchemas.push(itemType.toLowerCase())
-                }
-            })
+            // Schema found on the homepage or on any of its first few product pages counts
+            const productPages = await Promise.all(
+                productLinksIn(htmlContent, targetUrl).map((url) =>
+                    axios
+                        .get<string>(url, { timeout: 8000, headers: { 'User-Agent': BROWSER_UA }, responseType: 'text' })
+                        .then((res) => res.data)
+                        .catch(() => '')
+                )
+            )
+            const foundSchemas = [htmlContent, ...productPages].flatMap((html) => (html ? schemaTypesIn(html) : []))
 
             // Check key schemas for GEO & Search Indexing
             const hasOrgSchema = foundSchemas.some(
@@ -359,7 +378,7 @@ export const auditService = {
                 htmlIssues.push('Organization/Brand JSON-LD schema missing (AI models cannot verify official brand identity)')
             }
             if (!hasFaqSchema) {
-                htmlIssues.push('FAQPage schema missing on homepage (Limits direct AI answers and search snippet citations)')
+                htmlIssues.push('FAQPage schema missing on homepage and product pages (Limits direct AI answers and search snippet citations)')
             }
             if (!hasProductOrServiceSchema && !hasWebSiteSchema) {
                 htmlIssues.push(`No ${entitySchemaLabel} or WebSite Schema.org markup detected`)

@@ -275,11 +275,14 @@ tbody tr:last-child td{border-bottom:none;}
 
 @media (max-width:900px){
   .login-shell{flex-direction:column;}
-  .login-side { padding: 40px; }
+  /* Stacked: keep only the logo above the form so it fits without scrolling */
+  .login-side{flex:none;padding:20px 24px;border-right:none;border-bottom:1px solid var(--line);}
+  .login-copy{display:none;}
+  .login-form-side{flex:1;align-items:flex-start;padding:28px 24px;}
   .cards-row{grid-template-columns:1fr 1fr;}
   .sidebar{width:64px;}
   .sidebar .nav-item span.label-text{display:none;}
-  .sidebar-bottom, .brand-mark span{display:none;}
+  .sidebar-bottom, .sidebar .brand-mark span{display:none;}
   .main{padding:24px 18px;}
 }
 

@@ -23,13 +23,15 @@ export default function Header({ title, brandId, brandName, lastScannedAt, userR
     if (brandId) {
       try {
         await api.post(`/brands/${brandId}/mentions/rescan`);
+        // Mentions shows the scan's progress until it finishes
+        navigate('/mentions', { state: { scanStarted: true } });
       } catch (e: any) {
         console.error('Header rescan trigger failed:', e);
         // Plan quota errors (429) carry a user-facing message
         if (e.response?.status === 429) window.alert(e.response.data?.message);
       }
     }
-    setTimeout(() => setIsRescanning(false), 2000);
+    setIsRescanning(false);
   };
 
   const handleLogout = (e: React.MouseEvent) => {

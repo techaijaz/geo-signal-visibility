@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import api from '../utils/axios';
+import ScanProgress from '../components/ScanProgress';
 
 interface AuditGridItem {
   name: string;
@@ -158,23 +159,27 @@ export default function WebsiteAudit() {
     try {
       const res = await api.post(`/brands/${activeBrandId}/audit/rescan`);
       if (res.data?.data?.status === 'queued') {
+        // Done when the audit's timestamp changes; give up after 3 minutes
+        const before = auditData?.lastAuditedAt;
         let attempts = 0;
         const interval = setInterval(async () => {
           attempts++;
+          let done = false;
           try {
             const pollRes = await api.get(`/brands/${activeBrandId}/audit`);
             if (pollRes.data?.data?.audit) {
               setAuditData(pollRes.data.data.audit);
               if (pollRes.data.data.website) setWebsiteUrl(pollRes.data.data.website);
+              done = pollRes.data.data.audit.lastAuditedAt !== before;
             }
           } catch (e) {
             console.error('Polling audit error:', e);
           }
-          if (attempts >= 6) {
+          if (done || attempts >= 36) {
             clearInterval(interval);
             setIsRescanning(false);
           }
-        }, 3000);
+        }, 5000);
       } else if (res.data?.data) {
         setAuditData(res.data.data.audit);
         if (res.data.data.website) setWebsiteUrl(res.data.data.website);
@@ -276,6 +281,8 @@ export default function WebsiteAudit() {
           {isRescanning ? 'Scanning Live Website...' : 'Re-scan Website Audit'}
         </button>
       </div>
+
+      {isRescanning && <ScanProgress title="Auditing your website" hint="Reading your homepage, product pages and robots.txt. This takes under a minute." />}
 
       {/* Top Cards Row */}
       <div className="cards-row" style={{ gridTemplateColumns: '1fr 3fr' }}>

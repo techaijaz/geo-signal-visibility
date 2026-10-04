@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import api from '../utils/axios';
+import ScanProgress from '../components/ScanProgress';
 import { usePlanLimits } from '../hooks/usePlanLimits';
 
 interface RecommendationItem {
@@ -97,22 +98,27 @@ const Recommendations: React.FC = () => {
     try {
       const res = await api.post(`/brands/${activeBrandId}/recommendations/rescan`);
       if (res.data?.data?.status === 'queued') {
+        // The rescan replaces every recommendation, so it is done once the ids change
+        const before = recommendations.map((r) => r._id).join();
         let attempts = 0;
         const interval = setInterval(async () => {
           attempts++;
+          let done = false;
           try {
             const pollRes = await api.get(`/brands/${activeBrandId}/recommendations`);
-            if (pollRes.data?.data?.recommendations) {
-              setRecommendations(pollRes.data.data.recommendations);
+            const fresh = pollRes.data?.data?.recommendations;
+            if (fresh) {
+              setRecommendations(fresh);
+              done = fresh.length > 0 && fresh.map((r: { _id: string }) => r._id).join() !== before;
             }
           } catch (e) {
             console.error('Polling recommendations error:', e);
           }
-          if (attempts >= 6) {
+          if (done || attempts >= 36) {
             clearInterval(interval);
             setIsRescanning(false);
           }
-        }, 3000);
+        }, 5000);
       } else if (res.data?.data?.recommendations) {
         setRecommendations(res.data.data.recommendations);
         setIsRescanning(false);
@@ -258,6 +264,8 @@ const Recommendations: React.FC = () => {
           {isRescanning ? 'Generating with AI...' : 'Re-scan Recommendations'}
         </button>
       </div>
+
+      {isRescanning && <ScanProgress title="Writing recommendations" hint="Reading your audit and AI answers to suggest what to fix first. This takes under a minute." />}
 
       {/* Summary KPI Cards */}
       <div className="rec-stats-grid">

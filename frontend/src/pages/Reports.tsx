@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import api from '../utils/axios';
+import ScanProgress from '../components/ScanProgress';
 import { usePlanLimits } from '../hooks/usePlanLimits';
 
 interface ReportItem {
@@ -170,6 +171,8 @@ const Reports: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {isGenerating && <ScanProgress title="Building your report" hint="Collecting this week's AI answers, competitors and audit into a report." />}
 
       <div className="panel">
         <h3>Report history</h3>

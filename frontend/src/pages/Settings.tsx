@@ -442,9 +442,9 @@ export default function Settings() {
         queries
       });
 
-      // Run AI query scan
+      // Start the scan; Mentions shows its progress until it finishes
       await api.post(`/brands/${selectedBrandId}/mentions/rescan`);
-      setQueryScanMessage({ type: 'success', text: 'AI Query scan completed successfully! Mentions updated.' });
+      navigate('/mentions', { state: { scanStarted: true } });
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || 'Failed to run AI query scan.';
       setQueryScanMessage({ type: 'error', text: msg });

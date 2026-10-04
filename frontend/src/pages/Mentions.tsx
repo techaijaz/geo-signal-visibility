@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import api from '../utils/axios';
 import { timeAgo } from '../utils/timeAgo';
 import ScanErrorBanner, { type ScanError } from '../components/ScanErrorBanner';
+import ScanProgress from '../components/ScanProgress';
 
 interface ScanState {
   lastScannedAt: string | null;
@@ -32,6 +33,9 @@ const PROTOTYPE_MENTIONS: MentionItem[] = [];
 export default function Mentions() {
   const context = useOutletContext<OutletContextType>();
   const activeBrandId = context?.currentBrand?._id;
+  const location = useLocation();
+  const navigate = useNavigate();
+  const handoffWatched = useRef(false);
 
   const [modelFilters, setModelFilters] = useState<string[]>(DEFAULT_MODEL_FILTERS);
   const [activeModel, setActiveModel] = useState('All models');
@@ -113,22 +117,7 @@ export default function Mentions() {
     try {
       const res = await api.post(`/brands/${activeBrandId}/mentions/rescan`);
       if (res.data?.data?.status === 'queued') {
-        setScanMessage('Scan started. Results appear here in a minute or two...');
-        // The scan is done when either timestamp moves past what we had before clicking
-        const before = scanState;
-        let attempts = 0;
-        const interval = setInterval(async () => {
-          attempts++;
-          const now = await fetchMentions(true);
-          const failed = now?.lastScanError && now.lastScanError.at !== before.lastScanError?.at;
-          const done = now?.lastScannedAt && now.lastScannedAt !== before.lastScannedAt;
-          if (failed || done || attempts >= 36) {
-            clearInterval(interval);
-            setIsScanning(false);
-            setScanMessage(failed ? null : done ? 'Scan complete.' : 'The scan is taking longer than usual. Results will show here when it finishes.');
-            if (!failed) setTimeout(() => setScanMessage(null), 6000);
-          }
-        }, 5000);
+        watchScan(scanState);
       } else {
         const fresh: MentionItem[] = res.data?.data?.mentions || [];
         setMentions(fresh);
@@ -142,6 +131,34 @@ export default function Mentions() {
       setIsScanning(false);
     }
   };
+
+  // Poll until the scan saves results or records a failure: either timestamp moves past `before`
+  const watchScan = (before: ScanState) => {
+    setIsScanning(true);
+    setScanMessage(null);
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts++;
+      const now = await fetchMentions(true);
+      const failed = now?.lastScanError && now.lastScanError.at !== before.lastScanError?.at;
+      const done = now?.lastScannedAt && now.lastScannedAt !== before.lastScannedAt;
+      if (failed || done || attempts >= 36) {
+        clearInterval(interval);
+        setIsScanning(false);
+        setScanMessage(failed ? null : done ? 'Scan complete.' : 'The scan is taking longer than usual. Results will show here when it finishes.');
+        if (!failed) setTimeout(() => setScanMessage(null), 6000);
+      }
+    }, 5000);
+  };
+
+  // Header and Settings start a scan, then send the user here to watch it
+  useEffect(() => {
+    // The ref stops React's dev double-run of effects from starting two polling loops
+    if (handoffWatched.current || !(location.state as { scanStarted?: boolean } | null)?.scanStarted) return;
+    handoffWatched.current = true;
+    navigate(location.pathname, { replace: true, state: null });
+    fetchMentions(true).then((s) => watchScan(s ?? { lastScannedAt: null, lastScanError: null }));
+  }, []);
 
   const getTimeAgo = (dateStr: string) => timeAgo(dateStr) ?? '—';
 
@@ -183,6 +200,7 @@ export default function Mentions() {
         </button>
       </div>
 
+      {isScanning && <ScanProgress title="Scanning AI answers" hint="Asking each AI your tracked questions. This takes a minute or two." />}
       {!isScanning && <ScanErrorBanner error={scanState.lastScanError} />}
 
       {scanMessage && (

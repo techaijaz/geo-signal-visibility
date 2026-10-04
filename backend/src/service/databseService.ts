@@ -26,6 +26,7 @@ import { IRecommendationData } from '../types/recommendationTypes'
 import { EUserRole } from '../constent/userConstent'
 import aiService from './aiService'
 import { generateRecommendations, isResolvedByAudit } from './recommendationService'
+import { withAiCallContext } from './costLogService'
 import type { RescanKind } from '../config/planLimits'
 
 const RESCAN_QUOTA_FIELDS: Record<RescanKind, [string, string]> = {
@@ -259,9 +260,12 @@ const databseService = {
         // Attempt dynamic AI recommendations based on audit and mention data
         let audit: IAuditData | null = null
         try {
-            audit = (await databseService.findAuditByBrandId(brandId)) as unknown as IAuditData
+            const currentAudit = (await databseService.findAuditByBrandId(brandId)) as unknown as IAuditData
+            audit = currentAudit
             const mentions = await databseService.findMentionsByBrandId(brandId)
-            const aiRecs = await generateRecommendations(brand as unknown as IBrand, audit, mentions, [])
+            const aiRecs = await withAiCallContext({ brandId, purpose: 'recommendations' }, () =>
+                generateRecommendations(brand as unknown as IBrand, currentAudit, mentions, [])
+            )
             if (aiRecs && aiRecs.length > 0) {
                 return await recommendationModel.insertMany(aiRecs)
             }

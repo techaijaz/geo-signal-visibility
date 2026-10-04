@@ -167,8 +167,6 @@ export default function Login() {
               {isSubmitting ? 'Logging in...' : 'Log in →'}
             </button>
           </form>
-          <div className="divider-row">or</div>
-          <button type="button" className="btn btn-block">Continue with Google</button>
           <p className="foot-note">New here? <Link to="/signup">Create an account</Link></p>
         </div>
 

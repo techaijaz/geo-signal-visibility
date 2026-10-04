@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import api from '../utils/axios';
+import { timeAgo } from '../utils/timeAgo';
 
 interface MentionItem {
   _id: string;
@@ -127,14 +128,7 @@ export default function Mentions() {
     }
   };
 
-  const getTimeAgo = (dateStr: string) => {
-    if (!dateStr) return '2h ago';
-    const diffHours = Math.round((new Date().getTime() - new Date(dateStr).getTime()) / (1000 * 60 * 60));
-    if (diffHours <= 1) return '2h ago';
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.round(diffHours / 24);
-    return `${diffDays}d ago`;
-  };
+  const getTimeAgo = (dateStr: string) => timeAgo(dateStr) ?? '—';
 
   return (
     <div>

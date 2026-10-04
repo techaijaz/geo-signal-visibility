@@ -206,6 +206,8 @@ export default function Billing() {
   const [plans] = useState<Plan[]>(DEFAULT_PLANS);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [renewsOn, setRenewsOn] = useState<string | null>(null);
+  const [queriesUsed, setQueriesUsed] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -237,11 +239,16 @@ export default function Billing() {
   const fetchBillingData = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/subscription');
+      const [response, brandsRes] = await Promise.all([api.get('/subscription'), api.get('/orgs/brands').catch(() => null)]);
       if (response.data?.data) {
         if (response.data.data.currentPlan) setCurrentPlan(response.data.data.currentPlan);
         if (response.data.data.invoices) setInvoices(response.data.data.invoices);
+        setRenewsOn(response.data.data.subscription?.currentPeriodEnd || null);
       }
+      // Query limits are per brand, so show the brand picked in the sidebar
+      const brands: Array<{ _id: string; queries?: unknown[] }> = brandsRes?.data?.data?.brands || [];
+      const brand = brands.find((b) => b._id === localStorage.getItem('selectedBrandId')) || brands[0];
+      setQueriesUsed(brand ? brand.queries?.length ?? 0 : null);
     } catch {
       // Graceful fallback
     } finally {
@@ -403,6 +410,8 @@ export default function Billing() {
     return targetIndex > currentIndex ? 'Upgrade Plan' : 'Downgrade';
   };
 
+  const usedPercent = queriesUsed != null && limits?.maxQueries ? Math.min(100, Math.round((queriesUsed / limits.maxQueries) * 100)) : 0;
+
   if (loading) {
     return (
       <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
@@ -517,20 +526,24 @@ export default function Billing() {
             </span>
           </div>
           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-            Renews automatically every month. Next cycle starts in 30 days.
+            {currentPlan === 'free'
+              ? 'Free plan, nothing to renew.'
+              : renewsOn
+                ? `Renews on ${new Date(renewsOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`
+                : 'Renews monthly.'}
           </div>
         </div>
 
         <div>
           <div style={{ fontSize: '12px', color: 'var(--sub, #94a3b8)', marginBottom: '6px' }}>
-            Tracked Queries Limit ({limits?.maxQueries ?? 15} Max)
+            Tracked Queries Limit ({limits?.maxQueries ?? '–'} Max)
           </div>
           <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
-            <div style={{ width: '40%', height: '100%', background: 'linear-gradient(90deg, #6366f1, #a855f7)', borderRadius: '4px' }} />
+            <div style={{ width: `${usedPercent}%`, height: '100%', background: 'linear-gradient(90deg, #6366f1, #a855f7)', borderRadius: '4px' }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>
-            <span>6 / {limits?.maxQueries ?? 15} Queries used</span>
-            <span>{limits?.maxQueries ? Math.round((6 / limits.maxQueries) * 100) : 40}%</span>
+            <span>{queriesUsed ?? '–'} / {limits?.maxQueries ?? '–'} Queries used</span>
+            <span>{usedPercent}%</span>
           </div>
         </div>
 
@@ -539,9 +552,9 @@ export default function Billing() {
             Supported Models
           </div>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8', border: '1px solid rgba(99, 102, 241, 0.3)' }}>GPT-4o</span>
-            <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '6px', background: 'rgba(236, 72, 153, 0.15)', color: '#f472b6', border: '1px solid rgba(236, 72, 153, 0.3)' }}>Claude Haiku</span>
-            <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>Gemini 2.0</span>
+            {(limits?.allowedModels ?? []).map((model) => (
+              <span key={model} style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8', border: '1px solid rgba(99, 102, 241, 0.3)' }}>{model}</span>
+            ))}
           </div>
         </div>
       </div>

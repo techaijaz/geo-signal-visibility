@@ -46,3 +46,6 @@ coverage/
 # Production server data (certificates, database backups)
 data/
 backups/
+
+# Personal Claude Code settings
+.claude/settings.local.json

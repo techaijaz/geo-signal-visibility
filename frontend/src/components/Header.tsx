@@ -2,25 +2,27 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/axios';
+import { timeAgo } from '../utils/timeAgo';
 
 interface HeaderProps {
   title: string;
+  brandId?: string;
   brandName: string;
+  lastScannedAt?: string | null;
   userRole: string;
 }
 
-export default function Header({ title, brandName, userRole }: HeaderProps) {
+export default function Header({ title, brandId, brandName, lastScannedAt, userRole }: HeaderProps) {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isRescanning, setIsRescanning] = useState(false);
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
   const handleRescan = async () => {
-    const activeBrandId = localStorage.getItem('geo_active_brand_id');
     setIsRescanning(true);
-    if (activeBrandId) {
+    if (brandId) {
       try {
-        await api.post(`/brands/${activeBrandId}/mentions/rescan`);
+        await api.post(`/brands/${brandId}/mentions/rescan`);
       } catch (e: any) {
         console.error('Header rescan trigger failed:', e);
         // Plan quota errors (429) carry a user-facing message
@@ -37,14 +39,15 @@ export default function Header({ title, brandName, userRole }: HeaderProps) {
     navigate('/login');
   };
 
-  const userName = user?.name || 'Aijaz Khan';
-  const userInitials = userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'AK';
+  const userName = user?.name || '';
+  const userInitials = userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || '?';
+  const lastScanned = timeAgo(lastScannedAt);
 
   return (
     <header className="main-top">
       <div>
         <h1>{title}</h1>
-        <div className="meta">{brandName} · Last scanned 2 hours ago</div>
+        <div className="meta">{brandName} · {lastScanned ? `Last scanned ${lastScanned}` : 'Not scanned yet'}</div>
       </div>
 
       <div className="header-right">

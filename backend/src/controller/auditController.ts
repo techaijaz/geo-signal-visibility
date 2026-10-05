@@ -59,7 +59,8 @@ export default {
                 return httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: existing })
             }
             const aiView = await runAiView(brand.website)
-            await auditModel.updateOne({ brandId }, { $set: { aiView } }, { upsert: true })
+            // No upsert: a bare audit document would stop the brand's first real audit from running
+            await auditModel.updateOne({ brandId }, { $set: { aiView } })
             httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView })
         } catch (error) {
             httpError(next, error, req, 500)

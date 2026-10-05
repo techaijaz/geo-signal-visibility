@@ -1,8 +1,8 @@
 // What an AI crawler (raw HTML) and a shopper (after JavaScript) can read on a page
-import axios from 'axios'
 import * as cheerio from 'cheerio'
 import { auditService, productLinksIn, schemaTypesIn } from './auditService'
 import { withBrowser } from './reportService/pdfService'
+import { assertPublicUrl, fetchPublicText, publicRequestFilter } from '../util/publicUrl'
 
 export interface IPageFacts {
     name: string | null
@@ -127,16 +127,22 @@ export interface IAiView {
 
 const GPTBOT_UA = 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.1; +https://openai.com/gptbot)'
 
-const fetchRaw = async (url: string) =>
-    (await axios.get<string>(url, { timeout: 10000, responseType: 'text', headers: { 'User-Agent': GPTBOT_UA } })).data
+const fetchRaw = (url: string) => fetchPublicText(url, { 'User-Agent': GPTBOT_UA })
 
 // Shopper views of all urls in one Chrome; a url that fails is simply absent
 const renderAll = (urls: string[]) =>
     withBrowser(async (browser) => {
         const out = new Map<string, string>()
+        const isPublic = publicRequestFilter()
         for (const url of urls) {
             try {
                 const page = await browser.newPage()
+                // Every request, redirects included, must go to a public address
+                await page.setRequestInterception(true)
+                page.on('request', (request) => {
+                    if (request.isInterceptResolutionHandled()) return
+                    void isPublic(request.url()).then((ok) => (ok ? request.continue() : request.abort('blockedbyclient')).catch(() => undefined))
+                })
                 // Stores keep analytics connections open, so "network idle" may never come: give scripts
                 // up to 8 s to settle after the HTML loads, then read whatever the shopper would see
                 await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 })
@@ -152,6 +158,14 @@ const renderAll = (urls: string[]) =>
 
 export const runAiView = async (website: string): Promise<IAiView> => {
     const home = auditService.cleanUrl(website)
+    try {
+        await assertPublicUrl(home)
+    } catch (err) {
+        return {
+            checkedAt: new Date(),
+            pages: [{ url: home, label: 'Homepage', rows: [], aiPreview: '', error: `Couldn't open ${home} (${(err as Error).message})` }]
+        }
+    }
     const homeHtml = await fetchRaw(home).catch(() => '')
     const product = homeHtml ? productLinksIn(homeHtml, home)[0] : undefined
     const targets = [...(product ? [{ url: product, label: 'Product page' as const }] : []), { url: home, label: 'Homepage' as const }]

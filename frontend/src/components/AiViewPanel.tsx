@@ -8,8 +8,11 @@ interface Row { key: string; label: string; ai: string | null; shopper: string |
 interface AiViewPage { url: string; label: string; rows: Row[]; aiPreview: string; error?: string }
 export interface AiView { checkedAt: string; pages: AiViewPage[] }
 
+// Red whenever the shopper sees something the AI doesn't, even if the AI has a weaker value (3 words vs 120)
 const cell = (v: string | null, bad: boolean) =>
-  v ? <span>✓ {v}</span> : <span style={{ color: bad ? 'var(--bad)' : 'var(--text-dim)' }}>✗ missing</span>;
+  bad ? <span style={{ color: 'var(--bad)' }}>✗ {v || 'missing'}</span>
+    : v ? <span>✓ {v}</span>
+    : <span style={{ color: 'var(--text-dim)' }}>✗ missing</span>;
 
 export default function AiViewPanel({ brandId, initial }: { brandId?: string; initial?: AiView | null }) {
   const [view, setView] = useState<AiView | null>(initial ?? null);
@@ -55,7 +58,7 @@ export default function AiViewPanel({ brandId, initial }: { brandId?: string; in
             {!p.error && (missing.length
               ? <p style={{ color: 'var(--bad)', fontSize: '13.5px' }}>AI can't see the {missing.join(', ')} on this page: they load with JavaScript. <Link to="/recommendations">What to do →</Link></p>
               : <p style={{ color: 'var(--good)', fontSize: '13.5px' }}>AI crawlers see everything shoppers see on this page ✓</p>)}
-            {p.aiPreview && <p className="mono" style={{ fontSize: '12px', color: 'var(--text-dim)' }}>What the AI reads first: “{p.aiPreview}…”</p>}
+            {p.aiPreview && <p className="mono" style={{ fontSize: '12px', color: 'var(--text-dim)' }}>What the AI reads first: “{p.aiPreview}{p.aiPreview.length >= 300 ? '…' : ''}”</p>}
           </div>
         );
       })}

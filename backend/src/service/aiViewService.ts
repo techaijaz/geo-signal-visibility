@@ -59,6 +59,10 @@ export const extractPageFacts = (html: string): IPageFacts => {
 
     $('script, style, noscript, template, svg').remove()
     const text = $('body').text().replace(/\s+/g, ' ').trim()
+    // The preview starts at the page's own content, not the header, menu, cart drawer or footer
+    $('header, nav, footer, aside, [role="dialog"]').remove()
+    const main = $('main, [role="main"]').first()
+    const previewText = (main.length ? main : $('body')).text().replace(/\s+/g, ' ').trim()
 
     const name =
         (typeof product?.name === 'string' && product.name.trim()) ||
@@ -88,7 +92,7 @@ export const extractPageFacts = (html: string): IPageFacts => {
         words: text ? text.split(' ').length : 0,
         images: { total: imgs.length, withAlt: imgs.filter((_, el) => !!$(el).attr('alt')?.trim()).length },
         schemaTypes: schemaTypesIn(html),
-        preview: text.slice(0, 300)
+        preview: previewText.slice(0, 300)
     }
 }
 

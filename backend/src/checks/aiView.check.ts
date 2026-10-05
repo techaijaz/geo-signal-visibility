@@ -44,5 +44,10 @@ assert.deepStrictEqual(
     compareFacts(raw, null).filter((r) => r.missingForAi),
     []
 )
+// Preview skips header, nav, cart and footer chrome and starts at the main content
+const chrome = extractPageFacts(
+    '<body><header><a>Skip to content</a> Your cart is empty</header><nav>Shop Men Women</nav><main><h1>Silk Oud</h1><p>Rich oud attar.</p></main><footer>Contact us</footer></body>'
+)
+assert.ok(chrome.preview.startsWith('Silk Oud'), chrome.preview)
 console.log('ai-view checks: PASS')
 process.exit(0)

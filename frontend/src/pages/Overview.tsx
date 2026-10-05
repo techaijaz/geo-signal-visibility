@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import api from '../utils/axios';
 import VisibilityTrendChart, { type VisibilityTrendPoint } from '../components/VisibilityTrendChart';
 import ScanErrorBanner, { type ScanError } from '../components/ScanErrorBanner';
+import { LostToCard } from '../components/LostTo';
 
 interface ModelStat {
   name: string;
@@ -134,6 +135,8 @@ const Overview: React.FC = () => {
           </div>
         ))}
       </div>
+
+      <LostToCard brandId={activeBrandId} brandName={data?.brandName} />
 
       {/* Model Visibility & Sentiment Matrix Table */}
       <div className="panel">

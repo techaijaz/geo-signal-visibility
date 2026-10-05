@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { LostToSection } from '../components/LostTo';
 import api from '../utils/axios';
 
 interface SovItem {
@@ -147,6 +148,8 @@ export default function Competitors() {
           </tbody>
         </table>
       </div>
+
+      <LostToSection brandId={activeBrandId} brandName={context?.currentBrand?.name} />
     </div>
   );
 }

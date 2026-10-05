@@ -992,6 +992,10 @@ export default function Settings() {
               </button>
             </div>
 
+            <p className="sub" style={{ fontSize: '12.5px', margin: '0 0 8px' }}>
+              Changing questions changes what we measure, not what AI knows about you. Fixes on your site and mentions elsewhere move it, usually within 2–6 weeks.
+            </p>
+
             {/* Queries List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', margin: '14px 0' }}>
               {queries.length === 0 ? (

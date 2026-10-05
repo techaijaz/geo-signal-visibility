@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import api from '../utils/axios';
 import ScanProgress from '../components/ScanProgress';
+import AiViewPanel, { type AiView } from '../components/AiViewPanel';
 
 interface AuditGridItem {
   name: string;
@@ -17,6 +18,7 @@ interface AuditData {
   offSiteFootprint: AuditGridItem[];
   marketplaceReadability: AuditGridItem[];
   lastAuditedAt?: string;
+  aiView?: AiView | null;
 }
 
 interface OutletContextType {
@@ -324,6 +326,8 @@ export default function WebsiteAudit() {
           </ul>
         </div>
       </div>
+
+      <AiViewPanel key={activeBrandId} brandId={activeBrandId} initial={auditData?.aiView} />
 
       {/* 1. Crawler Access Panel */}
       <div className="panel">

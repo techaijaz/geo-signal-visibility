@@ -12,6 +12,11 @@ import { computeCompetitorStats, computeLostTo, loadScanPair } from '../service/
 import { saveBrandsNamed } from '../service/brandExtractionService'
 import { withAiCallContext } from '../service/costLogService'
 import recommendationModel from '../model/recommendationModel'
+import costLogModel from '../model/costLogModel'
+import { detectVertical, suggestQueries as suggestQueriesWithAi, templateQueries } from '../service/querySuggestionService'
+
+// AI query suggestions per brand per rolling 24 hours, counted from cost logs so restarts don't reset it
+const AI_SUGGESTIONS_PER_DAY = 10
 
 const extractDomain = (url: string): string => {
     if (!url) return ''
@@ -296,6 +301,54 @@ export default {
                     recs
                 ),
                 trackedCompetitors: competitors.map((c) => ({ name: c.name, website: c.website || '' }))
+            })
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+    // Curated Indian buyer questions for a category; no AI, so onboarding can call it before a brand exists
+    getQueryTemplates: (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const category = typeof req.query.category === 'string' ? req.query.category.slice(0, 100) : ''
+            const brand = typeof req.query.brand === 'string' ? req.query.brand.slice(0, 100) : ''
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, {
+                vertical: detectVertical(category),
+                queries: templateQueries(category, brand)
+            })
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+    // AI ideas for more buyer questions. Not saved: the user adds the ones they want and saves as usual
+    suggestQueries: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { authenticatedUser } = req as IAuthenticatedRequest
+            const { id } = req.params
+            const orgId = await ensureUserOrg(authenticatedUser._id.toString(), authenticatedUser.name)
+            const brand = await databseService.findBrandByIdAndOrgId(id, orgId)
+            if (!brand) {
+                return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
+            }
+            const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+            const usedToday = await costLogModel.countDocuments({ brandId: brand._id, purpose: 'queries', createdAt: { $gt: since } })
+            if (usedToday >= AI_SUGGESTIONS_PER_DAY) {
+                return httpError(
+                    next,
+                    new Error(`You can ask for AI suggestions ${AI_SUGGESTIONS_PER_DAY} times a day. Try again tomorrow.`),
+                    req,
+                    429
+                )
+            }
+            // Unsaved edits on the page count as existing too
+            const body = (req.body || {}) as { existing?: unknown }
+            const unsaved = Array.isArray(body.existing) ? body.existing.filter((t): t is string => typeof t === 'string').slice(0, 200) : []
+            const existing = [...(brand.queries || []).map((q) => q.text), ...unsaved]
+            const queries = await withAiCallContext({ brandId: id, purpose: 'queries' }, () =>
+                suggestQueriesWithAi({ name: brand.name, website: brand.website, category: brand.category, region: brand.region }, existing)
+            )
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, {
+                queries,
+                ...(queries.length ? {} : { message: 'AI suggestions are not available right now. Try again in a while.' })
             })
         } catch (error) {
             httpError(next, error, req, 500)

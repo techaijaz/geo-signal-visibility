@@ -53,6 +53,8 @@ router.route('/brands/:id/mentions').get(authentication, mentionController.getBr
 router.route('/brands/:id/mentions/rescan').post(authentication, mentionController.rescanMentions)
 router.route('/brands/:id/competitors/compare').get(authentication, brandController.getCompetitorComparison)
 router.route('/brands/:id/lost-to').get(authentication, brandController.getLostTo)
+router.route('/brands/:id/query-suggestions').post(authentication, brandController.suggestQueries)
+router.route('/queries/templates').get(authentication, brandController.getQueryTemplates)
 router.route('/brands/:id/audit').get(authentication, auditController.getBrandAudit)
 router.route('/brands/:id/audit/rescan').post(authentication, auditController.rescanBrandAudit)
 router.route('/brands/:id/audit/ai-view').post(authentication, auditController.runAiView)

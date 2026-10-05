@@ -51,6 +51,11 @@ const auditSchema = new mongoose.Schema<IAuditDocument>(
         lastAuditedAt: {
             type: Date,
             default: Date.now
+        },
+        // AI crawler vs shopper comparison (aiViewService), run from the audit page
+        aiView: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null
         }
     },
     { timestamps: true }

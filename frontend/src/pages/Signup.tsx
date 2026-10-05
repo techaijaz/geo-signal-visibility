@@ -88,7 +88,7 @@ export default function Signup() {
               <div className="scanner-sweep"></div>
               <div className="scanner-ticks">
                 <div className="scanner-tick"><span className="tick-dot" style={{ background: 'var(--claude)', color: 'var(--claude)' }}></span><span className="tick-label">CLAUDE</span></div>
-                <div className="scanner-tick"><span className="tick-dot" style={{ background: 'var(--gpt)', color: 'var(--gpt)' }}></span><span className="tick-label">GEMINI</span></div>
+                <div className="scanner-tick"><span className="tick-dot" style={{ background: 'var(--gpt)', color: 'var(--gpt)' }}></span><span className="tick-label">GPT</span></div>
                 <div className="scanner-tick"><span className="tick-dot" style={{ background: 'var(--gemini)', color: 'var(--gemini)' }}></span><span className="tick-label">GEMINI</span></div>
               </div>
             </div>

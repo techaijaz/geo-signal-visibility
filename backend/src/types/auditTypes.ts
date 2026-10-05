@@ -16,6 +16,7 @@ export interface IAuditData {
     marketplaceReadability?: IAuditGridItem[]
     checks?: unknown
     lastAuditedAt?: Date
+    aiView?: unknown
 }
 
 export interface IAuditDocument extends IAuditData, Document {}

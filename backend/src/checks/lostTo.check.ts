@@ -32,6 +32,32 @@ const answer = '1. **Ajmal Dahn Al Oudh** - long lasting\n2. Fogg Scent - budget
     assert.deepStrictEqual(out.get('a0'), [{ name: 'Ajmal', position: 1 }])
     assert.deepStrictEqual(out.get('a11'), [])
     assert.equal(out.size, 12)
+
+    // saveBrandsNamed writes to the DB; when every provider fails it writes [] and does not throw
+    const mentionModel = (await import('../model/mentionModel')).default
+    const { saveBrandsNamed } = await import('../service/brandExtractionService')
+    const brandId = new mongoose.Types.ObjectId()
+    const [m] = await mentionModel.insertMany([
+        {
+            brandId,
+            queryText: 'q',
+            model: 'ChatGPT',
+            mentioned: false,
+            position: null,
+            sentiment: 'Neutral',
+            rawText: answer,
+            extractedAt: new Date()
+        }
+    ])
+    call = 0
+    await saveBrandsNamed([m], 'Hasan Oud')
+    const saved = await mentionModel.findById(m._id).lean()
+    assert.deepStrictEqual(saved?.brandsNamed, [{ name: 'Ajmal', position: 1 }])
+    // 400 is not retried, so every provider fails fast
+    globalThis.fetch = (async () => new Response('bad key', { status: 400 })) as typeof fetch
+    await saveBrandsNamed([m], 'Hasan Oud')
+    assert.deepStrictEqual((await mentionModel.findById(m._id).lean())?.brandsNamed, [])
+    await mentionModel.deleteMany({ brandId })
     console.log('lost-to checks: PASS')
     await mongoose.disconnect()
     process.exit(0)

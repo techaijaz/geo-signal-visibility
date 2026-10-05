@@ -1,6 +1,7 @@
 // Brand names an AI answer recommends, for the lost-to list. One cheap AI call per 10 answers;
 // the AI only proposes names, the answer text decides what is kept and where it sits.
 import aiService from './aiService'
+import mentionModel from '../model/mentionModel'
 import { nameMatcher, positionIn } from './competitorService'
 import { IBrandNamed } from '../types/mentionTypes'
 import logger from '../util/loger'
@@ -50,4 +51,23 @@ export const extractBrands = async (answers: { id: string; text: string }[], own
         chunk.forEach((a, j) => result.set(a.id, validateNames(parsed?.[String(j)], a.text, ownBrand)))
     }
     return result
+}
+
+// Never throws: a failed extraction leaves brandsNamed unset and the scan stands
+export const saveBrandsNamed = async (mentions: Array<{ _id: unknown; rawText?: string }>, ownBrand: string) => {
+    try {
+        const withText = mentions.filter((m) => m.rawText)
+        if (!withText.length) return
+        const found = await extractBrands(
+            withText.map((m) => ({ id: String(m._id), text: m.rawText as string })),
+            ownBrand
+        )
+        await mentionModel.bulkWrite(
+            withText.map((m) => ({
+                updateOne: { filter: { _id: m._id }, update: { $set: { brandsNamed: found.get(String(m._id)) ?? [] } } }
+            }))
+        )
+    } catch (error) {
+        logger.warn('[brandExtraction] Failed, brand names skipped for this scan', { meta: error })
+    }
 }

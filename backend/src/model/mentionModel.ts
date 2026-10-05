@@ -42,6 +42,11 @@ const mentionSchema = new mongoose.Schema<IMention>(
             type: String,
             default: ''
         },
+        // Other brands this answer recommends (unset = not extracted yet, [] = none found)
+        brandsNamed: {
+            type: [new mongoose.Schema({ name: String, position: Number }, { _id: false })],
+            default: undefined
+        },
         extractedAt: {
             type: Date,
             default: Date.now

@@ -8,7 +8,10 @@ import { validateJoiSchema, validationCreateBrandBody, validationUpdateBrandBody
 import { EBrandRole, ICreateBrandRequestBody, IUpdateBrandRequestBody } from '../types/brandTypes'
 import { EUserRole } from '../constent/userConstent'
 import { getPlanLimits, type PlanName } from '../config/planLimits'
-import { computeCompetitorStats, loadScanPair } from '../service/competitorService'
+import { computeCompetitorStats, computeLostTo, loadScanPair } from '../service/competitorService'
+import { saveBrandsNamed } from '../service/brandExtractionService'
+import { withAiCallContext } from '../service/costLogService'
+import recommendationModel from '../model/recommendationModel'
 
 const extractDomain = (url: string): string => {
     if (!url) return ''
@@ -264,6 +267,40 @@ export default {
         }
     },
 
+    getLostTo: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { authenticatedUser } = req as IAuthenticatedRequest
+            const { id } = req.params
+            const orgId = await ensureUserOrg(authenticatedUser._id.toString(), authenticatedUser.name)
+            const brand = await databseService.findBrandByIdAndOrgId(id, orgId)
+            if (!brand) {
+                return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
+            }
+            let { current } = await loadScanPair(id, brand.lastScanId)
+            // Scans from before this feature: extract once and keep the result
+            if (current.some((m) => m.rawText) && !current.some((m) => Array.isArray(m.brandsNamed))) {
+                await withAiCallContext({ brandId: id, purpose: 'brands' }, () => saveBrandsNamed(current as never[], brand.name))
+                current = (await loadScanPair(id, brand.lastScanId)).current
+            }
+            const recs = await recommendationModel
+                .find({ brandId: id, isCompleted: { $ne: true }, impact: 'High impact' })
+                .select('text')
+                .limit(3)
+                .lean()
+            const competitors = brand.competitors || []
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, {
+                ...computeLostTo(
+                    current,
+                    brand.name,
+                    competitors.map((c) => c.name),
+                    recs
+                ),
+                trackedCompetitors: competitors.map((c) => ({ name: c.name, website: c.website || '' }))
+            })
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
     getCompetitorComparison: async (req: Request, res: Response, next: NextFunction) => {
         try {
             const { authenticatedUser } = req as IAuthenticatedRequest

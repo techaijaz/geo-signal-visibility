@@ -11,6 +11,7 @@ import { IMention } from '../types/mentionTypes'
 import logger from '../util/loger'
 import databseService from './databseService'
 import { recordAiUsage, withAiCallContext } from './costLogService'
+import { saveBrandsNamed } from './brandExtractionService'
 
 interface IOpenAiChatResponse {
     choices?: Array<{
@@ -484,6 +485,8 @@ const aiService = {
         // Keep previous scans as history; readers use brand.lastScanId to get the latest set
         const scanId = randomUUID()
         const inserted = await mentionModel.insertMany(results.map((r) => ({ ...r, scanId })))
+        // Who AI recommends instead of the brand (lost-to list); never fails the scan
+        await withAiCallContext({ brandId, purpose: 'brands' }, () => saveBrandsNamed(inserted, brandName))
 
         const scannedAt = new Date()
         await brandModel.updateOne(

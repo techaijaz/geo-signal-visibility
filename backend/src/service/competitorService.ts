@@ -3,7 +3,7 @@
 // so both always show the same numbers.
 import mongoose from 'mongoose'
 import mentionModel from '../model/mentionModel'
-import { IMention } from '../types/mentionTypes'
+import { IBrandNamed, IMention } from '../types/mentionTypes'
 
 export interface ICompetitorRow {
     name: string
@@ -25,10 +25,10 @@ export interface ICompetitorStats {
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // Whole-name match, so "Glow" is not counted inside "Glowleaf"
-const nameMatcher = (name: string) => new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(name)}($|[^\\p{L}\\p{N}])`, 'iu')
+export const nameMatcher = (name: string) => new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(name)}($|[^\\p{L}\\p{N}])`, 'iu')
 
 // Same rule as the scan uses for your brand: number of the list item it appears in, else its line (max 5)
-const positionIn = (text: string, re: RegExp): number | null => {
+export const positionIn = (text: string, re: RegExp): number | null => {
     const lines = text.split('\n')
     for (let i = 0; i < lines.length; i++) {
         if (re.test(lines[i])) {
@@ -109,6 +109,63 @@ export const computeCompetitorStats = (
     })
 
     return { totalAnswers: mentions.length, answerTextAvailable: current.withText > 0, rows }
+}
+
+export interface ILostTo {
+    totalAnswers: number
+    extracted: boolean
+    you: { named: number; bestPosition: number | null; closestWin: { queryText: string; model: string; position: number } | null }
+    brands: Array<{ name: string; answers: number; avgPosition: number | null; aheadOfYou: number; tracked: boolean }>
+    byQuestion: Array<{ queryText: string; rows: Array<{ model: string; you: number | null; others: IBrandNamed[] }> }>
+    topActions: Array<{ _id: string; text: string }>
+}
+
+// Who the AI recommends instead of the brand, from one scan's answers (lost-to list)
+export const computeLostTo = (mentions: IMention[], _brandName: string, tracked: string[], recs: Array<{ _id: unknown; text: string }>): ILostTo => {
+    const extracted = mentions.some((m) => Array.isArray(m.brandsNamed))
+    const trackedSet = new Set(tracked.map((t) => t.trim().toLowerCase()))
+    const byName = new Map<string, { name: string; positions: number[]; answers: number; ahead: number }>()
+    for (const m of mentions) {
+        for (const b of m.brandsNamed || []) {
+            const key = b.name.toLowerCase()
+            const row = byName.get(key) || { name: b.name, positions: [], answers: 0, ahead: 0 }
+            row.answers++
+            if (b.position) row.positions.push(b.position)
+            if (!m.mentioned || (b.position !== null && m.position !== null && b.position < m.position)) row.ahead++
+            byName.set(key, row)
+        }
+    }
+    const brands = [...byName.values()]
+        .map((r) => ({
+            name: r.name,
+            answers: r.answers,
+            avgPosition: average(r.positions),
+            aheadOfYou: r.ahead,
+            tracked: trackedSet.has(r.name.toLowerCase())
+        }))
+        .sort((a, b) => b.answers - a.answers || (a.avgPosition ?? 99) - (b.avgPosition ?? 99))
+        .slice(0, 20)
+
+    const named = mentions.filter((m) => m.mentioned)
+    const best = named.filter((m) => m.position).sort((a, b) => (a.position as number) - (b.position as number))[0]
+    const questions = new Map<string, ILostTo['byQuestion'][number]>()
+    for (const m of mentions) {
+        const q = questions.get(m.queryText) || { queryText: m.queryText, rows: [] }
+        q.rows.push({ model: m.model, you: m.mentioned ? m.position : null, others: m.brandsNamed || [] })
+        questions.set(m.queryText, q)
+    }
+    return {
+        totalAnswers: mentions.length,
+        extracted,
+        you: {
+            named: named.length,
+            bestPosition: best ? (best.position as number) : null,
+            closestWin: best ? { queryText: best.queryText, model: best.model, position: best.position as number } : null
+        },
+        brands,
+        byQuestion: [...questions.values()],
+        topActions: recs.slice(0, 3).map((r) => ({ _id: String(r._id), text: r.text }))
+    }
 }
 
 // Mentions of the latest scan and the one before it (for trends)

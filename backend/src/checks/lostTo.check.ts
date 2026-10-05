@@ -58,6 +58,31 @@ const answer = '1. **Ajmal Dahn Al Oudh** - long lasting\n2. Fogg Scent - budget
     await saveBrandsNamed([m], 'Hasan Oud')
     assert.deepStrictEqual((await mentionModel.findById(m._id).lean())?.brandsNamed, [])
     await mentionModel.deleteMany({ brandId })
+
+    const { computeLostTo } = await import('../service/competitorService')
+    const ms = [
+        {
+            queryText: 'q1',
+            model: 'ChatGPT',
+            mentioned: false,
+            position: null,
+            brandsNamed: [
+                { name: 'Ajmal', position: 1 },
+                { name: 'Fogg', position: 2 }
+            ]
+        },
+        { queryText: 'q1', model: 'Gemini', mentioned: true, position: 3, brandsNamed: [{ name: 'ajmal', position: 1 }] },
+        { queryText: 'q2', model: 'ChatGPT', mentioned: true, position: 1, brandsNamed: [{ name: 'Ajmal', position: 2 }] }
+    ] as never[]
+    const lt = computeLostTo(ms, 'Hasan Oud', ['Fogg'], [{ _id: 'r1', text: 'Add FAQ' }])
+    assert.equal(lt.totalAnswers, 3)
+    assert.equal(lt.extracted, true)
+    assert.deepStrictEqual(lt.brands[0], { name: 'Ajmal', answers: 3, avgPosition: 1.3, aheadOfYou: 2, tracked: false })
+    assert.equal(lt.brands[1].tracked, true)
+    assert.deepStrictEqual(lt.you, { named: 2, bestPosition: 1, closestWin: { queryText: 'q2', model: 'ChatGPT', position: 1 } })
+    assert.equal(lt.byQuestion[0].rows[0].others.length, 2)
+    assert.equal(computeLostTo([{ ...(ms[0] as object), brandsNamed: undefined }] as never[], 'X', [], []).extracted, false)
+    assert.equal(computeLostTo([ms[0]], 'Hasan Oud', [], [{ _id: 'r1', text: 'Add FAQ' }]).topActions.length, 1)
     console.log('lost-to checks: PASS')
     await mongoose.disconnect()
     process.exit(0)

@@ -25,10 +25,10 @@ export interface ICompetitorStats {
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // Whole-name match, so "Glow" is not counted inside "Glowleaf"
-const nameMatcher = (name: string) => new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(name)}($|[^\\p{L}\\p{N}])`, 'iu')
+export const nameMatcher = (name: string) => new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(name)}($|[^\\p{L}\\p{N}])`, 'iu')
 
 // Same rule as the scan uses for your brand: number of the list item it appears in, else its line (max 5)
-const positionIn = (text: string, re: RegExp): number | null => {
+export const positionIn = (text: string, re: RegExp): number | null => {
     const lines = text.split('\n')
     for (let i = 0; i < lines.length; i++) {
         if (re.test(lines[i])) {

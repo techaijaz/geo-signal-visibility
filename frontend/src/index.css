@@ -509,6 +509,14 @@ tbody tr:last-child td{border-bottom:none;}
   background: rgba(136, 144, 163, 0.15);
   color: var(--text-dim);
 }
+.tag-price {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--good);
+}
+.tag-occasion {
+  background: rgba(196, 140, 255, 0.15);
+  color: #c48cff;
+}
 
 /* ---------- Website Audit ---------- */
 .audit-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}

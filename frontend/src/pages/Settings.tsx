@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, useOutletContext, Link } from 'react-rout
 import api from '../utils/axios';
 import { useAuth } from '../context/AuthContext';
 import { usePlanLimits } from '../hooks/usePlanLimits';
-import { generateCategoryQueries } from '../utils/categoryQueryGenerator';
+import { fetchAiQuerySuggestions, fetchQueryTemplates, type SuggestedQuery } from '../utils/queryTemplates';
 
 // Names must match planLimits.allowedModels on the backend
 const TRACKED_AI_MODELS = [
@@ -26,6 +26,7 @@ const SCAN_SCHEDULE: Record<string, string> = {
 const FALLBACK_CATEGORIES = [
   'SaaS & Software',
   'E-Commerce & Retail',
+  'Fragrances & Perfumes',
   'FinTech & Banking',
   'HealthTech & Healthcare',
   'EdTech & Learning',
@@ -138,6 +139,9 @@ export default function Settings() {
   const [queries, setQueries] = useState<QueryItem[]>([]);
   const [queryInput, setQueryInput] = useState('');
   const [queryError, setQueryError] = useState('');
+  const [aiSuggestions, setAiSuggestions] = useState<SuggestedQuery[]>([]);
+  const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [aiSuggestMessage, setAiSuggestMessage] = useState('');
   const [isScanningQueries, setIsScanningQueries] = useState(false);
   const [queryScanMessage, setQueryScanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const maxQueries = limits?.maxQueries ?? 15;
@@ -228,6 +232,8 @@ export default function Settings() {
     setBrandRegion(b.region || 'India');
     setCompetitors(b.competitors || []);
     setQueries(b.queries || []);
+    setAiSuggestions([]);
+    setAiSuggestMessage('');
   };
 
   const handleBrandSelect = (brandId: string) => {
@@ -405,9 +411,15 @@ export default function Settings() {
     setQueries(queries.map((q, i) => (i === idx ? { ...q, enabled: q.enabled === false ? true : false } : q)));
   };
 
-  const handleGenerateQueries = () => {
+  const handleGenerateQueries = async () => {
     setQueryError('');
-    const generated = generateCategoryQueries(brandCategory, brandName);
+    let generated: SuggestedQuery[];
+    try {
+      generated = await fetchQueryTemplates(brandCategory, brandName);
+    } catch {
+      setQueryError("Couldn't load suggestions. Please try again.");
+      return;
+    }
     const existingTexts = new Set(queries.map((q) => q.text.toLowerCase()));
     const newQueriesToAdd = generated.filter((g) => !existingTexts.has(g.text.toLowerCase()));
 
@@ -424,6 +436,37 @@ export default function Settings() {
 
     const queriesToAdd = newQueriesToAdd.slice(0, availableSlots);
     setQueries([...queries, ...queriesToAdd]);
+  };
+
+  const handleSuggestWithAi = async () => {
+    if (!selectedBrandId || aiSuggesting) return;
+    setAiSuggesting(true);
+    setAiSuggestMessage('');
+    try {
+      const { queries: ideas, message } = await fetchAiQuerySuggestions(
+        selectedBrandId,
+        queries.map((q) => q.text)
+      );
+      setAiSuggestions(ideas);
+      setAiSuggestMessage(ideas.length ? '' : message || 'No new ideas this time. Try again in a while.');
+    } catch (err: any) {
+      setAiSuggestions([]);
+      setAiSuggestMessage(err.response?.data?.message || 'AI suggestions failed. Please try again.');
+    } finally {
+      setAiSuggesting(false);
+    }
+  };
+
+  const handleAddAiSuggestion = (idea: SuggestedQuery) => {
+    setQueryError('');
+    if (queries.length >= maxQueries) {
+      setQueryError(`Query limit reached (${maxQueries}/${maxQueries}). Upgrade plan to add more.`);
+      return;
+    }
+    if (!queries.some((q) => q.text.toLowerCase() === idea.text.toLowerCase())) {
+      setQueries([...queries, { ...idea, enabled: true }]);
+    }
+    setAiSuggestions(aiSuggestions.filter((s) => s.text !== idea.text));
   };
 
   const handleRunAiQueryScan = async () => {
@@ -982,15 +1025,58 @@ export default function Settings() {
                 <strong>Plan Allowance:</strong> {queries.length} / {maxQueries === Infinity ? 'Unlimited' : maxQueries} queries tracked
                 <span style={{ color: 'var(--text-dim)', marginLeft: '6px', fontSize: '11px', textTransform: 'uppercase' }}>({plan} plan)</span>
               </span>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                style={{ fontSize: '12px', padding: '4px 10px' }}
-                onClick={handleGenerateQueries}
-              >
-                + Auto-suggest {brandCategory} queries
-              </button>
+              <span style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ fontSize: '12px', padding: '4px 10px' }}
+                  onClick={handleGenerateQueries}
+                >
+                  + Auto-suggest {brandCategory} queries
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ fontSize: '12px', padding: '4px 10px' }}
+                  disabled={aiSuggesting || !selectedBrandId}
+                  onClick={handleSuggestWithAi}
+                  title="AI ideas for questions Indian buyers ask, in Hinglish and English"
+                >
+                  {aiSuggesting ? 'Thinking…' : '✨ Suggest with AI'}
+                </button>
+              </span>
             </div>
+
+            {(aiSuggestions.length > 0 || aiSuggestMessage) && (
+              <div style={{ margin: '0 0 14px', padding: '10px 14px', border: '1px dashed var(--line-soft)', borderRadius: '8px' }}>
+                {aiSuggestMessage ? (
+                  <p className="sub" style={{ fontSize: '12.5px', margin: 0 }}>{aiSuggestMessage}</p>
+                ) : (
+                  <>
+                    <p className="sub" style={{ fontSize: '12px', margin: '0 0 8px' }}>
+                      AI ideas from your category. Pick the ones your buyers would really ask.
+                    </p>
+                    {aiSuggestions.map((idea) => (
+                      <div key={idea.text} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 0' }}>
+                        <span style={{ flex: 1, fontSize: '13px' }}>{idea.text}</span>
+                        <span className="tag tag-lang">{idea.lang}</span>
+                        <span className={`tag tag-${idea.intent.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}>{idea.intent}</span>
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          style={{ fontSize: '12px', padding: '2px 10px' }}
+                          disabled={queries.length >= maxQueries}
+                          title={queries.length >= maxQueries ? 'Plan limit reached' : 'Add to tracked queries'}
+                          onClick={() => handleAddAiSuggestion(idea)}
+                        >
+                          Add
+                        </button>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
 
             <p className="sub" style={{ fontSize: '12.5px', margin: '0 0 8px' }}>
               Changing questions changes what we measure, not what AI knows about you. Fixes on your site and mentions elsewhere move it, usually within 2–6 weeks.

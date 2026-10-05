@@ -3,11 +3,12 @@ import { useNavigate, Link } from 'react-router-dom';
 import api from '../utils/axios';
 import { useAuth } from '../context/AuthContext';
 import { usePlanLimits } from '../hooks/usePlanLimits';
-import { generateCategoryQueries, type QueryItem } from '../utils/categoryQueryGenerator';
+import { fetchQueryTemplates, toQueryItems, type QueryItem } from '../utils/queryTemplates';
 
 const FALLBACK_CATEGORIES = [
   'SaaS & Software',
   'E-Commerce & Retail',
+  'Fragrances & Perfumes',
   'FinTech & Banking',
   'HealthTech & Healthcare',
   'EdTech & Learning',
@@ -106,8 +107,10 @@ export default function Onboarding() {
   const [competitorInput, setCompetitorInput] = useState('');
   const [step2Error, setStep2Error] = useState('');
 
-  // Step 3 State: Category-based Queries
-  const [queries, setQueries] = useState<QueryItem[]>(() => generateCategoryQueries('E-Commerce & Retail', ''));
+  // Step 3 State: Indian buyer questions for the category, from the backend
+  const [queries, setQueries] = useState<QueryItem[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templatesError, setTemplatesError] = useState('');
   const [customQueryInput, setCustomQueryInput] = useState('');
   const [step3Error, setStep3Error] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -118,9 +121,27 @@ export default function Onboarding() {
     return items.map((q) => ({ ...q, enabled: q.enabled && ++ticked <= maxQueries }));
   };
 
-  // Dynamically update queries when Category or Brand Name changes
+  const loadTemplates = async (cancelled: () => boolean = () => false) => {
+    setTemplatesLoading(true);
+    setTemplatesError('');
+    try {
+      const items = await fetchQueryTemplates(category, brandName.trim());
+      if (!cancelled()) setQueries(queriesWithinPlan(toQueryItems(items)));
+    } catch {
+      if (!cancelled()) setTemplatesError("Couldn't load suggestions. Add your own below or try ↻ Reset.");
+    } finally {
+      if (!cancelled()) setTemplatesLoading(false);
+    }
+  };
+
+  // Reload the questions when Category or Brand Name changes (debounced while the name is typed)
   useEffect(() => {
-    setQueries(queriesWithinPlan(generateCategoryQueries(category, brandName)));
+    let isCancelled = false;
+    const timer = setTimeout(() => loadTemplates(() => isCancelled), 400);
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, brandName, maxQueries]);
 
@@ -563,14 +584,15 @@ export default function Onboarding() {
             <div>
               <h2>Pick what to track</h2>
               <p className="sub">
-                Auto-generated search prompts tailored for <strong>{category}</strong>. Uncheck queries you don't need or add custom ones.
+                Questions Indian shoppers ask AI about <strong>{category}</strong>, in Hinglish and English, with budgets and occasions. Uncheck the ones you don't need or add your own.
               </p>
             </div>
             <button
               type="button"
               className="btn btn-ghost"
               style={{ fontSize: '12px', padding: '4px 10px' }}
-              onClick={() => setQueries(queriesWithinPlan(generateCategoryQueries(category, brandName)))}
+              disabled={templatesLoading}
+              onClick={() => loadTemplates()}
               title={`Reset queries for ${category}`}
             >
               ↻ Reset for {category}
@@ -599,6 +621,9 @@ export default function Onboarding() {
               </Link>
             )}
           </div>
+
+          {templatesError && <p className="error-text" style={{ margin: '0 0 12px', color: '#ef4444' }}>{templatesError}</p>}
+          {templatesLoading && queries.length === 0 && <p className="sub" style={{ fontSize: '12.5px' }}>Loading questions…</p>}
 
           <div className="query-list">
             {queries.map((q) => (

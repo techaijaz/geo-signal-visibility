@@ -64,7 +64,7 @@
 ### Task 3: API
 
 **Files:**
-- Create: `backend/src/controller/queryController.ts`
+- Modify: `backend/src/controller/brandController.ts` (handlers next to `getLostTo`, to reuse its `ensureUserOrg` org check)
 - Modify: `backend/src/router/apiRouter.ts`
 - Modify: `backend/src/service/aiService.ts` (scan fallback for e-commerce uses `templateQueries`)
 
@@ -87,4 +87,6 @@
 ### Task 5: Verify and hand over
 
 - [ ] Run the check, `tsc`, eslint and the frontend build once more.
+
+> As built: Tasks 1 and 2 landed in one commit (`feat(queries): indian buyer query templates and ai suggestions`); the check also covers the two API handlers with a stubbed DB.
 - [ ] Browser check with email off (onboarding fragrance list, Suggest with AI, plan limit) and Test Sheet cases: after review, by the user or QA.

@@ -1,6 +1,6 @@
 // backend/src/service/reportService/pdfService.ts
 // Renders a report snapshot (see reportData.ts) to an A4 PDF with headless Chrome.
-import puppeteer from 'puppeteer'
+import puppeteer, { type Browser } from 'puppeteer'
 import { IReportData } from './reportData'
 
 const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
@@ -222,7 +222,8 @@ const release = () => {
     waiting.shift()?.()
 }
 
-export const generateReportPdf = async (data: IReportData): Promise<Buffer> => {
+// One headless Chrome for the length of fn, within the concurrency limit above
+export const withBrowser = async <T>(fn: (browser: Browser) => Promise<T>): Promise<T> => {
     await acquire()
     const browser = await puppeteer
         .launch({
@@ -234,6 +235,15 @@ export const generateReportPdf = async (data: IReportData): Promise<Buffer> => {
             throw err
         })
     try {
+        return await fn(browser)
+    } finally {
+        await browser.close()
+        release()
+    }
+}
+
+export const generateReportPdf = async (data: IReportData): Promise<Buffer> =>
+    withBrowser(async (browser) => {
         const page = await browser.newPage()
         await page.setContent(renderReportHtml(data), { waitUntil: 'domcontentloaded' })
         const pdf = await page.pdf({
@@ -246,8 +256,4 @@ export const generateReportPdf = async (data: IReportData): Promise<Buffer> => {
               <span>${esc(data.brandName)} · Signal AI</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`
         })
         return Buffer.from(pdf)
-    } finally {
-        await browser.close()
-        release()
-    }
-}
+    })

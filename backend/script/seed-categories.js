@@ -33,6 +33,7 @@ const Category = mongoose.model('Category', categorySchema)
 const defaultCategories = [
     { name: 'SaaS & Software', slug: 'saas-software', description: 'Software as a Service, cloud tools, and B2B platforms', isActive: true },
     { name: 'E-Commerce & Retail', slug: 'ecommerce-retail', description: 'Online shopping, DTC brands, storefronts, and retail', isActive: true },
+    { name: 'Fragrances & Perfumes', slug: 'fragrances-perfumes', description: 'Perfumes, attars, oud, deodorants and body mists', isActive: true },
     {
         name: 'FinTech & Banking',
         slug: 'fintech-banking',

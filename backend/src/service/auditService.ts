@@ -13,7 +13,7 @@ const PRODUCT_PAGES_TO_CHECK = 3
 
 // Lower-cased schema.org types from JSON-LD at any depth (Product > aggregateRating, @graph, arrays)
 // and microdata itemtypes
-const schemaTypesIn = (html: string): string[] => {
+export const schemaTypesIn = (html: string): string[] => {
     const $ = cheerio.load(html)
     const types: string[] = []
     const push = (t: unknown) => {
@@ -39,7 +39,7 @@ const schemaTypesIn = (html: string): string[] => {
 // Same-site product links on the homepage (Shopify /products/, WooCommerce /product/): product schema
 // usually lives there, not on the homepage.
 // ponytail: homepage links only; read sitemap.xml if stores without product links on the homepage show up
-const productLinksIn = (html: string, siteUrl: string): string[] => {
+export const productLinksIn = (html: string, siteUrl: string): string[] => {
     const host = new URL(siteUrl).hostname
     const $ = cheerio.load(html)
     const links = new Set<string>()

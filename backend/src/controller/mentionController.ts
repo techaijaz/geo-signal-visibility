@@ -34,7 +34,8 @@ export default {
                 brandName: brand.name,
                 mentions,
                 lastScannedAt: brand.lastScannedAt ?? null,
-                lastScanError: brand.lastScanError ?? null
+                lastScanError: brand.lastScanError ?? null,
+                lastScanSilentModels: brand.lastScanSilentModels ?? []
             })
         } catch (error) {
             httpError(next, error, req, 500)

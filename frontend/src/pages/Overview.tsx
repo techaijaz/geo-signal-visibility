@@ -41,6 +41,7 @@ interface OverviewData {
   healthScore: number;
   lastScannedAt?: string | null;
   lastScanError?: ScanError | null;
+  lastScanSilentModels?: string[];
 }
 
 interface OutletContextType {
@@ -113,7 +114,7 @@ const Overview: React.FC = () => {
 
   return (
     <div>
-      <ScanErrorBanner error={data?.lastScanError} />
+      <ScanErrorBanner error={data?.lastScanError} silentModels={data?.lastScanSilentModels} />
       {/* Top Metric Cards Matrix */}
       <div className="cards-row">
         <div className="card">

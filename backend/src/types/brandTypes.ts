@@ -80,6 +80,7 @@ export interface IBrand {
     lastScanId?: string | null
     lastScannedAt?: Date | null
     lastScanError?: { message: string; at: Date } | null
+    lastScanSilentModels?: string[]
     nextScanAt?: Date | null
     manualRescanDay?: string | null
     manualRescanCount?: number

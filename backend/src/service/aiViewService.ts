@@ -156,7 +156,8 @@ const renderAll = (urls: string[]) =>
         return out
     }).catch(() => new Map<string, string>())
 
-export const runAiView = async (website: string): Promise<IAiView> => {
+// productUrl: check this product page instead of the first one linked from the homepage
+export const runAiView = async (website: string, productUrl?: string): Promise<IAiView> => {
     const home = auditService.cleanUrl(website)
     try {
         await assertPublicUrl(home)
@@ -167,7 +168,7 @@ export const runAiView = async (website: string): Promise<IAiView> => {
         }
     }
     const homeHtml = await fetchRaw(home).catch(() => '')
-    const product = homeHtml ? productLinksIn(homeHtml, home)[0] : undefined
+    const product = productUrl || (homeHtml ? productLinksIn(homeHtml, home)[0] : undefined)
     const targets = [...(product ? [{ url: product, label: 'Product page' as const }] : []), { url: home, label: 'Homepage' as const }]
     const shopper = await renderAll(targets.map((t) => t.url))
     const pages: IAiView['pages'] = []

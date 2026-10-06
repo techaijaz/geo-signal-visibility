@@ -2,6 +2,9 @@
 // Everything here except fetchShopifyProducts and aiShortNames is pure, for the check script.
 import { IBrandProduct } from '../types/brandTypes'
 import { IMention } from '../types/mentionTypes'
+import { fetchPublicText } from '../util/publicUrl'
+import aiService from './aiService'
+import { auditService } from './auditService'
 import { brandKey, nameMatcher, positionIn } from './competitorService'
 
 export interface IProductCandidate extends IBrandProduct {
@@ -249,4 +252,49 @@ export const suggestProductQuestions = (product: IBrandProduct, existing: string
         { text: `${budget} ke andar sabse accha ${kind}`, lang: 'HI-EN' as const, intent: 'Price' as const },
         { text: `Best ${kind} under ₹${budget} in India`, lang: 'EN' as const, intent: 'Price' as const }
     ].filter((q) => !seen.has(questionKey(q.text)))
+}
+
+const PAGE = 250
+const MAX_PAGES = 4
+
+// Every Shopify store serves its catalogue at /products.json; anything else means "not Shopify"
+export const fetchShopifyProducts = async (
+    website: string,
+    fetchText: (url: string) => Promise<string> = (url) => fetchPublicText(url, { Accept: 'application/json' })
+): Promise<{ shopify: boolean; raw: unknown[]; truncated: boolean }> => {
+    const origin = new URL(auditService.cleanUrl(website)).origin
+    const raw: unknown[] = []
+    for (let n = 1; n <= MAX_PAGES; n++) {
+        let products: unknown
+        try {
+            products = (JSON.parse(await fetchText(`${origin}/products.json?limit=${PAGE}&page=${n}`)) as { products?: unknown }).products
+        } catch {
+            products = undefined
+        }
+        if (!Array.isArray(products)) return n === 1 ? { shopify: false, raw: [], truncated: false } : { shopify: true, raw, truncated: false }
+        raw.push(...(products as unknown[]))
+        if (products.length < PAGE) return { shopify: true, raw, truncated: false }
+    }
+    return { shopify: true, raw, truncated: true }
+}
+
+const namesPrompt = (
+    titles: string[]
+) => `Shorten each store product title to the name a shopper would say, 1 to 3 words, using only words from the title.
+Drop the brand name, sizes and describing words ("Premium", "Alcohol Free", "Long Lasting", "Attar", "Perfume").
+Reply with JSON only: {"0": "Name", "1": "Name", ...}.
+
+${titles.map((t, i) => `${i}: ${t}`).join('\n')}`
+
+// One cheap call for all titles; the AI only proposes, validateAiShortName decides
+export const aiShortNames = async (titles: string[], brandName: string): Promise<Array<string | null>> => {
+    const reply = await aiService.callAnyAvailableAi(namesPrompt(titles), 800)
+    let parsed: Record<string, unknown> = {}
+    try {
+        const match = reply?.match(/\{[\s\S]*\}/)
+        parsed = match ? (JSON.parse(match[0]) as Record<string, unknown>) : {}
+    } catch {
+        parsed = {}
+    }
+    return titles.map((t, i) => validateAiShortName(parsed[String(i)], t, brandName))
 }

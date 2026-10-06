@@ -10,7 +10,7 @@ const costLogSchema = new mongoose.Schema(
         },
         purpose: {
             type: String,
-            enum: ['scan', 'recommendations', 'brands']
+            enum: ['scan', 'recommendations', 'brands', 'products']
         },
         provider: {
             type: String,

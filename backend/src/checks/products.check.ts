@@ -8,8 +8,11 @@ import {
     mergeRefresh,
     computeProductVisibility,
     isGenericName,
-    suggestProductQuestions
+    suggestProductQuestions,
+    fetchShopifyProducts,
+    aiShortNames
 } from '../service/productService'
+import aiService from '../service/aiService'
 import { PLAN_LIMITS } from '../config/planLimits'
 
 const run = async () => {
@@ -173,6 +176,58 @@ const run = async () => {
         ['600 ke andar sabse accha attar']
     )
     assert.deepStrictEqual(suggestProductQuestions(prod('Bag', { title: 'Leather Bag', price: null }) as never, []), [])
+
+    // Shopify fetch with a stubbed fetcher: pages until a short page, max 4 pages
+    const page = (n: number, count: number) =>
+        JSON.stringify({
+            products: [...Array(count)].map((_, i) => ({
+                id: n * 1000 + i,
+                title: `P ${n}-${i}`,
+                handle: `p-${n}-${i}`,
+                variants: [{ price: '100' }]
+            }))
+        })
+    const asked: string[] = []
+    const two = await fetchShopifyProducts('hasanoud.com', async (u) => {
+        asked.push(u)
+        return u.includes('page=1') ? page(1, 250) : page(2, 3)
+    })
+    assert.equal(two.shopify, true)
+    assert.equal(two.raw.length, 253)
+    assert.equal(two.truncated, false)
+    assert.ok(asked[0].startsWith('https://hasanoud.com/products.json?limit=250&page=1'), asked[0])
+    const many = await fetchShopifyProducts('https://big.example', async (u) => page(Number(/page=(\d)/.exec(u)![1]), 250))
+    assert.equal(many.raw.length, 1000)
+    assert.equal(many.truncated, true)
+    for (const body of ['<html>store</html>', '{"products": "x"}', '{}']) {
+        assert.equal((await fetchShopifyProducts('https://x.example', async () => body)).shopify, false)
+    }
+    assert.equal(
+        (
+            await fetchShopifyProducts('https://x.example', async () => {
+                throw new Error('404')
+            })
+        ).shopify,
+        false
+    )
+    assert.equal((await fetchShopifyProducts('https://x.example', async () => '{"products": []}')).shopify, true)
+
+    // AI names: one call, each answer validated, a broken reply keeps nothing
+    const stub = aiService as unknown as { callAnyAvailableAi: (p: string, n?: number) => Promise<string | null> }
+    stub.callAnyAvailableAi = async () => 'Here: {"0": "Passion Oud", "1": "Hasanoud Blue", "2": "Crystal Air"}'
+    assert.deepStrictEqual(
+        await aiShortNames(
+            [
+                'Passion Oud Strong FruIty Oud Attar by Hasanoud',
+                'The Blue Premium fragrances By Hasan Oud',
+                'Crystal air Powdery Amber Attar by Hasanoud'
+            ],
+            'Hasan Oud'
+        ),
+        ['Passion Oud', null, 'Crystal Air']
+    )
+    stub.callAnyAvailableAi = async () => null
+    assert.deepStrictEqual(await aiShortNames(['A b'], 'X'), [null])
 
     console.log('products checks: PASS')
     process.exit(0)

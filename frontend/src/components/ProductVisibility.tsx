@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/axios';
+import { usePlanLimits } from '../hooks/usePlanLimits';
 
 interface Hit { queryText: string; model: string; position: number | null; line: string }
 interface Row {
@@ -97,6 +98,42 @@ function Details({ row, brandId, questions, onAdded }: { row: Row; brandId: stri
   );
 }
 
+// One click: the most useful product questions (price + occasion of each not-seen product), within the plan's limit
+function AddTopQuestions({ brandId, suggestions, onAdded }: { brandId: string; suggestions: Record<string, Question[]>; onAdded: () => void }) {
+  const { limits } = usePlanLimits();
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const picks = Object.values(suggestions).flatMap((qs) => qs.slice(0, 2));
+  if (!picks.length) return null;
+
+  const addTop = async () => {
+    setBusy(true); setMsg('');
+    try {
+      const brand = (await api.get(`/brands/${brandId}`)).data?.data;
+      const queries: Array<{ text: string; enabled?: boolean }> = brand?.queries ?? [];
+      const used = queries.filter((q) => q.enabled !== false).length;
+      const room = Math.max((limits?.maxQueries ?? used) - used, 0);
+      const have = new Set(queries.map((q) => q.text.trim().toLowerCase()));
+      const add = picks.filter((q) => !have.has(q.text.trim().toLowerCase())).slice(0, room);
+      if (!add.length) { setMsg(room ? 'These questions are already tracked.' : "Your plan's question limit is full. Remove a question in Settings or upgrade."); return; }
+      await api.patch(`/brands/${brandId}`, { queries: [...queries, ...add.map((q) => ({ text: q.text, lang: q.lang, intent: q.intent, enabled: true }))] });
+      setMsg(`Added ${add.length} question${add.length === 1 ? '' : 's'}. They are asked in your next scan.`);
+      onAdded();
+    } catch (err: any) {
+      setMsg(err.response?.data?.message || "Couldn't add the questions.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', margin: '0 0 12px' }}>
+      <button type="button" className="btn" onClick={addTop} disabled={busy}>{busy ? 'Adding…' : 'Add top product questions'}</button>
+      <span style={{ fontSize: '12px', color: 'var(--text-faint)' }}>{msg || 'Budget and occasion questions for products AI did not name, within your plan.'}</span>
+    </div>
+  );
+}
+
 export function ProductsTable({ brandId }: { brandId?: string }) {
   const { data, error, load } = useProductVisibility(brandId);
   const [open, setOpen] = useState<string | null>(null);
@@ -114,13 +151,14 @@ export function ProductsTable({ brandId }: { brandId?: string }) {
 
   return (
     <div className="panel">
-      {data.notSeen === data.counted ? (
+      {data.products.every((r) => !r.answers) ? (
         <p style={{ fontSize: '13.5px', margin: '0 0 12px' }}>
           None of your products was named in the last {data.totalAnswers} answers. Questions that name a product type and budget help. Open a product below.
         </p>
       ) : (
-        <p className="sub">{data.counted - data.notSeen} of {data.counted} products were named in the last {data.totalAnswers} answers.</p>
+        <p className="sub">{data.products.filter((r) => r.answers).length} of {data.counted} products were named in the last {data.totalAnswers} answers.</p>
       )}
+      <AddTopQuestions brandId={brandId} suggestions={data.suggestions} onAdded={load} />
       <div style={{ overflowX: 'auto' }}>
         <table>
           <thead><tr><th>Product</th><th>AI answers</th><th>Best</th><th>AI engines</th><th>Last scan</th></tr></thead>
@@ -143,7 +181,12 @@ export function ProductsTable({ brandId }: { brandId?: string }) {
                 </tr>
                 {open === r.shortName && (
                   <tr>
-                    <td colSpan={5}><Details row={r} brandId={brandId} questions={data.suggestions[r.shortName] ?? []} onAdded={load} /></td>
+                    <td colSpan={5}>
+                      {/* Stays in view on phones while the table itself scrolls sideways */}
+                      <div style={{ position: 'sticky', left: 0, maxWidth: 'calc(100vw - 72px)', overflowWrap: 'anywhere' }}>
+                        <Details row={r} brandId={brandId} questions={data.suggestions[r.shortName] ?? []} onAdded={load} />
+                      </div>
+                    </td>
                   </tr>
                 )}
               </Fragment>

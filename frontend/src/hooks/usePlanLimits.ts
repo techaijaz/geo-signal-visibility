@@ -5,6 +5,7 @@ interface PlanLimits {
   maxQueries: number;
   maxBrands?: number;
   maxCompetitors?: number;
+  maxProducts?: number;
   allowedModels: string[];
   allowedLanguages: string[];
   features: {

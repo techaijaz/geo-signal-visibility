@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useOutletContext, Link } from 'react-router-dom';
+import ProductsSettings from '../components/ProductsSettings';
 import api from '../utils/axios';
 import { useAuth } from '../context/AuthContext';
 import { usePlanLimits } from '../hooks/usePlanLimits';
@@ -1086,6 +1087,8 @@ export default function Settings() {
               </p>
             )}
           </div>
+
+          <ProductsSettings brandId={selectedBrandId} key={selectedBrandId} />
 
           {/* MODELS & PLATFORMS TRACKED PANEL */}
           <div className="panel">

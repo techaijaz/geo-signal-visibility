@@ -128,7 +128,10 @@ export default function Onboarding() {
       const items = await fetchQueryTemplates(category, brandName.trim());
       if (!cancelled()) setQueries(queriesWithinPlan(toQueryItems(items)));
     } catch {
-      if (!cancelled()) setTemplatesError("Couldn't load suggestions. Add your own below or try ↻ Reset.");
+      if (!cancelled()) {
+        setQueries([]);
+        setTemplatesError("Couldn't load suggestions. Add your own below or try ↻ Reset.");
+      }
     } finally {
       if (!cancelled()) setTemplatesLoading(false);
     }

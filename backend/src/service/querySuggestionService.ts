@@ -34,7 +34,7 @@ export type Vertical =
 
 // First match wins, so the narrow D2C verticals come before the broad ones
 const VERTICAL_RULES: [Vertical, RegExp][] = [
-    ['fragrance', /perfume|fragrance|attar|ittar|\bitr\b|\boud\b|\bdeo|scent|cologne/i],
+    ['fragrance', /perfume|fragrance|attar|ittar|\bitr\b|\boud\b|\bdeo|\bscents?\b|cologne/i],
     ['skincare', /skin|personal care|hair ?care/i],
     ['beauty', /beauty|cosmetic|make-?up/i],
     ['jewellery', /jewel|watch|luxury/i],
@@ -43,10 +43,10 @@ const VERTICAL_RULES: [Vertical, RegExp][] = [
     ['pet', /\bpets?\b/i],
     ['healthtech', /healthtech|healthcare/i],
     ['wellness', /fitness|wellness|supplement|nutrition|ayurved|protein/i],
-    ['food', /food|beverage|snack|\btea\b|coffee|spice|masala/i],
-    ['home', /home|furniture|living|decor|kitchen/i],
+    ['food', /cloud kitchen|food|beverage|snack|\btea\b|coffee|spice|masala/i],
+    ['home', /home|furniture|living|decor|kitchen|candle/i],
     ['electronics', /electronic|gadget/i],
-    ['fintech', /fintech|banking|insur/i],
+    ['fintech', /fintech|banking/i],
     ['ai', /artificial intelligence|\bai\b|machine learning/i],
     ['edtech', /edtech|learning|education/i],
     ['saas', /saas|software/i],
@@ -247,19 +247,18 @@ const TEMPLATES: Record<Exclude<Vertical, 'generic'>, ISuggestedQuery[]> = {
     ]
 }
 
-// Any other category: the category name is the noun, in phrasing that reads right singular or plural
+// Any other category: the category name is the noun. These categories are often B2B (real estate,
+// cybersecurity, logistics), so no gifts, festivals or rupee caps, which only fit a shopping list
 const genericTemplates = (category: string): ISuggestedQuery[] => {
     const noun = category.trim().toLowerCase()
     return [
-        q(`1000 ke andar best ${noun} online`, 'HI-EN', 'Price'),
-        q(`Gift ke liye best ${noun} India me`, 'HI-EN', 'Occasion'),
-        q(`Best ${noun} brands in India`, 'EN', 'Best-of'),
-        q(`Best ${noun} under ₹500 in India`, 'EN', 'Price'),
-        q(`Diwali ke liye ${noun} online kahan se lein`, 'HI-EN', 'Occasion'),
-        q(`${noun} ke liye sabse bharosemand brand`, 'HI-EN', 'Best-of'),
-        q(`Daily use ke liye best ${noun} brand`, 'HI-EN', 'Direct'),
-        q(`Original ${noun} online kaise pehchane`, 'HI-EN', 'How-to'),
-        q(`Indian vs international ${noun} brands, kaunsa better hai`, 'HI-EN', 'Comparison')
+        q(`India me ${noun} ke liye sabse bharosemand company kaunsi hai`, 'HI-EN', 'Best-of'),
+        q(`${noun} ki pricing India me kitni hoti hai`, 'HI-EN', 'Price'),
+        q(`Best ${noun} companies in India`, 'EN', 'Best-of'),
+        q(`Best ${noun} for small businesses in India`, 'EN', 'Direct'),
+        q(`${noun} provider kaise chunein, kya dekhna chahiye`, 'HI-EN', 'How-to'),
+        q(`Top rated ${noun} services 2026`, 'EN', 'Best-of'),
+        q(`Indian vs international ${noun} companies, kaunsa better hai`, 'HI-EN', 'Comparison')
     ]
 }
 
@@ -285,7 +284,7 @@ export const detectLang = (text: string): QueryLang => ((text.match(HINGLISH_MAR
 const dedupeKey = (text: string) =>
     text
         .toLowerCase()
-        .replace(/[^\p{L}\p{N}₹]+/gu, ' ')
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
         .trim()
 
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

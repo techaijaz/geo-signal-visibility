@@ -23,7 +23,17 @@ const texts = (qs: { text: string }[]) => qs.map((q) => q.text)
     assert.equal(detectVertical('E-Commerce & Retail'), 'retail')
     assert.equal(detectVertical('Other / General'), 'retail')
     assert.equal(detectVertical(''), 'retail')
-    assert.equal(detectVertical('Handmade Candles'), 'generic')
+    assert.equal(detectVertical('Scented Candles'), 'home')
+    assert.equal(detectVertical('Cloud Kitchen'), 'food')
+    assert.equal(detectVertical('Insurance & InsurTech'), 'generic')
+    assert.equal(detectVertical('Real Estate & Property'), 'generic')
+
+    // Generic (often B2B) categories: no gifts, festivals or rupee caps
+    for (const c of ['Real Estate & Property', 'Cybersecurity & Data Privacy', 'Logistics & Supply Chain']) {
+        const lower = texts(templateQueries(c, 'Acme')).map((t) => t.toLowerCase())
+        assert.ok(!lower.some((t) => /gift|diwali|₹|ke andar/.test(t)), `shopping question in ${c}`)
+        assert.ok(lower.length >= 6, `too few for ${c}`)
+    }
 
     // Fragrance: the three questions from the feature list, Free plan's first 3 are the strongest
     const frag = templateQueries('Fragrances & Perfumes', 'Hasan Oud')
@@ -62,7 +72,7 @@ const texts = (qs: { text: string }[]) => qs.map((q) => q.text)
         'Consumer Electronics & Gadgets',
         'Pet Care & Supplies',
         'E-Commerce & Retail',
-        'Handmade Candles'
+        'Scented Candles'
     ]
     for (const c of categories) {
         const qs = templateQueries(c, 'Acme')
@@ -84,7 +94,7 @@ const texts = (qs: { text: string }[]) => qs.map((q) => q.text)
         )
     }
     // Generic list uses the category name
-    assert.ok(texts(templateQueries('Handmade Candles')).some((t) => t.includes('handmade candles')))
+    assert.ok(texts(templateQueries('Logistics & Supply Chain')).some((t) => t.includes('logistics & supply chain')))
     // Non-D2C presets still come back
     assert.ok(templateQueries('SaaS & Software').length >= 5)
 
@@ -114,6 +124,8 @@ const texts = (qs: { text: string }[]) => qs.map((q) => q.text)
         { text: 'Garmi me kaunsa perfume lagayein office ke liye', lang: 'HI-EN', intent: 'Occasion' },
         { text: 'Alcohol free perfume for namaz under ₹1000', lang: 'EN', intent: 'Price' }
     ])
+    // "under ₹1000" and "under 1000" are the same question
+    assert.deepStrictEqual(cleanSuggestions(['under ₹1000 best oud perfume India'], 'X', ['under 1000 best oud perfume India']), [])
     assert.deepStrictEqual(cleanSuggestions('not an array', 'X', []), [])
     assert.deepStrictEqual(cleanSuggestions({ text: 'a b c' }, 'X', []), [])
     const many = [...Array(30)].map((_, i) => ({ text: `Best attar number ${i} for office`, lang: 'EN', intent: 'Best-of' }))

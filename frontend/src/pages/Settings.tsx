@@ -1057,8 +1057,8 @@ export default function Settings() {
                       AI ideas from your category. Pick the ones your buyers would really ask.
                     </p>
                     {aiSuggestions.map((idea) => (
-                      <div key={idea.text} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 0' }}>
-                        <span style={{ flex: 1, fontSize: '13px' }}>{idea.text}</span>
+                      <div key={idea.text} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 8px', padding: '5px 0' }}>
+                        <span style={{ flex: '1 1 220px', minWidth: 0, fontSize: '13px' }}>{idea.text}</span>
                         <span className="tag tag-lang">{idea.lang}</span>
                         <span className={`tag tag-${idea.intent.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}>{idea.intent}</span>
                         <button

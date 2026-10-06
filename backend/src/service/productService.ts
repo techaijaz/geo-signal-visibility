@@ -266,7 +266,7 @@ export const computeProductVisibility = (
         totalAnswers: mentions.length,
         textAvailable: mentions.some((m) => m.rawText),
         counted: Math.min(products.length, maxProducts),
-        notSeen: rows.filter((r) => !r.overLimit && !r.answers).length,
+        notSeen: rows.filter((r) => !r.overLimit && !r.genericName && !r.answers).length,
         products: rows
     }
 }

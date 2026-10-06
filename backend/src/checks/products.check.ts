@@ -153,7 +153,7 @@ const run = async () => {
     assert.equal(row('Black Oud').answers, 0)
     assert.equal(row('Vibe').overLimit, true)
     assert.equal(row('Vibe').answers, 0)
-    assert.equal(v.notSeen, 2) // Oud and Black Oud; Vibe is over the limit, not "not seen"
+    assert.equal(v.notSeen, 1) // Black Oud; Oud is never measured (generic) and Vibe is over the limit
     assert.deepStrictEqual(
         v.products.map((r) => r.shortName),
         ['Silk Oud', 'Passion Oud', 'Oud', 'Black Oud', 'Vibe']

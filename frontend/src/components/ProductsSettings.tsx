@@ -153,7 +153,8 @@ export default function ProductsSettings({ brandId }: { brandId?: string }) {
     let url = manual.url.trim();
     if (url && !/^https?:\/\//i.test(url)) url = `https://${url}`;
     if (url) {
-      try { new URL(url); } catch { setError('Enter the product link like https://yourstore.com/products/silk-oud, or leave it empty.'); return; }
+      // new URL() also encodes spaces, so "…/rose attar" is sent as a valid link
+      try { url = new URL(url).href; } catch { setError('Enter the product link like https://yourstore.com/products/silk-oud, or leave it empty.'); return; }
       if (!/^https?:\/\/[^/\s]+\.[^/\s]+/i.test(url)) { setError('Enter the product link like https://yourstore.com/products/silk-oud, or leave it empty.'); return; }
     }
     const price = parseFloat(manual.price);

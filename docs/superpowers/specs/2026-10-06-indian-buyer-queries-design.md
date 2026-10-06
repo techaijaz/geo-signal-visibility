@@ -2,15 +2,13 @@
 
 Feature #3 in `COMPETITIVE-FEATURES.md`, section 4, Tier 1 (roadmap: weeks 3–4, next to #1 Lost-to and #4 AI crawler view). Size S–M.
 
-## Open questions for the user
+## Decisions (confirmed by the user on 2026-10-06)
 
-Decisions below are made so the work can move; each can be flipped cheaply.
-
-1. **New category "Fragrances & Perfumes".** Added to the default category seed and the frontend fallback list. Existing databases (staging, prod) only get it if an admin adds it on the Categories admin page or runs `npm run seed:categories`. Do you want it added on staging/prod, and should "Attar & Ittar" be its own category? (Today attar brands match the fragrance templates by keyword anyway.)
-2. **AI suggestions limit.** "Suggest with AI" is allowed on every plan, capped at **10 calls per brand per day** (about ₹0.05 each on the cheapest model). Should Free get it, or should it be a Starter+ feature to push upgrades?
-3. **AI suggestions in onboarding.** Onboarding shows only the curated templates (no AI call, because there is no brand yet to bill the cost to). The AI button lives in Settings → Tracked queries. Is that OK, or do you want AI suggestions on the first screen too?
-4. **Google autocomplete / People also ask.** Not built. The unofficial autocomplete endpoint is free but against Google's terms and can block the VPS IP; PAA needs a paid SERP API. Revisit if the curated + AI mix is not good enough.
-5. **Branded question.** Each template list ends with one branded question ("Hasan Oud reviews: original hai ya nahi?"). It is last, so it is unticked on the Free plan (3 queries). Keep it, or keep queries fully unbranded so the lost-to list stays clean?
+1. **Category:** one "Fragrances & Perfumes" category; attar, ittar, oud and deo names match it by keyword. Add it on staging and prod with `npm run seed:categories`.
+2. **Suggest with AI:** every plan, 10 calls per brand per day.
+3. **Onboarding:** curated lists only; the AI button stays in Settings.
+4. **Google autocomplete / People also ask:** not built (terms of service, paid API). Revisit later.
+5. **Branded question:** kept, last in each list.
 
 ## Goal
 

@@ -13,6 +13,7 @@ import databseService from './databseService'
 import { recordAiUsage, withAiCallContext } from './costLogService'
 import { saveBrandsNamed } from './brandExtractionService'
 import { linePosition } from '../util/listPosition'
+import { templateQueries } from './querySuggestionService'
 
 interface IOpenAiChatResponse {
     choices?: Array<{
@@ -403,12 +404,10 @@ const aiService = {
                 `Top recommended ${category} sites`
             ]
         } else {
-            defaultQueries = [
-                `Best ${category} brand in India`,
-                `${brandName} vs competitors`,
-                `Top recommended ${category} brands 2026`,
-                `Best value ${category} products`
-            ]
+            // E-commerce: the top Indian buyer questions for the category; 4, as before, to keep the scan cost
+            defaultQueries = templateQueries(category, brandName)
+                .slice(0, 4)
+                .map((q) => q.text)
         }
 
         const org = await orgModel.findById(brand.orgId).select('plan')

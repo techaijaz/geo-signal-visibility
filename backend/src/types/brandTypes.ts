@@ -18,6 +18,18 @@ export interface ICompetitor {
     website?: string
 }
 
+export interface IBrandProduct {
+    shopifyId: string | null
+    title: string
+    shortName: string
+    aliases: string[]
+    url: string
+    price: number | null
+    image: string
+    productType: string
+    nameEditedByUser: boolean
+}
+
 export interface IBrandQuery {
     text: string
     intent?: string
@@ -34,6 +46,7 @@ export interface ICreateBrandRequestBody {
     role?: EBrandRole
     competitors?: ICompetitor[]
     queries?: IBrandQuery[]
+    products?: IBrandProduct[]
     languages?: string[]
 }
 
@@ -46,6 +59,7 @@ export interface IUpdateBrandRequestBody {
     role?: EBrandRole
     competitors?: ICompetitor[]
     queries?: IBrandQuery[]
+    products?: IBrandProduct[]
     languages?: string[]
 }
 
@@ -61,6 +75,7 @@ export interface IBrand {
     role: EBrandRole
     competitors: ICompetitor[]
     queries: IBrandQuery[]
+    products?: IBrandProduct[]
     languages: string[]
     lastScanId?: string | null
     lastScannedAt?: Date | null

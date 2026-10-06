@@ -10,7 +10,7 @@ import responceseMessage from '../constent/responceseMessage'
 import { EUserRole } from '../constent/userConstent'
 import { DAILY_RESCAN_LIMITS, rescanLimitMessage, type PlanName } from '../config/planLimits'
 import auditModel from '../model/auditModel'
-import { runAiView, type IAiView } from '../service/aiViewService'
+import { productCheckGate, rememberProductCheck, runAiView, type IAiView } from '../service/aiViewService'
 import { auditService } from '../service/auditService'
 
 export default {
@@ -65,7 +65,12 @@ export default {
                     sameSite = false
                 }
                 if (!sameSite) return httpError(next, new Error('Use a page from your own website'), req, 422)
-                return httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: await runAiView(brand.website, productUrl) })
+                const gate = productCheckGate(brandId, productUrl)
+                if (gate.action === 'cached') return httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: gate.view })
+                if (gate.action === 'wait') return httpError(next, new Error('A page check just ran. Try again in 30 seconds.'), req, 429)
+                const view = await runAiView(brand.website, productUrl)
+                rememberProductCheck(brandId, productUrl, view)
+                return httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: view })
             }
             // Each run opens Chrome twice: a result under 5 minutes old is returned as is
             const existing = (await auditModel.findOne({ brandId }).select('aiView').lean())?.aiView as IAiView | null | undefined

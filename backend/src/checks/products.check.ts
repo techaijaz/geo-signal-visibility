@@ -10,8 +10,10 @@ import {
     isGenericName,
     suggestProductQuestions,
     fetchShopifyProducts,
-    aiShortNames
+    aiShortNames,
+    canSaveProducts
 } from '../service/productService'
+import { productCheckGate, rememberProductCheck } from '../service/aiViewService'
 import aiService from '../service/aiService'
 import { PLAN_LIMITS } from '../config/planLimits'
 
@@ -210,7 +212,7 @@ const run = async () => {
         ).shopify,
         false
     )
-    assert.equal((await fetchShopifyProducts('https://x.example', async () => '{"products": []}')).shopify, true)
+    assert.equal((await fetchShopifyProducts('https://x.example', async () => '{"products": []}')).shopify, false) // an empty store: offer manual add
 
     // AI names: one call, each answer validated, a broken reply keeps nothing
     const stub = aiService as unknown as { callAnyAvailableAi: (p: string, n?: number) => Promise<string | null> }
@@ -228,6 +230,47 @@ const run = async () => {
     )
     stub.callAnyAvailableAi = async () => null
     assert.deepStrictEqual(await aiShortNames(['A b'], 'X'), [null])
+
+    // Review fixes
+    // I1: after a downgrade a save that does not add products is allowed (remove, rename)
+    assert.equal(canSaveProducts(3, 0, 3), true)
+    assert.equal(canSaveProducts(4, 3, 3), false)
+    assert.equal(canSaveProducts(24, 25, 3), true)
+    assert.equal(canSaveProducts(25, 25, 3), true)
+    assert.equal(canSaveProducts(26, 25, 3), false)
+
+    // I2: the brand must be named in the same list item as the product
+    const multi = m('q9', 'ChatGPT', '1. Ajmal – Jannatul Firdaus\n2. Swiss Arabian – Silk Oud\n3. Hasan Oud – Amber Wood')
+    const nested = m('q9', 'Gemini', '1. **Hasan Oud**\n   - Silk Oud is sweet\n2. Ajmal\n   - Silk Oud too')
+    const iv = computeProductVisibility([multi, nested], [], 'Hasan Oud', [prod('Jannatul Firdaus'), prod('Silk Oud')] as never[], 3)
+    assert.equal(iv.products.find((r) => r.shortName === 'Jannatul Firdaus')!.answers, 0)
+    const silkRow = iv.products.find((r) => r.shortName === 'Silk Oud')!
+    assert.equal(silkRow.answers, 1)
+    assert.equal(silkRow.bestPosition, 1)
+    assert.equal(silkRow.hits[0].line, '- Silk Oud is sweet')
+    // An empty brand name never counts every answer
+    assert.equal(computeProductVisibility([multi], [], '  ', [prod('Silk Oud')] as never[], 3).products[0].answers, 0)
+
+    // I3: generic aliases are ignored, more common words, a word of the brand name is generic
+    assert.equal(isGenericName('Sandal'), true)
+    assert.equal(isGenericName('Kasturi'), true)
+    assert.equal(isGenericName('Hasan', 'Hasan Oud'), true)
+    const generic = m('q8', 'Claude', 'Hasan Oud makes good oud attars and sandal oils.')
+    assert.equal(
+        computeProductVisibility([generic], [], 'Hasan Oud', [prod('Black Oud', { aliases: ['Oud', 'Sandal'] })] as never[], 3).products[0].answers,
+        0
+    )
+
+    // I4: product page checks: same URL within 5 minutes is cached, another check within 30 s waits
+    const t0 = 1_000_000
+    assert.equal(productCheckGate('b1', 'https://s.com/products/a', t0).action, 'run')
+    assert.equal(productCheckGate('b1', 'https://s.com/products/b', t0 + 10_000).action, 'wait')
+    rememberProductCheck('b1', 'https://s.com/products/a', { checkedAt: new Date(t0), pages: [] })
+    const cached = productCheckGate('b1', 'https://s.com/products/a', t0 + 60_000)
+    assert.equal(cached.action, 'cached')
+    assert.ok(cached.view)
+    assert.equal(productCheckGate('b1', 'https://s.com/products/b', t0 + 40_000).action, 'run')
+    assert.equal(productCheckGate('b2', 'https://s.com/products/a', t0 + 1).action, 'run')
 
     console.log('products checks: PASS')
     process.exit(0)

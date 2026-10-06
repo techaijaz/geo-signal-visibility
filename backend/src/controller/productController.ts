@@ -13,6 +13,7 @@ import { withAiCallContext } from '../service/costLogService'
 import { auditService } from '../service/auditService'
 import {
     aiShortNames,
+    canSaveProducts,
     cleanProductList,
     computeProductVisibility,
     fetchShopifyProducts,
@@ -61,7 +62,7 @@ export default {
             if (error) return httpError(next, new Error(error), req, 422)
             const found = await loadBrand(req, next)
             if (!found) return
-            if (value.products.length > found.maxProducts) {
+            if (!canSaveProducts(value.products.length, (found.brand.products || []).length, found.maxProducts)) {
                 return httpError(
                     next,
                     new Error(

@@ -5,7 +5,8 @@ import { IMention } from '../types/mentionTypes'
 import { fetchPublicText } from '../util/publicUrl'
 import aiService from './aiService'
 import { auditService } from './auditService'
-import { brandKey, nameMatcher, positionIn } from './competitorService'
+import { brandKey, nameMatcher } from './competitorService'
+import { linePosition, listNumber } from '../util/listPosition'
 
 export interface IProductCandidate extends IBrandProduct {
     hidden: boolean
@@ -133,8 +134,19 @@ export const mergeRefresh = (saved: IBrandProduct[], fresh: IProductCandidate[])
 }
 
 // One-word names that would match every fragrance or fashion answer
-const GENERIC = new Set('oud rose amber musk classic gold black white blue silver royal premium original fresh noir red green pink night'.split(' '))
-export const isGenericName = (shortName: string) => words(shortName).length === 1 && GENERIC.has(shortName.trim().toLowerCase())
+const GENERIC = new Set(
+    (
+        'oud rose amber musk classic gold black white blue silver royal premium original fresh noir red green pink night ' +
+        'sandal sandalwood jasmine vanilla saffron kesar mogra lavender leather tobacco bakhoor kasturi citrus lemon ' +
+        'aqua ocean wood woody spice spicy floral fruity sweet'
+    ).split(' ')
+)
+// Also generic: one word of the brand's own name ("Hasan" for Hasan Oud) would match every brand mention
+export const isGenericName = (name: string, brandName = '') => {
+    if (words(name).length !== 1) return false
+    const key = brandKey(name)
+    return GENERIC.has(name.trim().toLowerCase()) || (!!key && brandKey(brandName).includes(key))
+}
 
 export interface IProductHit {
     queryText: string
@@ -164,25 +176,44 @@ export interface IProductVisibility {
     products: IProductRow[]
 }
 
-const lineOf = (text: string, re: RegExp) =>
-    (text.split('\n').find((l) => re.test(l)) || '')
+const lineOf = (line: string) =>
+    line
         .replace(/[*_#>`]/g, '')
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 200)
 
-// Answers that name this product; only answers that also name the brand, so another brand's
-// product with the same name is not counted
+// The brand's name as whole words in any spacing: "Hasan Oud", "HasanOud", "Hasan-Oud"
+const brandMatcher = (brandName: string) => {
+    const ws = words(brandName).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    return ws.length ? new RegExp(`(^|[^\\p{L}\\p{N}])${ws.join('[\\s-]*')}($|[^\\p{L}\\p{N}])`, 'iu') : null
+}
+
+// The lines of the list item a line belongs to: from its number line to the next one
+const itemLines = (lines: string[], i: number) => {
+    let start = i
+    while (start > 0 && listNumber(lines[start]) === null) start--
+    if (listNumber(lines[start]) === null) return [lines[i]]
+    let end = start + 1
+    while (end < lines.length && listNumber(lines[end]) === null) end++
+    return lines.slice(start, end)
+}
+
+// Answers that name this product. The brand must be named in the same list item (or the same line
+// outside a list), so another brand's product with the same name is not counted
 const hitsFor = (mentions: IMention[], brandName: string, p: IBrandProduct): IProductHit[] => {
-    const own = brandKey(brandName)
-    const matchers = [p.shortName, ...(p.aliases || [])].filter(Boolean).map(nameMatcher)
+    const brandRe = brandMatcher(brandName)
+    if (!brandRe) return []
+    const names = [p.shortName, ...(p.aliases || []).filter((a) => !isGenericName(a, brandName))].filter(Boolean)
+    const matchers = names.map(nameMatcher)
     const hits: IProductHit[] = []
     for (const m of mentions) {
         const text = m.rawText || ''
-        if (!text || !brandKey(text).includes(own)) continue
-        const re = matchers.find((r) => r.test(text))
-        if (!re) continue
-        hits.push({ queryText: m.queryText, model: m.model, position: positionIn(text, re), line: lineOf(text, re) })
+        if (!text || !brandRe.test(text)) continue
+        const lines = text.split('\n')
+        const i = lines.findIndex((l, n) => matchers.some((r) => r.test(l)) && itemLines(lines, n).some((x) => brandRe.test(x)))
+        if (i === -1) continue
+        hits.push({ queryText: m.queryText, model: m.model, position: linePosition(lines, i), line: lineOf(lines[i]) })
     }
     return hits
 }
@@ -197,7 +228,7 @@ export const computeProductVisibility = (
     const prevWithText = previous.filter((m) => m.rawText)
     const rows: IProductRow[] = products.map((p, i) => {
         const overLimit = i >= maxProducts
-        const genericName = isGenericName(p.shortName)
+        const genericName = isGenericName(p.shortName, brandName)
         const hits = overLimit || genericName ? [] : hitsFor(mentions, brandName, p)
         const positions = hits.map((h) => h.position).filter((x): x is number => x !== null)
         return {
@@ -271,7 +302,9 @@ export const fetchShopifyProducts = async (
         } catch {
             products = undefined
         }
-        if (!Array.isArray(products)) return n === 1 ? { shopify: false, raw: [], truncated: false } : { shopify: true, raw, truncated: false }
+        // An empty store on page 1 is treated like no store: the user gets the manual form
+        if (!Array.isArray(products) || (n === 1 && !products.length))
+            return n === 1 ? { shopify: false, raw: [], truncated: false } : { shopify: true, raw, truncated: false }
         raw.push(...(products as unknown[]))
         if (products.length < PAGE) return { shopify: true, raw, truncated: false }
     }
@@ -298,3 +331,6 @@ export const aiShortNames = async (titles: string[], brandName: string): Promise
     }
     return titles.map((t, i) => validateAiShortName(parsed[String(i)], t, brandName))
 }
+
+// A save may not raise the count past the plan; after a downgrade, removing and renaming still work
+export const canSaveProducts = (nextCount: number, currentCount: number, maxProducts: number) => nextCount <= maxProducts || nextCount <= currentCount

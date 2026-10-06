@@ -1,6 +1,7 @@
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/axios';
+import { usePlanLimits } from '../hooks/usePlanLimits';
 
 interface Hit { queryText: string; model: string; position: number | null; line: string }
 interface Row {
@@ -97,9 +98,57 @@ function Details({ row, brandId, questions, onAdded }: { row: Row; brandId: stri
   );
 }
 
+// One click: the most useful product questions (price + occasion of each not-seen product), within the plan's limit
+function AddTopQuestions({ brandId, suggestions, onAdded }: { brandId: string; suggestions: Record<string, Question[]>; onAdded: () => void }) {
+  const { limits } = usePlanLimits();
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  // English-only plans get the English questions; then one question per product before a second one
+  const english = !!limits && !(limits.allowedLanguages || []).some((l) => l.toLowerCase().startsWith('hi'));
+  const lists = Object.values(suggestions).map((qs) => qs.filter((q) => !english || q.lang === 'EN').slice(0, 2));
+  const picks = [0, 1].flatMap((i) => lists.map((qs) => qs[i]).filter((q): q is Question => !!q));
+  if (!picks.length) return null;
+
+  const addTop = async () => {
+    setBusy(true); setMsg('');
+    try {
+      const brand = (await api.get(`/brands/${brandId}`)).data?.data;
+      const queries: Array<{ text: string; enabled?: boolean }> = brand?.queries ?? [];
+      const used = queries.filter((q) => q.enabled !== false).length;
+      const room = Math.max((limits?.maxQueries ?? 0) - used, 0);
+      const have = new Set(queries.map((q) => q.text.trim().toLowerCase()));
+      const add = picks.filter((q) => !have.has(q.text.trim().toLowerCase())).slice(0, room);
+      if (!add.length) { setMsg(room ? 'These questions are already tracked.' : "Your plan's question limit is full. Remove a question in Settings or upgrade."); return; }
+      await api.patch(`/brands/${brandId}`, { queries: [...queries, ...add.map((q) => ({ text: q.text, lang: q.lang, intent: q.intent, enabled: true }))] });
+      setMsg(`Added ${add.length} question${add.length === 1 ? '' : 's'}. They are asked in your next scan.`);
+      onAdded();
+    } catch (err: any) {
+      setMsg(err.response?.data?.message || "Couldn't add the questions.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', margin: '0 0 12px' }}>
+      <button type="button" className="btn" onClick={addTop} disabled={busy || !limits}>{busy ? 'Adding…' : 'Add top product questions'}</button>
+      <span style={{ fontSize: '12px', color: 'var(--text-faint)' }}>{msg || 'Budget and occasion questions for products AI did not name, within your plan.'}</span>
+    </div>
+  );
+}
+
 export function ProductsTable({ brandId }: { brandId?: string }) {
   const { data, error, load } = useProductVisibility(brandId);
   const [open, setOpen] = useState<string | null>(null);
+  // The opened details stay as wide as the visible part of the table, so nothing is cut off on phones
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [boxWidth, setBoxWidth] = useState<number | null>(null);
+  useEffect(() => {
+    const measure = () => setBoxWidth(boxRef.current?.clientWidth ?? null);
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [open, data]);
 
   if (error) return <div className="panel"><p style={{ color: 'var(--bad)', fontSize: '13px' }}>{error}</p></div>;
   if (!data || !brandId) return null;
@@ -114,14 +163,18 @@ export function ProductsTable({ brandId }: { brandId?: string }) {
 
   return (
     <div className="panel">
-      {data.notSeen === data.counted ? (
+      {data.products.every((r) => !r.answers) ? (
         <p style={{ fontSize: '13.5px', margin: '0 0 12px' }}>
-          None of your products was named in the last {data.totalAnswers} answers. Questions that name a product type and budget help. Open a product below.
+          None of your products was named in the last {data.totalAnswers} {data.totalAnswers === 1 ? 'answer' : 'answers'}. Questions that name a product type and budget help. Open a product below.
         </p>
       ) : (
-        <p className="sub">{data.counted - data.notSeen} of {data.counted} products were named in the last {data.totalAnswers} answers.</p>
+        <p className="sub">
+          {data.products.filter((r) => r.answers).length} of {data.counted} {data.counted === 1 ? 'product was' : 'products were'} named in the last {data.totalAnswers}{' '}
+          {data.totalAnswers === 1 ? 'answer' : 'answers'}.
+        </p>
       )}
-      <div style={{ overflowX: 'auto' }}>
+      <AddTopQuestions brandId={brandId} suggestions={data.suggestions} onAdded={load} />
+      <div ref={boxRef} style={{ overflowX: 'auto' }}>
         <table>
           <thead><tr><th>Product</th><th>AI answers</th><th>Best</th><th>AI engines</th><th>Last scan</th></tr></thead>
           <tbody>
@@ -143,7 +196,12 @@ export function ProductsTable({ brandId }: { brandId?: string }) {
                 </tr>
                 {open === r.shortName && (
                   <tr>
-                    <td colSpan={5}><Details row={r} brandId={brandId} questions={data.suggestions[r.shortName] ?? []} onAdded={load} /></td>
+                    <td colSpan={5}>
+                      {/* Stays in view on phones while the table itself scrolls sideways */}
+                      <div style={{ position: 'sticky', left: 0, width: boxWidth ? boxWidth - 24 : undefined, maxWidth: '100%', overflowWrap: 'anywhere' }}>
+                        <Details row={r} brandId={brandId} questions={data.suggestions[r.shortName] ?? []} onAdded={load} />
+                      </div>
+                    </td>
                   </tr>
                 )}
               </Fragment>

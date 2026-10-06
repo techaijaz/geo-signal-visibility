@@ -149,9 +149,17 @@ export default function ProductsSettings({ brandId }: { brandId?: string }) {
   const addManual = async () => {
     const shortName = manual.shortName.trim();
     if (shortName.length < 2) { setError('Write the product name (at least 2 letters).'); return; }
+    // "yourstore.com/products/x" is fine: the scheme is added; anything that is still not a link is refused here
+    let url = manual.url.trim();
+    if (url && !/^https?:\/\//i.test(url)) url = `https://${url}`;
+    if (url) {
+      // new URL() also encodes spaces, so "…/rose attar" is sent as a valid link
+      try { url = new URL(url).href; } catch { setError('Enter the product link like https://yourstore.com/products/silk-oud, or leave it empty.'); return; }
+      if (!/^https?:\/\/[^/\s]+\.[^/\s]+/i.test(url)) { setError('Enter the product link like https://yourstore.com/products/silk-oud, or leave it empty.'); return; }
+    }
     const price = parseFloat(manual.price);
     const product: Product = {
-      shopifyId: null, title: shortName, shortName, aliases: [], url: manual.url.trim(),
+      shopifyId: null, title: shortName, shortName, aliases: [], url,
       price: isNaN(price) ? null : price, image: '', productType: '', nameEditedByUser: true
     };
     if (await save([...saved, product])) setManual({ open: false, shortName: '', url: '', price: '' });

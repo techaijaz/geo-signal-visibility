@@ -115,10 +115,23 @@ export const validateAiShortName = (name: unknown, title: string, brandName: str
     return clean
 }
 
+// Only the product fields; the brand's products may be Mongoose subdocuments, whose spread copies internals
+const plainProduct = (p: IBrandProduct): IBrandProduct => ({
+    shopifyId: p.shopifyId ?? null,
+    title: p.title,
+    shortName: p.shortName,
+    aliases: [...(p.aliases || [])],
+    url: p.url || '',
+    price: p.price ?? null,
+    image: p.image || '',
+    productType: p.productType || '',
+    nameEditedByUser: !!p.nameEditedByUser
+})
+
 // Shopify refresh: store facts update, names the user chose stay
 export const mergeRefresh = (saved: IBrandProduct[], fresh: IProductCandidate[]): IBrandProduct[] => {
     const byId = new Map(fresh.filter((f) => f.shopifyId).map((f) => [f.shopifyId as string, f]))
-    return saved.map((s) => {
+    return saved.map(plainProduct).map((s) => {
         const f = s.shopifyId ? byId.get(s.shopifyId) : undefined
         if (!f) return s
         return {
@@ -260,10 +273,13 @@ export const computeProductVisibility = (
 
 // "600 ke andar sabse accha attar": the product's kind and the buyer's budget, no AI
 const KINDS: Array<[string, RegExp]> = [
-    ['attar', /\b(attar|ittar|itr)\b/i],
-    ['perfume', /\b(perfume|parfum|edp|edt|spray|scent)\b/i],
-    ['deodorant', /\bdeo(dorant)?\b/i]
+    ['attar', /\b(attars?|ittars?|itr)\b/i],
+    ['bakhoor', /\b(bakhoor|bakhur|bukhoor)\b/i],
+    ['perfume', /\b(perfumes?|parfum|edp|edt|spray|scent|fragrances?|cologne)\b/i],
+    ['deodorant', /\bdeo(dorant)?s?\b/i]
 ]
+// Shopify's own product types that say nothing about the product
+const NOT_A_KIND = new Set(['variable', 'simple', 'default', 'product', 'products', 'grouped', 'external', 'bundle'])
 const budgetFor = (price: number) => {
     const step = price < 1000 ? 100 : price < 5000 ? 500 : 1000
     return Math.ceil(price / step) * step
@@ -275,7 +291,8 @@ const questionKey = (s: string) =>
         .trim()
 
 export const suggestProductQuestions = (product: IBrandProduct, existing: string[]) => {
-    const kind = KINDS.find(([, re]) => re.test(product.title))?.[0] || product.productType.trim().toLowerCase()
+    const type = (product.productType || '').trim().toLowerCase()
+    const kind = KINDS.find(([, re]) => re.test(product.title))?.[0] || (/^[a-z][a-z &-]{2,30}$/.test(type) && !NOT_A_KIND.has(type) ? type : '')
     if (!kind || !product.price) return []
     const budget = budgetFor(product.price)
     const seen = new Set(existing.map(questionKey))

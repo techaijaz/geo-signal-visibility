@@ -16,6 +16,7 @@ import {
 import { productCheckGate, rememberProductCheck } from '../service/aiViewService'
 import aiService from '../service/aiService'
 import { PLAN_LIMITS } from '../config/planLimits'
+import brandModel from '../model/brandModel'
 
 const run = async () => {
     // Plan limits
@@ -271,6 +272,37 @@ const run = async () => {
     assert.ok(cached.view)
     assert.equal(productCheckGate('b1', 'https://s.com/products/b', t0 + 40_000).action, 'run')
     assert.equal(productCheckGate('b2', 'https://s.com/products/a', t0 + 1).action, 'run')
+
+    // QA BUG-1: refresh gets Mongoose subdocuments from the brand; the result must be plain products
+    const doc = new brandModel({
+        orgId: '000000000000000000000001',
+        name: 'Hasan Oud',
+        website: 'https://hasanoud.com',
+        products: [{ ...silk, shortName: 'Silk Oud Attar', nameEditedByUser: true, price: 499 }]
+    })
+    const fromDoc = mergeRefresh(doc.products as never, list)
+    assert.deepStrictEqual(Object.keys(fromDoc[0]).sort(), [
+        'aliases',
+        'image',
+        'nameEditedByUser',
+        'price',
+        'productType',
+        'shopifyId',
+        'shortName',
+        'title',
+        'url'
+    ])
+    assert.equal(fromDoc[0].price, 599)
+    assert.equal(fromDoc[0].shortName, 'Silk Oud Attar')
+
+    // QA BUG-2: Shopify's "variable" type is not a product kind; more fragrance words are
+    const kind = (title: string, productType = '') =>
+        suggestProductQuestions(prod('X', { title, productType, price: 1599 }) as never, []).map((q) => q.text)
+    assert.deepStrictEqual(kind('Oud Elegance', 'variable'), [])
+    assert.deepStrictEqual(kind('Oud Elegance Premium Fragrance'), ['2000 ke andar sabse accha perfume', 'Best perfume under ₹2000 in India'])
+    assert.deepStrictEqual(kind('Shahi Oud Bakhoor')[0], '2000 ke andar sabse accha bakhoor')
+    assert.deepStrictEqual(kind('Summer Attars Combo')[0], '2000 ke andar sabse accha attar')
+    assert.deepStrictEqual(kind('Leather Wallet', 'Wallets')[0], '2000 ke andar sabse accha wallets')
 
     console.log('products checks: PASS')
     process.exit(0)

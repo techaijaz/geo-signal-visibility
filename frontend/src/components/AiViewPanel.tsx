@@ -14,7 +14,8 @@ const cell = (v: string | null, bad: boolean) =>
     : v ? <span>✓ {v}</span>
     : <span style={{ color: 'var(--text-dim)' }}>✗ missing</span>;
 
-export default function AiViewPanel({ brandId, initial }: { brandId?: string; initial?: AiView | null }) {
+// productUrl: from the Products page ("Check this page"), checks that product page instead of the first one found
+export default function AiViewPanel({ brandId, initial, productUrl }: { brandId?: string; initial?: AiView | null; productUrl?: string }) {
   const [view, setView] = useState<AiView | null>(initial ?? null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +25,7 @@ export default function AiViewPanel({ brandId, initial }: { brandId?: string; in
     setRunning(true);
     setError(null);
     try {
-      const res = await api.post(`/brands/${brandId}/audit/ai-view`);
+      const res = await api.post(`/brands/${brandId}/audit/ai-view`, productUrl ? { url: productUrl } : undefined);
       setView(res.data?.data?.aiView ?? null);
     } catch (err: any) {
       setError(err.response?.data?.message || 'The comparison failed. Please try again.');
@@ -36,6 +37,7 @@ export default function AiViewPanel({ brandId, initial }: { brandId?: string; in
   return (
     <div className="panel">
       <h3>What AI crawlers see</h3>
+      {productUrl && <p style={{ fontSize: '12.5px', margin: '0 0 8px', overflowWrap: 'anywhere' }}>Checking <span className="mono">{productUrl}</span></p>}
       <p className="sub">ChatGPT's and Claude's crawlers read your page's raw HTML and don't run JavaScript. Anything that only appears after JavaScript is invisible to them.</p>
       {running && <ScanProgress title="Comparing AI and shopper views" hint="Opening your product page and homepage as GPTBot and as a shopper. This takes up to a minute." />}
       {error && <p style={{ color: 'var(--bad)', fontSize: '13px' }}>{error}</p>}

@@ -3,6 +3,7 @@ import AppLayout from './components/AppLayout';
 import Overview from './pages/Overview';
 import Mentions from './pages/Mentions';
 import Competitors from './pages/Competitors';
+import Products from './pages/Products';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Onboarding from './pages/Onboarding';
@@ -55,6 +56,10 @@ export const router = createBrowserRouter([
           {
             path: 'competitors',
             element: <Competitors />,
+          },
+          {
+            path: 'products',
+            element: <Products />,
           },
           {
             path: 'audit',

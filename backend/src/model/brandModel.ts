@@ -42,6 +42,22 @@ const querySchema = new mongoose.Schema(
     { _id: false }
 )
 
+// A product the brand tracks in AI answers (feature: product-level visibility)
+const productSchema = new mongoose.Schema(
+    {
+        shopifyId: { type: String, default: null },
+        title: { type: String, required: true, trim: true },
+        shortName: { type: String, required: true, trim: true },
+        aliases: { type: [String], default: [] },
+        url: { type: String, default: '' },
+        price: { type: Number, default: null },
+        image: { type: String, default: '' },
+        productType: { type: String, default: '' },
+        nameEditedByUser: { type: Boolean, default: false }
+    },
+    { _id: false }
+)
+
 const brandSchema = new mongoose.Schema<IBrand>(
     {
         orgId: {
@@ -86,6 +102,10 @@ const brandSchema = new mongoose.Schema<IBrand>(
         },
         queries: {
             type: [querySchema],
+            default: []
+        },
+        products: {
+            type: [productSchema],
             default: []
         },
         languages: {

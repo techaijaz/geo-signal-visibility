@@ -102,3 +102,17 @@ export const validateJoiSchema = <T>(schema: Joi.Schema, value: unknown) => {
 export const validationEmailPreferencesBody = Joi.object<{ weeklyReportEmails: boolean }>({
     weeklyReportEmails: Joi.boolean().required()
 })
+
+const productJoiSchema = Joi.object({
+    shopifyId: Joi.string().allow(null).optional(),
+    title: Joi.string().trim().max(300).required(),
+    shortName: Joi.string().trim().min(2).max(60).required(),
+    aliases: Joi.array().items(Joi.string().trim().min(2).max(60)).max(3).optional().default([]),
+    url: Joi.string().uri().allow('').optional().default(''),
+    price: Joi.number().min(0).allow(null).optional().default(null),
+    image: Joi.string().allow('').optional().default(''),
+    productType: Joi.string().allow('').optional().default(''),
+    nameEditedByUser: Joi.boolean().optional().default(false)
+})
+export const validationSaveProductsBody = Joi.object({ products: Joi.array().items(productJoiSchema).max(200).required() })
+export const validationShortNamesBody = Joi.object({ titles: Joi.array().items(Joi.string().trim().max(300)).min(1).max(50).required() })

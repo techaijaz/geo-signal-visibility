@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import api from '../utils/axios';
 import ScanProgress from '../components/ScanProgress';
 import AiViewPanel, { type AiView } from '../components/AiViewPanel';
@@ -119,6 +119,8 @@ const InfoTooltip = ({ title, description, geoImpact }: InfoTooltipProps) => {
 
 export default function WebsiteAudit() {
   const context = useOutletContext<OutletContextType>();
+  const [searchParams] = useSearchParams();
+  const productUrl = searchParams.get('product') || '';
   const activeBrandId = context?.currentBrand?._id;
 
   const [auditData, setAuditData] = useState<AuditData | null>(null);
@@ -327,7 +329,12 @@ export default function WebsiteAudit() {
         </div>
       </div>
 
-      <AiViewPanel key={activeBrandId} brandId={activeBrandId} initial={auditData?.aiView} />
+      <AiViewPanel
+        key={`${activeBrandId}-${productUrl}`}
+        brandId={activeBrandId}
+        initial={productUrl ? null : auditData?.aiView}
+        productUrl={productUrl || undefined}
+      />
 
       {/* 1. Crawler Access Panel */}
       <div className="panel">

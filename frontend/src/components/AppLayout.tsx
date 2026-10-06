@@ -63,6 +63,7 @@ export default function AppLayout() {
     { path: '/', label: 'Overview', icon: '◆' },
     { path: '/mentions', label: 'Mentions', icon: '▤' },
     { path: '/competitors', label: 'Competitors', icon: '▦' },
+    { path: '/products', label: 'Products', icon: '◫' },
     { path: '/audit', label: 'Website audit', icon: '⚙' },
     { path: '/recommendations', label: 'Recommendations', icon: '✓' },
     { path: '/reports', label: 'Reports', icon: '▥' },

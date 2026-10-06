@@ -10,7 +10,8 @@ import responceseMessage from '../constent/responceseMessage'
 import { EUserRole } from '../constent/userConstent'
 import { DAILY_RESCAN_LIMITS, rescanLimitMessage, type PlanName } from '../config/planLimits'
 import auditModel from '../model/auditModel'
-import { runAiView, type IAiView } from '../service/aiViewService'
+import { productCheckGate, rememberProductCheck, runAiView, type IAiView } from '../service/aiViewService'
+import { auditService } from '../service/auditService'
 
 export default {
     getBrandAudit: async (req: Request, res: Response, next: NextFunction) => {
@@ -52,6 +53,24 @@ export default {
             const brand = await databseService.findBrandByIdAndOrgId(brandId, org._id.toString())
             if (!brand) {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
+            }
+            // One product page from the Products page: only on the brand's own site, not cached or saved
+            const productUrl = typeof req.body?.url === 'string' ? req.body.url.trim() : ''
+            if (productUrl) {
+                const host = (u: string) => new URL(u).hostname.replace(/^www\./, '')
+                let sameSite = false
+                try {
+                    sameSite = host(productUrl) === host(auditService.cleanUrl(brand.website))
+                } catch {
+                    sameSite = false
+                }
+                if (!sameSite) return httpError(next, new Error('Use a page from your own website'), req, 422)
+                const gate = productCheckGate(brandId, productUrl)
+                if (gate.action === 'cached') return httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: gate.view })
+                if (gate.action === 'wait') return httpError(next, new Error('A page check just ran. Try again in 30 seconds.'), req, 429)
+                const view = await runAiView(brand.website, productUrl)
+                rememberProductCheck(brandId, productUrl, view)
+                return httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: view })
             }
             // Each run opens Chrome twice: a result under 5 minutes old is returned as is
             const existing = (await auditModel.findOne({ brandId }).select('aiView').lean())?.aiView as IAiView | null | undefined

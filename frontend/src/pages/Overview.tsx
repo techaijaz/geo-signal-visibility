@@ -4,6 +4,7 @@ import api from '../utils/axios';
 import VisibilityTrendChart, { type VisibilityTrendPoint } from '../components/VisibilityTrendChart';
 import ScanErrorBanner, { type ScanError } from '../components/ScanErrorBanner';
 import { LostToCard } from '../components/LostTo';
+import { ProductsCard } from '../components/ProductVisibility';
 
 interface ModelStat {
   name: string;
@@ -137,6 +138,8 @@ const Overview: React.FC = () => {
       </div>
 
       <LostToCard brandId={activeBrandId} brandName={data?.brandName} />
+
+      <ProductsCard brandId={activeBrandId} key={activeBrandId} />
 
       {/* Model Visibility & Sentiment Matrix Table */}
       <div className="panel">

@@ -12,6 +12,7 @@ import logger from '../util/loger'
 import databseService from './databseService'
 import { recordAiUsage, withAiCallContext } from './costLogService'
 import { saveBrandsNamed } from './brandExtractionService'
+import { linePosition } from '../util/listPosition'
 
 interface IOpenAiChatResponse {
     choices?: Array<{
@@ -339,12 +340,7 @@ const aiService = {
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].toLowerCase()
             if (line.includes(lowerBrand)) {
-                const numberMatch = lines[i].match(/^\s*(\d+)[.)]/)
-                if (numberMatch) {
-                    position = parseInt(numberMatch[1], 10)
-                } else {
-                    position = Math.min(i + 1, 5)
-                }
+                position = linePosition(lines, i)
                 break
             }
         }

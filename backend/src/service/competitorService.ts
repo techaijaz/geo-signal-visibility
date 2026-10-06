@@ -4,6 +4,7 @@
 import mongoose from 'mongoose'
 import mentionModel from '../model/mentionModel'
 import { IBrandNamed, IMention } from '../types/mentionTypes'
+import { linePosition } from '../util/listPosition'
 
 export interface ICompetitorRow {
     name: string
@@ -30,14 +31,66 @@ export const nameMatcher = (name: string) => new RegExp(`(^|[^\\p{L}\\p{N}])${es
 // Same rule as the scan uses for your brand: number of the list item it appears in, else its line (max 5)
 export const positionIn = (text: string, re: RegExp): number | null => {
     const lines = text.split('\n')
-    for (let i = 0; i < lines.length; i++) {
-        if (re.test(lines[i])) {
-            const numbered = lines[i].match(/^\s*(\d+)[.)]/)
-            return numbered ? parseInt(numbered[1], 10) : Math.min(i + 1, 5)
-        }
-    }
-    return null
+    const i = lines.findIndex((line) => re.test(line))
+    return i === -1 ? null : linePosition(lines, i)
 }
+
+// One key per brand however it is spelled: "AdilQadri", "Adil Qadri" and "adil-qadri" are the same
+export const brandKey = (name: string) =>
+    name
+        .normalize('NFKD')
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]/gu, '')
+
+// Shops, marketplaces and platforms the AI names next to brands; they are not competitors
+const NOT_BRANDS = new Set(
+    [
+        'Amazon',
+        'Amazon India',
+        'Flipkart',
+        'Nykaa',
+        'Nykaa Man',
+        'Myntra',
+        'Meesho',
+        'Ajio',
+        'Tata Cliq',
+        'Tata CLiQ Luxury',
+        'Purplle',
+        'Snapdeal',
+        'JioMart',
+        'BigBasket',
+        'Blinkit',
+        'Zepto',
+        'Swiggy Instamart',
+        'Instamart',
+        'FirstCry',
+        'Shoppers Stop',
+        'Lifestyle',
+        'Pantaloons',
+        'Croma',
+        'Reliance Digital',
+        'Paytm Mall',
+        'IndiaMART',
+        'Smytten',
+        'Walmart',
+        'Target',
+        'Sephora',
+        'Ulta',
+        'eBay',
+        'Etsy',
+        'AliExpress',
+        'Noon',
+        'Shopify',
+        'Google',
+        'YouTube',
+        'Instagram',
+        'Facebook',
+        'Reddit',
+        'Quora',
+        'WhatsApp'
+    ].map(brandKey)
+)
+export const isNotBrand = (name: string) => NOT_BRANDS.has(brandKey(name))
 
 // Whole percentages that always add up to 100 (largest remainder method)
 const shares = (counts: number[]) => {
@@ -121,37 +174,66 @@ export interface ILostTo {
 }
 
 // Who the AI recommends instead of the brand, from one scan's answers (lost-to list)
-export const computeLostTo = (mentions: IMention[], _brandName: string, tracked: string[], recs: Array<{ _id: unknown; text: string }>): ILostTo => {
+export const computeLostTo = (mentions: IMention[], brandName: string, tracked: string[], recs: Array<{ _id: unknown; text: string }>): ILostTo => {
     const extracted = mentions.some((m) => Array.isArray(m.brandsNamed))
-    const trackedSet = new Set(tracked.map((t) => t.trim().toLowerCase()))
-    const byName = new Map<string, { name: string; positions: number[]; answers: number; ahead: number }>()
+    const trackedSet = new Set(tracked.map(brandKey))
+    const own = brandKey(brandName)
+    // Scans saved before these rules may hold spelling variants, shops and markdown-list positions:
+    // clean them here and read positions again from the answer text
+    const cleaned = new Map<IMention, IBrandNamed[]>()
     for (const m of mentions) {
+        const seen = new Set<string>()
+        const list: IBrandNamed[] = []
         for (const b of m.brandsNamed || []) {
-            const key = b.name.toLowerCase()
-            const row = byName.get(key) || { name: b.name, positions: [], answers: 0, ahead: 0 }
+            const key = brandKey(b.name)
+            if (!key || key === own || seen.has(key) || NOT_BRANDS.has(key)) continue
+            seen.add(key)
+            list.push({ name: b.name, position: m.rawText ? (positionIn(m.rawText, nameMatcher(b.name)) ?? b.position) : b.position })
+        }
+        cleaned.set(m, list)
+    }
+    const youAt = (m: IMention) => (m.mentioned ? (m.rawText ? (positionIn(m.rawText, nameMatcher(brandName)) ?? m.position) : m.position) : null)
+
+    const byName = new Map<string, { spellings: Map<string, number>; positions: number[]; answers: number; ahead: number }>()
+    for (const m of mentions) {
+        const you = youAt(m)
+        for (const b of cleaned.get(m) || []) {
+            const key = brandKey(b.name)
+            const row = byName.get(key) || { spellings: new Map<string, number>(), positions: [], answers: 0, ahead: 0 }
+            row.spellings.set(b.name, (row.spellings.get(b.name) || 0) + 1)
             row.answers++
             if (b.position) row.positions.push(b.position)
-            if (!m.mentioned || (b.position !== null && m.position !== null && b.position < m.position)) row.ahead++
+            if (!m.mentioned || (b.position !== null && you !== null && b.position < you)) row.ahead++
             byName.set(key, row)
         }
     }
-    const brands = [...byName.values()]
-        .map((r) => ({
-            name: r.name,
+    // Shown under its most used spelling
+    const nameOf = (spellings: Map<string, number>) => [...spellings.entries()].sort((a, b) => b[1] - a[1])[0][0]
+    const shown = new Map([...byName.entries()].map(([key, r]) => [key, nameOf(r.spellings)]))
+    const brands = [...byName.entries()]
+        .map(([key, r]) => ({
+            name: shown.get(key) as string,
             answers: r.answers,
             avgPosition: average(r.positions),
             aheadOfYou: r.ahead,
-            tracked: trackedSet.has(r.name.toLowerCase())
+            tracked: trackedSet.has(key)
         }))
         .sort((a, b) => b.answers - a.answers || (a.avgPosition ?? 99) - (b.avgPosition ?? 99))
         .slice(0, 20)
 
     const named = mentions.filter((m) => m.mentioned)
-    const best = named.filter((m) => m.position).sort((a, b) => (a.position as number) - (b.position as number))[0]
+    const best = named
+        .map((m) => ({ ...m, position: youAt(m) }))
+        .filter((m) => m.position)
+        .sort((a, b) => (a.position as number) - (b.position as number))[0]
     const questions = new Map<string, ILostTo['byQuestion'][number]>()
     for (const m of mentions) {
         const q = questions.get(m.queryText) || { queryText: m.queryText, rows: [] }
-        q.rows.push({ model: m.model, you: m.mentioned ? m.position : null, others: m.brandsNamed || [] })
+        q.rows.push({
+            model: m.model,
+            you: youAt(m),
+            others: (cleaned.get(m) || []).map((b) => ({ ...b, name: shown.get(brandKey(b.name)) ?? b.name }))
+        })
         questions.set(m.queryText, q)
     }
     return {

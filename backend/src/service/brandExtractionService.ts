@@ -2,7 +2,7 @@
 // the AI only proposes names, the answer text decides what is kept and where it sits.
 import aiService from './aiService'
 import mentionModel from '../model/mentionModel'
-import { nameMatcher, positionIn } from './competitorService'
+import { brandKey, isNotBrand, nameMatcher, positionIn } from './competitorService'
 import { IBrandNamed } from '../types/mentionTypes'
 import logger from '../util/loger'
 
@@ -10,14 +10,14 @@ const CHUNK = 10
 
 export const validateNames = (names: unknown, text: string, ownBrand: string): IBrandNamed[] => {
     if (!Array.isArray(names)) return []
-    const own = ownBrand.trim().toLowerCase()
+    const own = brandKey(ownBrand)
     const seen = new Set<string>()
     const out: IBrandNamed[] = []
     for (const raw of names) {
         if (typeof raw !== 'string') continue
         const name = raw.replace(/\s+/g, ' ').trim()
-        const key = name.toLowerCase()
-        if (!name || key === own || seen.has(key)) continue
+        const key = brandKey(name)
+        if (!key || key === own || seen.has(key) || isNotBrand(name)) continue
         const re = nameMatcher(name)
         if (!re.test(text)) continue
         seen.add(key)
@@ -27,7 +27,7 @@ export const validateNames = (names: unknown, text: string, ownBrand: string): I
 }
 
 const promptFor = (texts: string[]) => `For each numbered answer below, list the brand or company names it recommends or mentions.
-Use the short brand name ("Ajmal", not "Ajmal Dahn Al Oudh"). Do not list product names, shops or generic words.
+Use the short brand name ("Ajmal", not "Ajmal Dahn Al Oudh"). Do not list product names, generic words, or shops and marketplaces (Amazon, Flipkart, Nykaa, Myntra...).
 Reply with JSON only: {"0": ["Brand", ...], "1": [...], ...}. Use [] when an answer names no brand.
 
 ${texts.map((t, i) => `### ${i}\n${t.slice(0, 3000)}`).join('\n\n')}`

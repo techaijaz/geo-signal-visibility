@@ -8,6 +8,7 @@ import ScanProgress from '../components/ScanProgress';
 interface ScanState {
   lastScannedAt: string | null;
   lastScanError: ScanError | null;
+  lastScanSilentModels?: string[];
 }
 
 interface MentionItem {
@@ -85,7 +86,11 @@ export default function Mentions() {
       const modelParam = activeModel !== 'All models' ? `?model=${encodeURIComponent(activeModel)}` : '';
       const res = await api.get(`/brands/${activeBrandId}/mentions${modelParam}`);
       const data: MentionItem[] = res.data?.data?.mentions || [];
-      const state: ScanState = { lastScannedAt: res.data?.data?.lastScannedAt ?? null, lastScanError: res.data?.data?.lastScanError ?? null };
+      const state: ScanState = {
+        lastScannedAt: res.data?.data?.lastScannedAt ?? null,
+        lastScanError: res.data?.data?.lastScanError ?? null,
+        lastScanSilentModels: res.data?.data?.lastScanSilentModels ?? []
+      };
       if (isMounted) {
         setMentions(data);
         setScanState(state);
@@ -201,7 +206,7 @@ export default function Mentions() {
       </div>
 
       {isScanning && <ScanProgress title="Scanning AI answers" hint="Asking each AI your tracked questions. This takes a minute or two." />}
-      {!isScanning && <ScanErrorBanner error={scanState.lastScanError} />}
+      {!isScanning && <ScanErrorBanner error={scanState.lastScanError} silentModels={scanState.lastScanSilentModels} />}
 
       {scanMessage && (
         <div

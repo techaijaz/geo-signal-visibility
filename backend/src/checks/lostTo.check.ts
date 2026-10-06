@@ -21,7 +21,9 @@ const answer = '1. **Ajmal Dahn Al Oudh** - long lasting\n2. Fogg Scent - budget
     // extractBrands: chunk 1 good, chunk 2 broken JSON
     ;(databseService as unknown as { getDecryptedApiKey: () => Promise<string> }).getDecryptedApiKey = async () => 'k'
     let call = 0
-    globalThis.fetch = (async () => {
+    // Helpers try DeepSeek, OpenAI and Claude before Gemini: those fail fast (400 is not retried)
+    globalThis.fetch = (async (url: string | URL) => {
+        if (!String(url).includes('generativelanguage')) return new Response('no key', { status: 400 })
         call++
         const text =
             call === 1 ? JSON.stringify(Object.fromEntries([...Array(10)].map((_, i) => [String(i), ['Ajmal', 'Invented']]))) : 'sorry, no json'

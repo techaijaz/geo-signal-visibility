@@ -582,7 +582,8 @@ const databseService = {
             totalQueriesTracked,
             healthScore: audit?.healthScore || blendedScore,
             lastScannedAt: brand?.lastScannedAt ?? null,
-            lastScanError: brand?.lastScanError ?? null
+            lastScanError: brand?.lastScanError ?? null,
+            lastScanSilentModels: brand?.lastScanSilentModels ?? []
         }
     },
 

@@ -125,6 +125,11 @@ const brandSchema = new mongoose.Schema<IBrand>(
             type: new mongoose.Schema({ message: String, at: Date }, { _id: false }),
             default: null
         },
+        // AI engines that gave no answer at all in the latest scan (shown as a warning); replaced by every scan
+        lastScanSilentModels: {
+            type: [String],
+            default: []
+        },
         // Manual rescan quota: IST day (YYYY-MM-DD) the count belongs to
         manualRescanDay: {
             type: String,

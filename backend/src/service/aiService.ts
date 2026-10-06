@@ -263,11 +263,13 @@ const aiService = {
     },
 
     /**
-     * Call any available configured AI provider in sequence
+     * Call any available configured AI provider in sequence, for helper tasks (brand names, suggestions,
+     * product names). Cheapest paid engine first and Gemini last, so helpers don't use up the Gemini
+     * quota the scans need.
      */
     callAnyAvailableAi: async (prompt: string, maxTokens = 1500): Promise<string | null> => {
-        const geminiRes = await aiService.callGemini(prompt, undefined, maxTokens)
-        if (geminiRes) return geminiRes
+        const deepseekRes = await aiService.callOpenAiCompatible('DeepSeek', prompt, undefined, maxTokens)
+        if (deepseekRes) return deepseekRes
 
         const openaiRes = await aiService.callOpenAiCompatible('OpenAI', prompt, undefined, maxTokens)
         if (openaiRes) return openaiRes
@@ -275,8 +277,8 @@ const aiService = {
         const claudeRes = await aiService.callClaude(prompt, maxTokens)
         if (claudeRes) return claudeRes
 
-        const deepseekRes = await aiService.callOpenAiCompatible('DeepSeek', prompt, undefined, maxTokens)
-        if (deepseekRes) return deepseekRes
+        const geminiRes = await aiService.callGemini(prompt, undefined, maxTokens)
+        if (geminiRes) return geminiRes
 
         return null
     },
@@ -469,6 +471,11 @@ const aiService = {
         if (failed > 0) {
             logger.warn(`[aiService] Scan for brand ${brandId}: ${failed}/${answers.length} AI calls failed and were skipped`)
         }
+        // An engine that answered nothing at all (quota, key, outage) is shown to the user, not just logged
+        const silent = silentModels(
+            modelsToRun.map((m) => m.name),
+            results
+        )
         if (results.length === 0) {
             // Keep the previous scan as the latest; the scheduler lease retries this brand later
             logger.error(`[aiService] Scan for brand ${brandId} produced no answers (check API keys / provider status)`)
@@ -486,10 +493,24 @@ const aiService = {
         const scannedAt = new Date()
         await brandModel.updateOne(
             { _id: brandId },
-            { $set: { lastScanId: scanId, lastScannedAt: scannedAt, nextScanAt: getNextScanAt(org?.plan, scannedAt), lastScanError: null } }
+            {
+                $set: {
+                    lastScanId: scanId,
+                    lastScannedAt: scannedAt,
+                    nextScanAt: getNextScanAt(org?.plan, scannedAt),
+                    lastScanError: null,
+                    lastScanSilentModels: silent
+                }
+            }
         )
         return inserted
     }
+}
+
+// Engines that ran in a scan but gave no answer at all, in the order they ran
+export const silentModels = (ran: string[], results: Array<{ model: string }>) => {
+    const answered = new Set(results.map((r) => r.model))
+    return ran.filter((name) => !answered.has(name))
 }
 
 export default aiService

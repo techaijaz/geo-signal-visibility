@@ -7,20 +7,13 @@ import aiService from './aiService'
 import { auditService } from './auditService'
 import { brandKey, nameMatcher } from './competitorService'
 import { linePosition, listNumber } from '../util/listPosition'
+import { FILLER_WORDS, GENERIC_WORDS, productKind } from './productKinds'
 
 export interface IProductCandidate extends IBrandProduct {
     hidden: boolean
     hiddenReason: '' | 'free' | 'sample' | 'gift' | 'duplicate'
 }
 
-// Words that describe a product rather than name it; the name is what comes before the first of these
-const FILLER = new Set(
-    (
-        'premium fragrance fragrances alcohol free long lasting attar attars ittar perfume perfumes parfum eau de edp edt spray ' +
-        'sample samples tester testers special powerful strong sweet fresh aromatic arabic luxury original unisex scent ' +
-        'set combo pack gift for men women him her with and by from'
-    ).split(' ')
-)
 const titleCase = (w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
 const words = (s: string) => s.split(/\s+/).filter(Boolean)
 
@@ -41,10 +34,10 @@ export const ruleShortName = (title: string, brandName: string): string => {
         // "Bag - Deep Olive": the part after a spaced dash is a variant
         .replace(/\s-\s.*$/, ' ')
     const all = words(cleaned)
-    const firstFiller = all.findIndex((w) => FILLER.has(w.toLowerCase()))
+    const firstFiller = all.findIndex((w) => FILLER_WORDS.has(w.toLowerCase()))
     let name = firstFiller === -1 ? all : all.slice(0, firstFiller)
     if (name[0]?.toLowerCase() === 'the') name = name.slice(1)
-    if (!name.length) name = all.filter((w) => !FILLER.has(w.toLowerCase()))
+    if (!name.length) name = all.filter((w) => !FILLER_WORDS.has(w.toLowerCase()))
     return name.slice(0, 3).map(titleCase).join(' ')
 }
 
@@ -112,7 +105,8 @@ export const validateAiShortName = (name: unknown, title: string, brandName: str
     // a word is the brand only when the brand key starts with it and it is longer than 3 letters
     const own = brandKey(brandName)
     if (own && (brandKey(clean).includes(own) || ws.some((w) => brandKey(w).length > 3 && own.startsWith(brandKey(w))))) return null
-    return clean
+    // A name in capitals ("OUD ELEGANCE") is written normally; acronyms in a mixed name ("Rose EDP") stay
+    return clean === clean.toUpperCase() && /\p{Lu}/u.test(clean) ? ws.map(titleCase).join(' ') : clean
 }
 
 // Only the product fields; the brand's products may be Mongoose subdocuments, whose spread copies internals
@@ -146,19 +140,11 @@ export const mergeRefresh = (saved: IBrandProduct[], fresh: IProductCandidate[])
     })
 }
 
-// One-word names that would match every fragrance or fashion answer
-const GENERIC = new Set(
-    (
-        'oud rose amber musk classic gold black white blue silver royal premium original fresh noir red green pink night ' +
-        'sandal sandalwood jasmine vanilla saffron kesar mogra lavender leather tobacco bakhoor kasturi citrus lemon ' +
-        'aqua ocean wood woody spice spicy floral fruity sweet'
-    ).split(' ')
-)
 // Also generic: one word of the brand's own name ("Hasan" for Hasan Oud) would match every brand mention
 export const isGenericName = (name: string, brandName = '') => {
     if (words(name).length !== 1) return false
     const key = brandKey(name)
-    return GENERIC.has(name.trim().toLowerCase()) || (!!key && brandKey(brandName).includes(key))
+    return GENERIC_WORDS.has(name.trim().toLowerCase()) || (!!key && brandKey(brandName).includes(key))
 }
 
 export interface IProductHit {
@@ -207,8 +193,12 @@ const itemLines = (lines: string[], i: number) => {
     let start = i
     while (start > 0 && listNumber(lines[start]) === null) start--
     if (listNumber(lines[start]) === null) return [lines[i]]
+    // The item ends at the next number, or at a blank line followed by an unindented line (a closing paragraph)
     let end = start + 1
-    while (end < lines.length && listNumber(lines[end]) === null) end++
+    while (end < lines.length && listNumber(lines[end]) === null) {
+        if (!lines[end].trim() && end + 1 < lines.length && /^\S/.test(lines[end + 1]) && listNumber(lines[end + 1]) === null) break
+        end++
+    }
     return lines.slice(start, end)
 }
 
@@ -271,15 +261,8 @@ export const computeProductVisibility = (
     }
 }
 
-// "600 ke andar sabse accha attar": the product's kind and the buyer's budget, no AI
-const KINDS: Array<[string, RegExp]> = [
-    ['attar', /\b(attars?|ittars?|itr)\b/i],
-    ['bakhoor', /\b(bakhoor|bakhur|bukhoor)\b/i],
-    ['perfume', /\b(perfumes?|parfum|edp|edt|spray|scent|fragrances?|cologne)\b/i],
-    ['deodorant', /\bdeo(dorant)?s?\b/i]
-]
-// Shopify's own product types that say nothing about the product
-const NOT_A_KIND = new Set(['variable', 'simple', 'default', 'product', 'products', 'grouped', 'external', 'bundle'])
+// "600 ke andar sabse accha attar" and "Shaadi ke liye best attar": the product's kind, the buyer's budget and
+// the occasions buyers of that kind ask about, for any D2C category, no AI
 const budgetFor = (price: number) => {
     const step = price < 1000 ? 100 : price < 5000 ? 500 : 1000
     return Math.ceil(price / step) * step
@@ -291,14 +274,17 @@ const questionKey = (s: string) =>
         .trim()
 
 export const suggestProductQuestions = (product: IBrandProduct, existing: string[]) => {
-    const type = (product.productType || '').trim().toLowerCase()
-    const kind = KINDS.find(([, re]) => re.test(product.title))?.[0] || (/^[a-z][a-z &-]{2,30}$/.test(type) && !NOT_A_KIND.has(type) ? type : '')
-    if (!kind || !product.price) return []
+    const found = productKind(product.title, product.productType || '')
+    if (!found || !product.price) return []
+    const { kind, occasions } = found
     const budget = budgetFor(product.price)
     const seen = new Set(existing.map(questionKey))
+    const occasion = (t: string) => t.replace('{k}', kind)
     return [
         { text: `${budget} ke andar sabse accha ${kind}`, lang: 'HI-EN' as const, intent: 'Price' as const },
-        { text: `Best ${kind} under ₹${budget} in India`, lang: 'EN' as const, intent: 'Price' as const }
+        { text: occasion(occasions[0]), lang: 'HI-EN' as const, intent: 'Occasion' as const },
+        { text: `Best ${kind} under ₹${budget} in India`, lang: 'EN' as const, intent: 'Price' as const },
+        { text: occasion(occasions[1]), lang: 'HI-EN' as const, intent: 'Occasion' as const }
     ].filter((q) => !seen.has(questionKey(q.text)))
 }
 

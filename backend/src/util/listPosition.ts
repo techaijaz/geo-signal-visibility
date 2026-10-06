@@ -8,8 +8,17 @@ export const listNumber = (line: string): number | null => {
     return m ? parseInt(m[1], 10) : null
 }
 
-// Position of line i: its list number, else the number of the list item it sits under, else the line (max 5)
+// A top-level bullet ("- Ajmal", "* Ajmal", "• Ajmal"); indented bullets belong to the item above
+const TOP_BULLET = /^[-*•+]\s+\S/
+
+// Position of line i: its list number, else its place in a top-level bullet list, else the number of
+// the list item it sits under, else the line (max 5)
 export const linePosition = (lines: string[], i: number): number => {
+    if (TOP_BULLET.test(lines[i]) && listNumber(lines[i]) === null) {
+        let n = 1
+        for (let j = i - 1; j >= 0 && (TOP_BULLET.test(lines[j]) || /^\s+\S/.test(lines[j])); j--) if (TOP_BULLET.test(lines[j])) n++
+        return n
+    }
     for (let j = i; j >= 0; j--) {
         const n = listNumber(lines[j])
         if (n !== null) return n

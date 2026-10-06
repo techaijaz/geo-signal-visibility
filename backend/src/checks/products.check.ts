@@ -14,6 +14,7 @@ import {
     canSaveProducts
 } from '../service/productService'
 import { productCheckGate, rememberProductCheck } from '../service/aiViewService'
+import { linePosition } from '../util/listPosition'
 import aiService from '../service/aiService'
 import { PLAN_LIMITS } from '../config/planLimits'
 import brandModel from '../model/brandModel'
@@ -176,7 +177,7 @@ const run = async () => {
     ])
     assert.deepStrictEqual(
         qs.map((q) => q.text),
-        ['600 ke andar sabse accha attar']
+        ['600 ke andar sabse accha attar', 'Office ke liye long lasting attar kaunsa hai', 'Shaadi ke liye best attar kaunsa hai']
     )
     assert.deepStrictEqual(suggestProductQuestions(prod('Bag', { title: 'Leather Bag', price: null }) as never, []), [])
 
@@ -262,16 +263,21 @@ const run = async () => {
         0
     )
 
-    // I4: product page checks: same URL within 5 minutes is cached, another check within 30 s waits
+    // I4 + staging: each page is cached for 5 minutes; a new check waits 30 s after the last one finished
     const t0 = 1_000_000
-    assert.equal(productCheckGate('b1', 'https://s.com/products/a', t0).action, 'run')
-    assert.equal(productCheckGate('b1', 'https://s.com/products/b', t0 + 10_000).action, 'wait')
-    rememberProductCheck('b1', 'https://s.com/products/a', { checkedAt: new Date(t0), pages: [] })
-    const cached = productCheckGate('b1', 'https://s.com/products/a', t0 + 60_000)
-    assert.equal(cached.action, 'cached')
-    assert.ok(cached.view)
-    assert.equal(productCheckGate('b1', 'https://s.com/products/b', t0 + 40_000).action, 'run')
-    assert.equal(productCheckGate('b2', 'https://s.com/products/a', t0 + 1).action, 'run')
+    const A = 'https://s.com/products/a'
+    const Bp = 'https://s.com/products/b'
+    assert.equal(productCheckGate('b1', A, t0).action, 'run')
+    rememberProductCheck('b1', A, { checkedAt: new Date(t0), pages: [] }, t0 + 20_000)
+    assert.equal(productCheckGate('b1', Bp, t0 + 30_000).action, 'wait')
+    assert.equal(productCheckGate('b1', A, t0 + 40_000).action, 'cached')
+    assert.equal(productCheckGate('b1', Bp, t0 + 60_000).action, 'run')
+    rememberProductCheck('b1', Bp, { checkedAt: new Date(t0), pages: [] }, t0 + 80_000)
+    const back = productCheckGate('b1', A, t0 + 90_000)
+    assert.equal(back.action, 'cached')
+    assert.ok(back.view)
+    assert.equal(productCheckGate('b1', A, t0 + 20_000 + 5 * 60_000 + 1).action, 'run')
+    assert.equal(productCheckGate('b2', A, t0 + 1).action, 'run')
 
     // QA BUG-1: refresh gets Mongoose subdocuments from the brand; the result must be plain products
     const doc = new brandModel({
@@ -299,10 +305,43 @@ const run = async () => {
     const kind = (title: string, productType = '') =>
         suggestProductQuestions(prod('X', { title, productType, price: 1599 }) as never, []).map((q) => q.text)
     assert.deepStrictEqual(kind('Oud Elegance', 'variable'), [])
-    assert.deepStrictEqual(kind('Oud Elegance Premium Fragrance'), ['2000 ke andar sabse accha perfume', 'Best perfume under ₹2000 in India'])
+    assert.deepStrictEqual(kind('Oud Elegance Premium Fragrance').slice(0, 3), [
+        '2000 ke andar sabse accha perfume',
+        'Office ke liye long lasting perfume kaunsa hai',
+        'Best perfume under ₹2000 in India'
+    ])
     assert.deepStrictEqual(kind('Shahi Oud Bakhoor')[0], '2000 ke andar sabse accha bakhoor')
     assert.deepStrictEqual(kind('Summer Attars Combo')[0], '2000 ke andar sabse accha attar')
     assert.deepStrictEqual(kind('Leather Wallet', 'Wallets')[0], '2000 ke andar sabse accha wallets')
+
+    // Every D2C category: product kind and occasion from the title, not only fragrance
+    const q4 = (title: string, price = 549) => suggestProductQuestions(prod('X', { title, price }) as never, []).map((q) => q.text)
+    assert.deepStrictEqual(q4('Vitamin C Face Serum 30ml'), [
+        '600 ke andar sabse accha serum',
+        'Garmi me oily skin ke liye kaunsa serum accha hai',
+        'Best serum under ₹600 in India',
+        'Shaadi se pehle glowing skin ke liye best serum'
+    ])
+    assert.equal(q4('Cotton Straight Kurta - Blue', 1299)[1], 'Shaadi ke liye best kurta kaunsa hai')
+    assert.equal(q4('Gold Plated Jhumka Earrings', 899)[1], 'Shaadi ke liye best earrings kaunsi hain')
+    assert.equal(q4('Whey Protein Chocolate 1kg', 2499)[1], 'Gym ke liye best protein powder kaunsa hai')
+    assert.equal(q4('Wireless Earbuds Pro', 1999)[1], 'Office ke liye best earbuds kaunse hain')
+    assert.deepStrictEqual(q4('Gift Hamper Classic', 999).length, 0) // no known kind, no Shopify type
+    assert.equal(ruleShortName('Vitamin C Face Serum 30ml', 'Minimalist'), 'Vitamin C')
+    assert.equal(ruleShortName('Cotton Straight Kurta - Blue', 'Libas'), 'Straight Kurta')
+    assert.equal(isGenericName('Glow'), true)
+    assert.equal(isGenericName('Classic'), true)
+
+    // AI names in capitals are written normally; short acronyms stay
+    assert.equal(validateAiShortName('OUD ELEGANCE', 'OUD ELEGANCE Premium oud fragrance', 'Hasan Oud'), 'Oud Elegance')
+    assert.equal(validateAiShortName('Rose EDP', 'Rose EDP 100ml', 'Hasan Oud'), 'Rose EDP')
+
+    // A closing sentence after a list is not part of the last item
+    const closing = m('q7', 'Grok', ['1. Ajmal Amber Wood', '2. Swiss Arabian Black Oud', '', 'In short, Hasan Oud is also good.'].join('\n'))
+    assert.equal(computeProductVisibility([closing], [], 'Hasan Oud', [prod('Black Oud')] as never[], 3).products[0].answers, 0)
+    // Bullet lists: the bullet's number, not the line number
+    assert.equal(linePosition(['Top picks:', '- Ajmal', '- Rasasi', '- Hasan Oud Amber Oud'], 3), 3)
+    assert.equal(linePosition(['1. **Hasan Oud**', '   - Silk Oud is sweet'], 1), 1)
 
     console.log('products checks: PASS')
     process.exit(0)

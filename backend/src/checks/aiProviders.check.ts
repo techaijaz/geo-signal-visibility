@@ -2,6 +2,7 @@
 // Run: NODE_ENV=development DATABASE_URL=mongodb://127.0.0.1:1/none npx ts-node --transpile-only src/checks/aiProviders.check.ts
 import assert from 'assert'
 import aiService, { silentModels } from '../service/aiService'
+import { modelScore } from '../service/databseService'
 
 const run = async () => {
     // Engines that gave no answer at all in a scan are reported, in the order they ran
@@ -36,6 +37,11 @@ const run = async () => {
     }
     assert.equal(await aiService.callAnyAvailableAi('p'), 'from deepseek')
     assert.deepStrictEqual(order, ['DeepSeek'])
+
+    // Overview: an engine's score uses the questions asked in the latest scan (5), not today's list (3)
+    const fiveAsked = [true, true, false, false, false].map((mentioned) => ({ mentioned }))
+    assert.deepStrictEqual(modelScore(fiveAsked), { count: 2, totalQ: 5, score: 40 })
+    assert.deepStrictEqual(modelScore([]), { count: 0, totalQ: 0, score: 0 })
 
     console.log('ai providers checks: PASS')
     process.exit(0)

@@ -130,6 +130,11 @@ const brandSchema = new mongoose.Schema<IBrand>(
             type: [String],
             default: []
         },
+        // Set while the brand's first recommendations are being built, so two page loads don't both build them
+        recommendationsSeedingAt: {
+            type: Date,
+            default: null
+        },
         // Manual rescan quota: IST day (YYYY-MM-DD) the count belongs to
         manualRescanDay: {
             type: String,

@@ -1,7 +1,8 @@
 /* eslint-disable no-console */
 // Run: NODE_ENV=development npx ts-node --transpile-only src/checks/publicUrl.check.ts
 import assert from 'assert'
-import { isBlockedIp, assertPublicUrl } from '../util/publicUrl'
+import axios from 'axios'
+import { isBlockedIp, assertPublicUrl, fetchPublicText } from '../util/publicUrl'
 
 const run = async () => {
     for (const ip of [
@@ -34,6 +35,19 @@ const run = async () => {
         await assert.rejects(assertPublicUrl(url), `${url} should be refused`)
     }
     await assert.doesNotReject(assertPublicUrl('https://23.227.38.65/'))
+
+    // Size cap and an overall time limit per request (a huge page or a slow drip must not hold a worker)
+    let seen: { maxContentLength?: number; maxBodyLength?: number; signal?: unknown } = {}
+    const realGet = axios.get
+    ;(axios as unknown as { get: unknown }).get = async (_url: string, config: typeof seen) => {
+        seen = config
+        return { status: 200, data: 'ok', headers: {} }
+    }
+    assert.equal(await fetchPublicText('https://23.227.38.65/', {}), 'ok')
+    ;(axios as unknown as { get: unknown }).get = realGet
+    assert.equal(seen.maxContentLength, 3_000_000)
+    assert.equal(seen.maxBodyLength, 3_000_000)
+    assert.ok(seen.signal, 'an abort signal bounds the whole request')
 
     console.log('public-url checks: PASS')
 }

@@ -69,6 +69,8 @@ const safeLookup: net.LookupFunction = (hostname, options, callback) => {
 const httpAgent = new http.Agent({ lookup: safeLookup })
 const httpsAgent = new https.Agent({ lookup: safeLookup })
 
+const MAX_PAGE_BYTES = 3_000_000
+
 // GET a public page as text, checking every redirect hop
 export const fetchPublicText = async (url: string, headers: Record<string, string>, timeout = 10000): Promise<string> => {
     let current = url
@@ -81,7 +83,12 @@ export const fetchPublicText = async (url: string, headers: Record<string, strin
             maxRedirects: 0,
             validateStatus: (s) => s >= 200 && s < 400,
             httpAgent,
-            httpsAgent
+            httpsAgent,
+            // A huge page or a server that drips bytes must not hold memory or a worker: axios' timeout
+            // restarts on every chunk, so the signal bounds the whole request
+            maxContentLength: MAX_PAGE_BYTES,
+            maxBodyLength: MAX_PAGE_BYTES,
+            signal: AbortSignal.timeout(timeout)
         })
         const location = res.status >= 300 ? (res.headers.location as string | undefined) : undefined
         if (!location) return res.data

@@ -56,6 +56,11 @@ const auditSchema = new mongoose.Schema<IAuditDocument>(
         aiView: {
             type: mongoose.Schema.Types.Mixed,
             default: null
+        },
+        // AI-readiness of product and collection pages (storeAuditService), run with the audit
+        storeAudit: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null
         }
     },
     { timestamps: true }

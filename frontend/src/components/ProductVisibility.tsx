@@ -7,7 +7,7 @@ interface Hit { queryText: string; model: string; position: number | null; line:
 interface Row {
   shortName: string; title: string; url: string; price: number | null; image: string;
   answers: number; previousAnswers: number | null; bestPosition: number | null; models: string[];
-  hits: Hit[]; genericName: boolean; overLimit: boolean;
+  hits: Hit[]; genericName: boolean; overLimit: boolean; aiReady?: number | null;
 }
 interface Question { text: string; lang: string; intent: string }
 interface Visibility {
@@ -159,11 +159,12 @@ export function ProductsTable({ brandId }: { brandId?: string }) {
       </div>
     );
   }
-  if (!data.textAvailable) return <div className="panel"><p className="sub">Results after your next scan.</p></div>;
-
   return (
     <div className="panel">
-      {data.products.every((r) => !r.answers) ? (
+      {/* Before the first scan the table still lists the products and their AI-ready score */}
+      {!data.textAvailable ? (
+        <p className="sub">AI answer results appear after your next scan.</p>
+      ) : data.products.every((r) => !r.answers) ? (
         <p style={{ fontSize: '13.5px', margin: '0 0 12px' }}>
           None of your products was named in the last {data.totalAnswers} {data.totalAnswers === 1 ? 'answer' : 'answers'}. Questions that name a product type and budget help. Open a product below.
         </p>
@@ -176,7 +177,7 @@ export function ProductsTable({ brandId }: { brandId?: string }) {
       <AddTopQuestions brandId={brandId} suggestions={data.suggestions} onAdded={load} />
       <div ref={boxRef} style={{ overflowX: 'auto' }}>
         <table>
-          <thead><tr><th>Product</th><th>AI answers</th><th>Best</th><th>AI engines</th><th>Last scan</th></tr></thead>
+          <thead><tr><th>Product</th><th>AI answers</th><th>Best</th><th>AI engines</th><th>Last scan</th><th title="AI-readiness of the product page, from the latest store audit">AI-ready</th></tr></thead>
           <tbody>
             {data.products.map((r) => (
               <Fragment key={r.shortName}>
@@ -188,15 +189,20 @@ export function ProductsTable({ brandId }: { brandId?: string }) {
                     </span>
                   </td>
                   <td className="mono">
-                    {r.overLimit ? <span style={small}>upgrade</span> : r.answers ? `${r.answers}/${data.totalAnswers}` : <span className="tag">Not seen</span>}
+                    {r.overLimit ? <span style={small}>upgrade</span> : !data.textAvailable ? <span style={small}>—</span> : r.answers ? `${r.answers}/${data.totalAnswers}` : <span className="tag">Not seen</span>}
                   </td>
                   <td className="mono">{pos(r.bestPosition)}</td>
                   <td>{r.models.map((m) => <span key={m} className="tag" style={{ marginRight: 4 }}>{m}</span>)}</td>
                   <td style={{ fontSize: '12px' }}>{change(r)}</td>
+                  <td>
+                    {r.aiReady != null ? (
+                      <span className="mono" style={{ fontWeight: 700, color: r.aiReady >= 80 ? 'var(--good)' : r.aiReady >= 50 ? 'var(--amber)' : 'var(--bad)' }} title="AI-readiness of this product page (Website audit → Product pages)">{r.aiReady}</span>
+                    ) : <span style={small}>—</span>}
+                  </td>
                 </tr>
                 {open === r.shortName && (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={6}>
                       {/* Stays in view on phones while the table itself scrolls sideways */}
                       <div style={{ position: 'sticky', left: 0, width: boxWidth ? boxWidth - 24 : undefined, maxWidth: '100%', overflowWrap: 'anywhere' }}>
                         <Details row={r} brandId={brandId} questions={data.suggestions[r.shortName] ?? []} onAdded={load} />

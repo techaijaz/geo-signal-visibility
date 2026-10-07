@@ -11,6 +11,7 @@ import { EUserRole } from '../constent/userConstent'
 import { DAILY_RESCAN_LIMITS, rescanLimitMessage, type PlanName } from '../config/planLimits'
 import auditModel from '../model/auditModel'
 import { productCheckGate, rememberProductCheck, runAiView, type IAiView } from '../service/aiViewService'
+import { storeAuditForBrand } from '../service/storeAuditService'
 import { auditService } from '../service/auditService'
 
 export default {
@@ -83,6 +84,43 @@ export default {
             // No upsert: a bare audit document would stop the brand's first real audit from running
             await auditModel.updateOne({ brandId }, { $set: { aiView } })
             httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView })
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+    // Product and collection pages only, from the audit page; counts against the daily audit re-scans
+    runStoreAudit: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { authenticatedUser } = req as IAuthenticatedRequest
+            const { id: brandId } = req.params
+            const org = await databseService.findOrgByOwnerId(authenticatedUser._id.toString())
+            if (!org) {
+                return httpError(next, new Error(responceseMessage.NOT_FOUND('Workspace')), req, 404)
+            }
+            const brand = await databseService.findBrandByIdAndOrgId(brandId, org._id.toString())
+            if (!brand) {
+                return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
+            }
+            // The result is saved on the audit; without one it would be lost and the re-scan wasted
+            if (!(await auditModel.exists({ brandId }))) {
+                return httpError(next, new Error('Run the website audit first, then audit your product pages.'), req, 409)
+            }
+            const plan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : ((org.plan || 'free') as PlanName)
+            const perDay = (DAILY_RESCAN_LIMITS[plan] ?? DAILY_RESCAN_LIMITS.free).audit
+            if (!(await databseService.consumeDailyRescan(brandId, 'audit', perDay))) {
+                return httpError(next, new Error(rescanLimitMessage('audit', plan, perDay)), req, 429)
+            }
+            let storeAudit
+            try {
+                storeAudit = await storeAuditForBrand(brand)
+            } catch (err) {
+                // The audit didn't run, so the user gets today's re-scan back
+                await databseService.refundDailyRescan(brandId, 'audit')
+                throw err
+            }
+            // No upsert: a bare audit document would stop the brand's first real audit from running
+            await auditModel.updateOne({ brandId }, { $set: { storeAudit } })
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, { storeAudit })
         } catch (error) {
             httpError(next, error, req, 500)
         }

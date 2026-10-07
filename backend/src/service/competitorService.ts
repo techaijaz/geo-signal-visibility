@@ -87,7 +87,13 @@ const NOT_BRANDS = new Set(
         'Facebook',
         'Reddit',
         'Quora',
-        'WhatsApp'
+        'WhatsApp',
+        // Review and reference sites, also as the AI misspells them
+        'Fragrantica',
+        'Fragnatica',
+        'Basenotes',
+        'Parfumo',
+        'Wikipedia'
     ].map(brandKey)
 )
 export const isNotBrand = (name: string) => NOT_BRANDS.has(brandKey(name))

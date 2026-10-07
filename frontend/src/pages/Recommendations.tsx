@@ -34,6 +34,8 @@ const Recommendations: React.FC = () => {
   const [isRescanning, setIsRescanning] = useState(false);
   const [openSnippets, setOpenSnippets] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Why a re-scan didn't start (e.g. the daily limit), shown instead of a silent button
+  const [rescanError, setRescanError] = useState('');
 
   // Filter states
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('All');
@@ -93,6 +95,7 @@ const Recommendations: React.FC = () => {
 
   const handleRescan = async () => {
     if (!activeBrandId || isRescanning) return;
+    setRescanError('');
     setIsRescanning(true);
 
     try {
@@ -123,8 +126,9 @@ const Recommendations: React.FC = () => {
         setRecommendations(res.data.data.recommendations);
         setIsRescanning(false);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to rescan recommendations', err);
+      setRescanError(err.response?.data?.message || 'Could not refresh the recommendations. Please try again.');
       setIsRescanning(false);
     }
   };
@@ -265,6 +269,7 @@ const Recommendations: React.FC = () => {
         </button>
       </div>
 
+      {rescanError && <p role="alert" style={{ color: 'var(--bad)', fontSize: '13px', margin: '0 0 12px' }}>{rescanError}</p>}
       {isRescanning && <ScanProgress title="Writing recommendations" hint="Reading your audit and AI answers to suggest what to fix first. This takes under a minute." />}
 
       {/* Summary KPI Cards */}

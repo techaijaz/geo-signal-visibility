@@ -48,7 +48,7 @@ Level: good ≥80, warn 50–79, bad <50. Every failed check has a fix written f
 
 ## 4. Screens
 
-- **Products page → "Product feed health" panel** (above the table): store feed score pill, the top gaps as sentences with counts, "Check feed" button, then a table of all products (name, score, ✓/✗ per check) with a search box and weakest first, paged 50 at a time; a row opens to details and fixes. Non-Shopify: "Feed check needs a Shopify store." 390px works like the other panels.
+- **Products page → "Product feed health" panel** (below the products table, which stays the page's main view): store feed score pill, the top gaps as sentences with counts, "Check feed" button, then a table of all products (name, score, ✓/✗ per check) with a search box and weakest first, paged 50 at a time; a row opens to details and fixes. Non-Shopify: "Feed check needs a Shopify store." 390px works like the other panels.
 - **Products table:** new "Feed" column (score pill or "—").
 - **Website audit:** one line under the store audit panel: "Product feed: 62/100 → see Products".
 

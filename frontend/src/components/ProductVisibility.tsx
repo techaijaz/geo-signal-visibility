@@ -7,7 +7,7 @@ interface Hit { queryText: string; model: string; position: number | null; line:
 interface Row {
   shortName: string; title: string; url: string; price: number | null; image: string;
   answers: number; previousAnswers: number | null; bestPosition: number | null; models: string[];
-  hits: Hit[]; genericName: boolean; overLimit: boolean; aiReady?: number | null;
+  hits: Hit[]; genericName: boolean; overLimit: boolean; aiReady?: number | null; feed?: number | null;
 }
 interface Question { text: string; lang: string; intent: string }
 interface Visibility {
@@ -177,7 +177,7 @@ export function ProductsTable({ brandId }: { brandId?: string }) {
       <AddTopQuestions brandId={brandId} suggestions={data.suggestions} onAdded={load} />
       <div ref={boxRef} style={{ overflowX: 'auto' }}>
         <table>
-          <thead><tr><th>Product</th><th>AI answers</th><th>Best</th><th>AI engines</th><th>Last scan</th><th title="AI-readiness of the product page, from the latest store audit">AI-ready</th></tr></thead>
+          <thead><tr><th>Product</th><th>AI answers</th><th>Best</th><th>AI engines</th><th>Last scan</th><th title="AI-readiness of the product page, from the latest store audit">AI-ready</th><th title="Product data score for AI shopping feeds">Feed</th></tr></thead>
           <tbody>
             {data.products.map((r) => (
               <Fragment key={r.shortName}>
@@ -199,10 +199,15 @@ export function ProductsTable({ brandId }: { brandId?: string }) {
                       <span className="mono" style={{ fontWeight: 700, color: r.aiReady >= 80 ? 'var(--good)' : r.aiReady >= 50 ? 'var(--amber)' : 'var(--bad)' }} title="AI-readiness of this product page (Website audit → Product pages)">{r.aiReady}</span>
                     ) : <span style={small}>—</span>}
                   </td>
+                  <td>
+                    {r.feed != null ? (
+                      <span className="mono" style={{ fontWeight: 700, color: r.feed >= 80 ? 'var(--good)' : r.feed >= 50 ? 'var(--amber)' : 'var(--bad)' }} title="Product data score (Product feed health below)">{r.feed}</span>
+                    ) : <span style={small}>—</span>}
+                  </td>
                 </tr>
                 {open === r.shortName && (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       {/* Stays in view on phones while the table itself scrolls sideways */}
                       <div style={{ position: 'sticky', left: 0, width: boxWidth ? boxWidth - 24 : undefined, maxWidth: '100%', overflowWrap: 'anywhere' }}>
                         <Details row={r} brandId={brandId} questions={data.suggestions[r.shortName] ?? []} onAdded={load} />

@@ -20,6 +20,8 @@ export interface IFactRow {
     ai: string | null
     shopper: string | null
     missingForAi: boolean
+    // How to fix it, only on rows missing for the AI
+    tip?: string
 }
 
 type Json = Record<string, unknown>
@@ -96,13 +98,46 @@ export const extractPageFacts = (html: string): IPageFacts => {
     }
 }
 
-export const compareFacts = (ai: IPageFacts, shopper: IPageFacts | null): IFactRow[] => {
+// Shopify themes and apps load from Shopify's CDN; used to word the fix tips
+export const isShopifyHtml = (html: string) => /cdn\.shopify\.com|myshopify\.com|Shopify\.shop\b/i.test(html)
+
+const FIX_TIPS: Record<IFactRow['key'], { tip: string; shopify?: string }> = {
+    name: {
+        tip: 'The product name only appears after JavaScript runs. Put it in an <h1> in the HTML or add Product schema with a name.',
+        shopify: "In Shopify, the product title is in the theme's HTML unless an app replaces the page; check your product template."
+    },
+    price: {
+        tip: "Price only appears after JavaScript runs. Put it in the page's HTML or add Product schema with offers.price.",
+        shopify: 'In Shopify, most themes print the price in the HTML; check whether a price or currency app replaces it with JavaScript.'
+    },
+    rating: {
+        tip: "Ratings load from a review app's JavaScript. Add AggregateRating to your Product schema or use a review app that renders server-side.",
+        shopify: 'In Shopify, many review apps (Judge.me, Loox, Yotpo) have a setting to add rating schema; turn it on.'
+    },
+    description: {
+        tip: 'Most of the description is loaded by JavaScript. Put the full description in the HTML.',
+        shopify: "In Shopify, put the description in the product's Description field, not in a tab or app widget."
+    },
+    schema: {
+        tip: "Add Product schema (JSON-LD) to the product template, in the page's HTML.",
+        shopify: 'In Shopify, most themes already include Product schema; check your theme or SEO app settings.'
+    }
+}
+
+// One short fix for a fact the AI can't see; Shopify stores get a hint about the theme or app too
+export const fixTipFor = (key: IFactRow['key'], shopify = false): string => {
+    const t = FIX_TIPS[key]
+    return shopify && t.shopify ? `${t.tip} ${t.shopify}` : t.tip
+}
+
+export const compareFacts = (ai: IPageFacts, shopper: IPageFacts | null, shopify = false): IFactRow[] => {
     const row = (key: IFactRow['key'], label: string, a: string | null, s: string | null, missing: boolean): IFactRow => ({
         key,
         label,
         ai: a,
         shopper: shopper ? s : null,
-        missingForAi: !!shopper && missing
+        missingForAi: !!shopper && missing,
+        ...(shopper && missing ? { tip: fixTipFor(key, shopify) } : {})
     })
     const hasProduct = (f: IPageFacts) => (f.schemaTypes.includes('product') ? 'Found' : null)
     return [
@@ -120,9 +155,39 @@ export const compareFacts = (ai: IPageFacts, shopper: IPageFacts | null): IFactR
     ]
 }
 
+// total: facts the shopper sees (null when the shopper view failed); seen: how many of them the AI sees too.
+// level: good when the AI sees all, bad when it misses most, warn in between; null when there's nothing to grade
+export interface IAiViewScore {
+    seen: number
+    total: number | null
+    level: 'good' | 'warn' | 'bad' | null
+}
+
+// A description only counts at 50 words or more, the same bar compareFacts uses
+const hasFact = (f: IPageFacts, key: IFactRow['key']) =>
+    key === 'description' ? f.words >= 50 : key === 'schema' ? f.schemaTypes.includes('product') : !!f[key]
+
+export const scorePage = (ai: IPageFacts, shopper: IPageFacts | null): IAiViewScore => {
+    const rows = compareFacts(ai, shopper)
+    if (!shopper) return { seen: rows.filter((r) => hasFact(ai, r.key)).length, total: null, level: null }
+    const counted = rows.filter((r) => hasFact(shopper, r.key))
+    const seen = counted.filter((r) => !r.missingForAi).length
+    const total = counted.length
+    const level = !total ? null : seen === total ? 'good' : total - seen > total / 2 ? 'bad' : 'warn'
+    return { seen, total, level }
+}
+
 export interface IAiView {
     checkedAt: Date
-    pages: Array<{ url: string; label: 'Product page' | 'Homepage'; rows: IFactRow[]; aiPreview: string; error?: string }>
+    pages: Array<{
+        url: string
+        label: 'Product page' | 'Homepage'
+        rows: IFactRow[]
+        aiPreview: string
+        // Missing on results saved before the score existed
+        score?: IAiViewScore
+        error?: string
+    }>
 }
 
 const GPTBOT_UA = 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.1; +https://openai.com/gptbot)'
@@ -177,10 +242,12 @@ export const runAiView = async (website: string, productUrl?: string): Promise<I
             const raw = t.url === home && homeHtml ? homeHtml : await fetchRaw(t.url)
             const shopperHtml = shopper.get(t.url) ?? null
             const ai = extractPageFacts(raw)
+            const shopperFacts = shopperHtml ? extractPageFacts(shopperHtml) : null
             pages.push({
                 ...t,
-                rows: compareFacts(ai, shopperHtml ? extractPageFacts(shopperHtml) : null),
+                rows: compareFacts(ai, shopperFacts, isShopifyHtml(raw)),
                 aiPreview: ai.preview,
+                score: scorePage(ai, shopperFacts),
                 ...(shopperHtml ? {} : { error: "Couldn't load the page like a shopper" })
             })
         } catch (err) {

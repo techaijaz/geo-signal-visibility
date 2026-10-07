@@ -1,7 +1,9 @@
 // Store audit: how ready each product page (and a few collection pages) is for AI engines, with a fix for
 // every gap. Scoring is pure; it reads the same facts as the AI Crawler View.
 import * as cheerio from 'cheerio'
-import { extractPageFacts } from './aiViewService'
+import { extractPageFacts, isShopifyHtml, openError } from './aiViewService'
+import { auditService } from './auditService'
+import { fetchPublicText } from '../util/publicUrl'
 
 export interface IStoreCheck {
     key: 'schema' | 'price' | 'reviews' | 'description' | 'faq' | 'alt' | 'meta'
@@ -179,4 +181,143 @@ export const scoreCollectionPage = (html: string, url: string, shopify: boolean)
         metaCheck($, shopify)
     ]
     return { url, name: facts.name || url, kind: 'collection', score: null, level: null, checks }
+}
+
+// ---- Which pages, and the run ----
+
+const COLLECTIONS = 5
+const AT_ONCE = 2
+
+const sameHost = (url: string, origin: string) => {
+    try {
+        const strip = (h: string) => h.replace(/^www\./, '')
+        return strip(new URL(url).hostname) === strip(new URL(origin).hostname)
+    } catch {
+        return false
+    }
+}
+
+const locsIn = (xml: string) => [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => m[1].replace(/&amp;/g, '&'))
+
+// A sitemap index lists more sitemaps (nested); a urlset lists pages, of which we keep product pages
+export const productUrlsFromSitemap = (xml: string, origin: string): { products: string[]; nested: string[] } => {
+    const locs = locsIn(xml).filter((u) => sameHost(u, origin))
+    if (/<sitemapindex/i.test(xml)) return { products: [], nested: locs }
+    return { products: locs.filter((u) => /\/products?\/[^/?#]+/.test(new URL(u).pathname)), nested: [] }
+}
+
+// Shopify's /collections.json, without the catch-all collections
+export const collectionUrlsFromJson = (json: string, origin: string): string[] => {
+    try {
+        const list = (JSON.parse(json) as { collections?: Array<{ handle?: string }> }).collections
+        if (!Array.isArray(list)) return []
+        return list
+            .map((c) => c.handle)
+            .filter((h): h is string => !!h && h !== 'all' && h !== 'frontpage')
+            .slice(0, COLLECTIONS)
+            .map((h) => `${origin}/collections/${h}`)
+    } catch {
+        return []
+    }
+}
+
+const linksIn = (html: string, origin: string, re: RegExp) => {
+    const $ = cheerio.load(html)
+    const out = new Set<string>()
+    $('a[href]').each((_, el) => {
+        try {
+            const u = new URL($(el).attr('href') || '', origin)
+            if (sameHost(u.href, origin) && re.test(u.pathname)) out.add(u.origin + u.pathname)
+        } catch {
+            // malformed href
+        }
+    })
+    return [...out]
+}
+
+type FetchText = (url: string) => Promise<string>
+
+// Saved products first (the brand chose them), else the sitemap, else the homepage's links
+export const choosePages = async ({ origin, saved, max, fetchText }: { origin: string; saved: string[]; max: number; fetchText: FetchText }) => {
+    const get = (url: string) => fetchText(url).catch(() => '')
+    let homepage: Promise<string> | null = null
+    const home = () => (homepage ??= get(origin))
+
+    let source: 'products' | 'sitemap' | 'homepage' = 'products'
+    let products = saved.filter((u) => sameHost(u, origin)).slice(0, max)
+    if (!products.length) {
+        source = 'sitemap'
+        const root = productUrlsFromSitemap(await get(`${origin}/sitemap.xml`), origin)
+        products = root.products
+        // Shopify: /sitemap.xml → /sitemap_products_1.xml; read the product sitemaps first
+        const nested = [...root.nested.filter((u) => /product/i.test(u)), ...root.nested.filter((u) => !/product/i.test(u))].slice(0, 3)
+        for (const url of nested) {
+            if (products.length >= max) break
+            products.push(...productUrlsFromSitemap(await get(url), origin).products)
+        }
+        products = [...new Set(products)].slice(0, max)
+    }
+    if (!products.length) {
+        source = 'homepage'
+        products = linksIn(await home(), origin, /\/products?\/[^/]+/).slice(0, max)
+    }
+
+    let collections = collectionUrlsFromJson(await get(`${origin}/collections.json`), origin)
+    if (!collections.length) {
+        collections = linksIn(await home(), origin, /^\/collections\/(?!all\/?$|frontpage\/?$)[^/]+\/?$/).slice(0, COLLECTIONS)
+    }
+    return { source, products, collections }
+}
+
+export interface IStoreAudit {
+    checkedAt: Date
+    source: 'products' | 'sitemap' | 'homepage'
+    score: number | null
+    pages: IStorePage[]
+}
+
+// Fetch and score every chosen page, two at a time; a page that fails gets an error row, the rest go on
+export const runStoreAudit = async (
+    website: string,
+    saved: Array<{ url: string; shortName: string }>,
+    max: number,
+    fetchText: FetchText = (url) => fetchPublicText(url, { 'User-Agent': 'Mozilla/5.0 (compatible; SignalAI-StoreAudit/1.0)' })
+): Promise<IStoreAudit> => {
+    const origin = new URL(auditService.cleanUrl(website)).origin
+    const { source, products, collections } = await choosePages({ origin, saved: saved.map((s) => s.url), max, fetchText })
+    const nameOf = new Map(saved.map((s) => [s.url, s.shortName]))
+    const jobs = [...products.map((url) => ({ url, kind: 'product' as const })), ...collections.map((url) => ({ url, kind: 'collection' as const }))]
+
+    const pages: IStorePage[] = new Array(jobs.length)
+    let next = 0
+    const worker = async () => {
+        while (next < jobs.length) {
+            const i = next++
+            const { url, kind } = jobs[i]
+            try {
+                const html = await fetchText(url)
+                const shopify = isShopifyHtml(html)
+                const page = kind === 'product' ? scoreProductPage(html, url, shopify) : scoreCollectionPage(html, url, shopify)
+                pages[i] = { ...page, name: nameOf.get(url) || page.name }
+            } catch (err) {
+                pages[i] = {
+                    url,
+                    name: nameOf.get(url) || url,
+                    kind,
+                    score: null,
+                    level: null,
+                    checks: [],
+                    error: `Couldn't open this page: ${openError(err)}`
+                }
+            }
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(AT_ONCE, jobs.length) }, worker))
+
+    const scored = pages.filter((p) => p.kind === 'product' && p.score !== null)
+    const score = scored.length ? Math.round(scored.reduce((sum, p) => sum + (p.score as number), 0) / scored.length) : null
+    // Weakest product pages first, pages that failed after them, collections last
+    const rank = (p: IStorePage) => (p.kind === 'collection' ? 2 : p.score === null ? 1 : 0)
+    pages.sort((a, b) => rank(a) - rank(b) || (a.score ?? 0) - (b.score ?? 0))
+    return { checkedAt: new Date(), source, score, pages }
 }

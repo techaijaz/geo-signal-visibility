@@ -1,7 +1,14 @@
 /* eslint-disable no-console */
 // Run: NODE_ENV=development DATABASE_URL=mongodb://127.0.0.1:1/none npx ts-node --transpile-only src/checks/storeAudit.check.ts
 import assert from 'assert'
-import { scoreProductPage, scoreCollectionPage } from '../service/storeAuditService'
+import {
+    scoreProductPage,
+    scoreCollectionPage,
+    productUrlsFromSitemap,
+    collectionUrlsFromJson,
+    choosePages,
+    runStoreAudit
+} from '../service/storeAuditService'
 
 const words = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(' ')
 const jsonLd = (o: unknown) => `<script type="application/ld+json">${JSON.stringify(o)}</script>`
@@ -109,6 +116,107 @@ const run = async () => {
             ['meta', true]
         ]
     )
+
+    // ---- Which pages ----
+    const O = 'https://shop.example'
+    const index = `<?xml version="1.0"?><sitemapindex><sitemap><loc>${O}/sitemap_pages_1.xml</loc></sitemap><sitemap><loc>${O}/sitemap_products_1.xml?from=1</loc></sitemap><sitemap><loc>https://evil.example/sitemap_products_9.xml</loc></sitemap></sitemapindex>`
+    assert.deepStrictEqual(productUrlsFromSitemap(index, O), {
+        products: [],
+        nested: [`${O}/sitemap_pages_1.xml`, `${O}/sitemap_products_1.xml?from=1`]
+    })
+    const urlset = `<urlset><url><loc>${O}/products/silk-oud</loc></url><url><loc>${O}/pages/about</loc></url><url><loc>${O}/products/vibe</loc></url><url><loc>https://other.example/products/x</loc></url></urlset>`
+    assert.deepStrictEqual(productUrlsFromSitemap(urlset, O).products, [`${O}/products/silk-oud`, `${O}/products/vibe`])
+    assert.deepStrictEqual(productUrlsFromSitemap('not xml', O), { products: [], nested: [] })
+
+    const cols = JSON.stringify({ collections: ['all', 'frontpage', 'oud', 'attars', 'gifts', 'new', 'sale', 'extra'].map((handle) => ({ handle })) })
+    assert.deepStrictEqual(
+        collectionUrlsFromJson(cols, O),
+        ['oud', 'attars', 'gifts', 'new', 'sale'].map((h) => `${O}/collections/${h}`)
+    )
+    assert.deepStrictEqual(collectionUrlsFromJson('<html>', O), [])
+
+    // A stub store: sitemap index → product sitemap; collections.json; homepage links
+    const homepage = `<html><body><a href="/products/a">A</a><a href="/products/b">B</a><a href="/collections/oud">Oud</a><a href="/collections/all">All</a></body></html>`
+    const store: Record<string, string> = {
+        [`${O}/sitemap.xml`]: index,
+        [`${O}/sitemap_products_1.xml?from=1`]: urlset,
+        [`${O}/collections.json`]: cols,
+        [`${O}/`]: homepage,
+        [O]: homepage
+    }
+    const asked: string[] = []
+    const fetchStore = async (url: string) => {
+        asked.push(url)
+        if (url in store) return store[url]
+        throw new Error('404')
+    }
+
+    // Saved products first (only on the store's own host), up to the plan limit
+    const fromSaved = await choosePages({
+        origin: O,
+        saved: [`${O}/products/x`, 'https://amazon.in/dp/123', `https://www.shop.example/products/y`, `${O}/products/z`],
+        max: 2,
+        fetchText: fetchStore
+    })
+    assert.equal(fromSaved.source, 'products')
+    assert.deepStrictEqual(fromSaved.products, [`${O}/products/x`, 'https://www.shop.example/products/y'])
+    assert.equal(fromSaved.collections.length, 5)
+    // No saved products: the sitemap
+    const fromSitemap = await choosePages({ origin: O, saved: [], max: 10, fetchText: fetchStore })
+    assert.deepStrictEqual([fromSitemap.source, fromSitemap.products], ['sitemap', [`${O}/products/silk-oud`, `${O}/products/vibe`]])
+    // No sitemap and no collections.json: homepage links for both
+    const bare = async (url: string) => {
+        if (url === O || url === `${O}/`) return homepage
+        throw new Error('404')
+    }
+    const fromHome = await choosePages({ origin: O, saved: [], max: 10, fetchText: bare })
+    assert.deepStrictEqual(
+        [fromHome.source, fromHome.products, fromHome.collections],
+        ['homepage', [`${O}/products/a`, `${O}/products/b`], [`${O}/collections/oud`]]
+    )
+
+    // Run: two pages at a time, a failing page does not stop the rest, weakest first, average score
+    const pagesHtml: Record<string, string> = {
+        [`${O}/products/x`]: goodPage,
+        [`${O}/products/y`]: '<html><head><title>Shop</title></head><body><div id="root"></div></body></html>',
+        [`${O}/collections/oud`]: '<html><body><main>Oud</main></body></html>'
+    }
+    let inFlight = 0
+    let maxInFlight = 0
+    const fetchRun = async (url: string) => {
+        if (url.endsWith('collections.json') || url.endsWith('sitemap.xml')) throw new Error('404')
+        if (url === O || url === `${O}/`) return '<html><body><a href="/collections/oud">Oud</a></body></html>'
+        inFlight++
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        await new Promise((r) => setTimeout(r, 20))
+        inFlight--
+        if (url.endsWith('/products/broken')) throw Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' })
+        return pagesHtml[url] ?? '<html></html>'
+    }
+    const audit = await runStoreAudit(
+        O,
+        [
+            { url: `${O}/products/x`, shortName: 'Silk Oud' },
+            { url: `${O}/products/y`, shortName: 'Vibe' },
+            { url: `${O}/products/broken`, shortName: 'Broken' }
+        ],
+        10,
+        fetchRun
+    )
+    assert.ok(maxInFlight <= 2, `ran ${maxInFlight} at once`)
+    assert.equal(audit.source, 'products')
+    const products = audit.pages.filter((p) => p.kind === 'product')
+    assert.deepStrictEqual(
+        products.map((p) => p.name),
+        ['Vibe', 'Silk Oud', 'Broken']
+    )
+    assert.match(products[2].error || '', /could not be found/)
+    assert.equal(audit.score, Math.round((100 + (products[0].score as number)) / 2))
+    assert.deepStrictEqual(
+        audit.pages.filter((p) => p.kind === 'collection').map((p) => p.url),
+        [`${O}/collections/oud`]
+    )
+    assert.ok(audit.checkedAt instanceof Date)
 
     console.log('store audit checks: PASS')
     process.exit(0)

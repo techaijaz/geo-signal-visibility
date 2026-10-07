@@ -114,7 +114,7 @@ export const buildReportData = async (brandId: string): Promise<IReportData> => 
         ? stats.rows.map((r) => ({ name: r.name, count: r.answersNamed, pct: r.share, isYou: r.isYou })).sort((x, y) => y.count - x.count)
         : null
 
-    const audit = await auditModel.findOne({ brandId }).lean()
+    const audit = await auditModel.findOne({ brandId }).select('-feedHealth.products').lean()
     const recs = await recommendationModel.find({ brandId, isCompleted: { $ne: true } }).lean()
     const impactRank: Record<string, number> = { 'High impact': 0, 'Medium impact': 1, 'Low impact': 2 }
 

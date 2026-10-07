@@ -199,7 +199,8 @@ const databseService = {
 
     // Audit methods
     findAuditByBrandId: async (brandId: string) => {
-        let audit = await auditModel.findOne({ brandId })
+        // Every feed product stays out (it can be large): the Products page loads it on its own
+        let audit = await auditModel.findOne({ brandId }).select('-feedHealth.products')
         if (!audit) {
             const { enqueueAuditJob } = await import('./queueService')
             const job = await enqueueAuditJob(brandId)

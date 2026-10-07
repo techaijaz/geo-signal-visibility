@@ -7,6 +7,7 @@ import recommendationModel from '../model/recommendationModel'
 import { isResolvedByAudit } from './recommendationService'
 import { IAuditGridItem } from '../types/auditTypes'
 import logger from '../util/loger'
+import type { IFeedHealth, keepSavedFeed } from './feedHealthService'
 
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) GEOAudit/1.0'
 const PRODUCT_PAGES_TO_CHECK = 3
@@ -583,7 +584,8 @@ export const auditService = {
         let storeAudit: unknown = undefined
         // Not when the homepage couldn't be opened: every page would time out against a dead site
         // Product feed health (catalogue data); also never fails the audit
-        let feedHealth: unknown = undefined
+        let feedHealth: IFeedHealth | undefined = undefined
+        let keepSaved: typeof keepSavedFeed | undefined = undefined
         if (fetchSuccess) {
             try {
                 const { storeAuditForBrand } = await import('./storeAuditService')
@@ -592,8 +594,9 @@ export const auditService = {
                 logger.warn(`[auditService] Store audit failed for brand ${brandId}`, { meta: err })
             }
             try {
-                const { runFeedHealth } = await import('./feedHealthService')
-                feedHealth = await runFeedHealth(brand.website)
+                const feed = await import('./feedHealthService')
+                feedHealth = await feed.runFeedHealth(brand.website)
+                keepSaved = feed.keepSavedFeed
             } catch (err) {
                 logger.warn(`[auditService] Feed health failed for brand ${brandId}`, { meta: err })
             }
@@ -603,7 +606,9 @@ export const auditService = {
         const existingAudit = await auditModel.findOne({ brandId })
         if (existingAudit) {
             if (storeAudit !== undefined) existingAudit.storeAudit = storeAudit
-            if (feedHealth !== undefined) existingAudit.feedHealth = feedHealth
+            // A store blip doesn't replace the last good feed result
+            if (feedHealth !== undefined && !keepSaved?.(existingAudit.feedHealth as IFeedHealth | null, feedHealth))
+                existingAudit.feedHealth = feedHealth
             existingAudit.healthScore = healthScore
             existingAudit.holdingBack = holdingBack
             existingAudit.crawlerAccess = crawlerAccess

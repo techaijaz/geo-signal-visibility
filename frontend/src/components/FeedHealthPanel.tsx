@@ -5,9 +5,9 @@ import { timeAgo } from '../utils/timeAgo';
 
 type Level = 'good' | 'warn' | 'bad';
 type Key = 'description' | 'title' | 'brand' | 'image' | 'images' | 'price' | 'stock' | 'category' | 'gtin';
-interface FeedCheck { key: Key; label: string; pass: boolean | null; points: number; max: number; detail: string; tip?: string }
+interface FeedCheck { key: Key; label: string; pass: boolean | null; points: number; max: number; detail: string }
 interface FeedProduct { url: string; name: string; score: number; level: Level; checks: FeedCheck[] }
-export interface FeedHealth { checkedAt: string; shopify: boolean; total: number; score: number | null; summary: Array<{ key: Key; label: string; failing: number }>; products: FeedProduct[] }
+export interface FeedHealth { checkedAt: string; shopify: boolean; total: number; score: number | null; summary: Array<{ key: Key; label: string; failing: number }>; products: FeedProduct[]; truncated?: boolean; partial?: boolean }
 
 const LEVEL_COLORS: Record<Level, React.CSSProperties> = {
   good: { background: 'rgba(74,222,128,0.13)', color: 'var(--good)' },
@@ -27,6 +27,18 @@ const GAP: Record<Key, string> = {
   category: 'have no category (product type)',
   gtin: '',
 };
+// What to change in Shopify admin for each gap
+const TIP: Record<Key, string> = {
+  description: 'AI shopping feeds need a real description: write 50+ words of plain text (what it is, notes or ingredients, size, who it is for) in Products → this product → Description.',
+  title: 'Use a title of 15–150 characters in normal case, with the product name and its kind (e.g. "Silk Oud Alcohol Free Attar 12ml"), in Products → Title.',
+  brand: 'Set the brand in Products → this product → Vendor; feeds need it on every product.',
+  image: 'Add a main product image in JPEG or PNG (feeds may skip WebP or missing images) in Products → Media.',
+  images: 'Add at least 2 images (front, box or in use) in Products → Media; AI shopping shows products with more views.',
+  price: 'Check the price in Products → Pricing: it must be above 0, and "Compare-at price" (MRP) must not be lower than the price.',
+  stock: "Every variant is out of stock, so feeds list it as unavailable and AI won't recommend it. Update stock in Products → this product → Inventory, or hide the product if it is discontinued.",
+  category: 'Set a Product type (e.g. "Attar", "Perfume") in Products → Product organization, so AI can place the product in the right category.',
+  gtin: '',
+};
 const COLS: Key[] = ['description', 'title', 'brand', 'image', 'images', 'price', 'stock', 'category'];
 const COL_LABELS: Record<Key, string> = { description: 'Description', title: 'Title', brand: 'Brand', image: 'Image', images: 'Images', price: 'Price', stock: 'Stock', category: 'Category', gtin: 'GTIN' };
 const PAGE = 50;
@@ -43,7 +55,8 @@ const Pill = ({ score, big }: { score: number; big?: boolean }) => (
   </span>
 );
 
-export default function FeedHealthPanel({ brandId }: { brandId?: string }) {
+// onChecked: a new result was saved, so the Products table's Feed column can reload
+export default function FeedHealthPanel({ brandId, onChecked }: { brandId?: string; onChecked?: () => void }) {
   const [feed, setFeed] = useState<FeedHealth | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
@@ -61,12 +74,12 @@ export default function FeedHealthPanel({ brandId }: { brandId?: string }) {
     return () => window.removeEventListener('resize', measure);
   }, [open, feed]);
 
-  // The saved result from the latest website audit
+  // The saved result from the latest website audit or check
   const load = useCallback(async () => {
     if (!brandId) return;
     try {
-      const res = await api.get(`/brands/${brandId}/audit`);
-      setFeed(res.data?.data?.audit?.feedHealth ?? null);
+      const res = await api.get(`/brands/${brandId}/products/feed`);
+      setFeed(res.data?.data?.feedHealth ?? null);
     } catch {
       setFeed(null);
     }
@@ -80,8 +93,10 @@ export default function FeedHealthPanel({ brandId }: { brandId?: string }) {
       const res = await api.post(`/brands/${brandId}/products/feed`);
       const data = res.data?.data;
       setFeed(data?.feedHealth ?? null);
-      if (data && !data.fresh) setNote('Checked less than 10 minutes ago; showing that result.');
+      if (data?.failed) setNote("Couldn't read your store's catalogue just now; showing the last result. Try again in 10 minutes.");
+      else if (data && !data.fresh) setNote(data.feedHealth ? 'Checked less than 10 minutes ago; showing that result.' : 'Checked less than 10 minutes ago. Try again in a few minutes.');
       else if (data && !data.saved) setNote('Run the website audit once so this result is saved.');
+      if (data?.fresh && data.saved) onChecked?.();
     } catch (err: any) {
       setError(err.response?.data?.message || 'The feed check failed. Please try again.');
     } finally {
@@ -113,8 +128,10 @@ export default function FeedHealthPanel({ brandId }: { brandId?: string }) {
         <>
           <div style={{ margin: '14px 0 6px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             {feed.score !== null ? <Pill score={feed.score} big /> : <span style={small}>No products found.</span>}
-            <span style={small}>{feed.total} product{feed.total === 1 ? '' : 's'}{timeAgo(feed.checkedAt) ? ` · checked ${timeAgo(feed.checkedAt)}` : ''}</span>
+            <span style={small}>{feed.truncated ? 'First ' : ''}{feed.total} product{feed.total === 1 ? '' : 's'}{timeAgo(feed.checkedAt) ? ` · checked ${timeAgo(feed.checkedAt)}` : ''}</span>
           </div>
+          {feed.truncated && <p style={small}>Your store has more than 1,000 products; the first 1,000 were checked.</p>}
+          {feed.partial && <p style={small}>Part of your catalogue couldn't be read during this check, so some products are missing. Check again to complete it.</p>}
           {feed.summary.length > 0 && (
             <ul style={{ margin: '8px 0 12px', paddingLeft: '18px', fontSize: '13.5px' }}>
               {feed.summary.slice(0, 5).map((s) => (
@@ -145,7 +162,7 @@ export default function FeedHealthPanel({ brandId }: { brandId?: string }) {
                               {p.checks.map((c) => (
                                 <div key={c.key} style={{ margin: '6px 0' }}>
                                   <Mark c={c} /> <strong>{c.label}</strong> <span style={small}>· {c.detail}</span>
-                                  {c.tip && <div style={{ ...small, marginLeft: '16px' }}>{c.tip}</div>}
+                                  {c.pass === false && TIP[c.key] && <div style={{ ...small, marginLeft: '16px' }}>{TIP[c.key]}</div>}
                                 </div>
                               ))}
                             </div>

@@ -11,7 +11,6 @@ export interface IFeedCheck {
     points: number
     max: number
     detail: string
-    tip?: string
 }
 
 export interface IFeedProduct {
@@ -29,6 +28,10 @@ export interface IFeedHealth {
     score: number | null
     summary: Array<{ key: IFeedCheck['key']; label: string; failing: number }>
     products: IFeedProduct[]
+    // Over 1000 products: only the first 1000 were checked
+    truncated: boolean
+    // A later catalogue page couldn't be read, so some products are missing
+    partial: boolean
 }
 
 interface IShopifyItem {
@@ -41,20 +44,7 @@ interface IShopifyItem {
     variants?: Array<{ price?: string; compare_at_price?: string | null; available?: boolean }>
 }
 
-// What to change in Shopify admin for each gap
-const TIPS: Record<Exclude<IFeedCheck['key'], 'gtin'>, string> = {
-    description:
-        'AI shopping feeds need a real description: write 50+ words of plain text (what it is, notes or ingredients, size, who it is for) in Products → this product → Description.',
-    title: 'Use a title of 15–150 characters in normal case, with the product name and its kind (e.g. "Silk Oud Alcohol Free Attar 12ml"), in Products → Title.',
-    brand: 'Set the brand in Products → this product → Vendor; feeds need it on every product.',
-    image: 'Add a main product image in JPEG or PNG (feeds may skip WebP or missing images) in Products → Media.',
-    images: 'Add at least 2 images (front, box or in use) in Products → Media; AI shopping shows products with more views.',
-    price: 'Check the price in Products → Pricing: it must be above 0, and "Compare-at price" (MRP) must not be lower than the price.',
-    stock: "Every variant is out of stock, so feeds list it as unavailable and AI won't recommend it. Update stock in Products → this product → Inventory, or hide the product if it is discontinued.",
-    category: 'Set a Product type (e.g. "Attar", "Perfume") in Products → Product organization, so AI can place the product in the right category.'
-}
-
-// Shopify's own product types that say nothing about the product
+// Product types that say nothing about the product (some come from WooCommerce imports)
 const PLACEHOLDER_TYPES = new Set(['variable', 'simple', 'default', 'product', 'products', 'grouped', 'external', 'bundle'])
 
 const plainText = (html: string) =>
@@ -62,6 +52,8 @@ const plainText = (html: string) =>
         .replace(/<[^>]*>/g, ' ')
         .replace(/&nbsp;/gi, ' ')
         .replace(/&amp;/gi, '&')
+        // "don&rsquo;t" is one word
+        .replace(/&(rsquo|lsquo|apos|#39|#x27|#8217);/gi, "'")
         .replace(/&#?\w+;/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
@@ -80,8 +72,7 @@ const check = (key: IFeedCheck['key'], label: string, pass: boolean, max: number
     pass,
     points: pass ? max : 0,
     max,
-    detail,
-    ...(pass || key === 'gtin' ? {} : { tip: TIPS[key as Exclude<IFeedCheck['key'], 'gtin'>] })
+    detail
 })
 
 const levelOf = (score: number): IFeedProduct['level'] => (score >= 80 ? 'good' : score >= 50 ? 'warn' : 'bad')
@@ -138,7 +129,7 @@ export const scoreFeedProduct = (raw: unknown, origin: string): IFeedProduct | n
 }
 
 // The store's average and how many products fail each check, biggest gap first; weakest products first
-export const summarizeFeed = (products: IFeedProduct[], shopify: boolean): IFeedHealth => {
+export const summarizeFeed = (products: IFeedProduct[], shopify: boolean, truncated = false, partial = false): IFeedHealth => {
     const failing = new Map<IFeedCheck['key'], { label: string; failing: number }>()
     for (const p of products) {
         for (const c of p.checks) {
@@ -154,7 +145,9 @@ export const summarizeFeed = (products: IFeedProduct[], shopify: boolean): IFeed
         total: products.length,
         score: products.length ? Math.round(products.reduce((sum, p) => sum + p.score, 0) / products.length) : null,
         summary: [...failing.entries()].map(([key, r]) => ({ key, label: r.label, failing: r.failing })).sort((a, b) => b.failing - a.failing),
-        products: [...products].sort((a, b) => a.score - b.score)
+        products: [...products].sort((a, b) => a.score - b.score),
+        truncated,
+        partial
     }
 }
 
@@ -168,17 +161,20 @@ const productKey = (url: string) => {
     }
 }
 
-// A saved product's feed score, for the Products page column
-export const feedScoreFor = (url: string, feed: IFeedHealth | null | undefined): number | null => {
-    const key = productKey(url)
-    if (!key || !feed?.products) return null
-    return feed.products.find((p) => productKey(p.url) === key)?.score ?? null
-}
+// Saved feed scores by product, built once per request for the Products page column
+export const feedScores = (feed: Pick<IFeedHealth, 'products'> | null | undefined): Map<string, number> =>
+    new Map((feed?.products || []).map((p) => [productKey(p.url), p.score]))
+
+export const feedScoreFor = (url: string, scores: Map<string, number>): number | null => scores.get(productKey(url)) ?? null
+
+// A store blip (timeout, 5xx) reads as "not Shopify" or a cut catalogue; keep the last good result instead
+export const keepSavedFeed = (saved: Pick<IFeedHealth, 'shopify'> | null | undefined, fresh: Pick<IFeedHealth, 'shopify' | 'partial'>): boolean =>
+    !!saved?.shopify && (!fresh.shopify || fresh.partial)
 
 // Read the store's catalogue (Shopify products.json, up to 1000 products) and score every product
 export const runFeedHealth = async (website: string, fetchText?: (url: string) => Promise<string>): Promise<IFeedHealth> => {
     const origin = new URL(auditService.cleanUrl(website)).origin
-    const { shopify, raw } = await fetchShopifyProducts(website, fetchText)
+    const { shopify, raw, truncated, partial } = await fetchShopifyProducts(website, fetchText)
     const products = shopify ? raw.map((r) => scoreFeedProduct(r, origin)).filter((p): p is IFeedProduct => !!p) : []
-    return summarizeFeed(products, shopify)
+    return summarizeFeed(products, shopify, truncated, partial)
 }

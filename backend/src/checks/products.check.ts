@@ -343,6 +343,15 @@ const run = async () => {
     assert.equal(linePosition(['Top picks:', '- Ajmal', '- Rasasi', '- Hasan Oud Amber Oud'], 3), 3)
     assert.equal(linePosition(['1. **Hasan Oud**', '   - Silk Oud is sweet'], 1), 1)
 
+    // Staging N3-12: a bullet under a numbered item takes that item's number, not its bullet place
+    assert.equal(linePosition(['**6. Amazon/Flipkart Budget Options**', '- **SK Perfumes, Arochem**'], 1), 6)
+    assert.equal(linePosition(['5. Mid range', '', '- Kastoori', '- MLR Hem'], 3), 5)
+    assert.equal(linePosition(['1. Ajmal', '2. Rasasi', '', 'Other good options:', '- Zed', '- Hasan Oud'], 5), 2)
+    // Markdown tables: the row's number cell, else its row among the data rows
+    const table = ['| # | Brand | Why |', '|---|---|---|', '| 1 | Ajmal | classic |', '| 2 | Hasan Oud | value |']
+    assert.equal(linePosition(table, 3), 2)
+    assert.equal(linePosition(['| Brand | Price |', '| :-- | --: |', '| Ajmal | 500 |', '| Rasasi | 700 |', '| Hasan Oud | 900 |'], 4), 3)
+
     console.log('products checks: PASS')
     process.exit(0)
 }

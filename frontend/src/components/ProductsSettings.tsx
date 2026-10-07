@@ -75,6 +75,10 @@ export default function ProductsSettings({ brandId }: { brandId?: string }) {
     if (!brandId) return;
     setError(''); setNote(''); setBusy('import');
     try {
+      // Read the saved list again: if Import is clicked before the first load finished, `saved` is still empty
+      // and saving the picker would drop the products already saved
+      const current: Product[] = (await api.get(`/brands/${brandId}/products`)).data?.data?.products ?? saved;
+      setSaved(current);
       const res = await api.post(`/brands/${brandId}/products/import`, {});
       const data = res.data?.data;
       if (!data?.shopify) {
@@ -84,7 +88,7 @@ export default function ProductsSettings({ brandId }: { brandId?: string }) {
       }
       setCandidates(data.products ?? []);
       setTruncated(!!data.truncated);
-      setPicked(new Set((data.products ?? []).filter((c: Candidate) => saved.some((s) => s.shopifyId && s.shopifyId === c.shopifyId)).map((c: Candidate) => c.url)));
+      setPicked(new Set((data.products ?? []).filter((c: Candidate) => current.some((s) => s.shopifyId && s.shopifyId === c.shopifyId)).map((c: Candidate) => c.url)));
       setSearch(''); setShowHidden(false); setMode('pick');
     } catch (err) {
       setError(errorOf(err, "Couldn't read your store's products."));

@@ -74,7 +74,8 @@ export const extractPageFacts = (html: string): IPageFacts => {
         null
 
     const metaPrice = $('meta[property="product:price:amount"], meta[property="og:price:amount"]').attr('content')
-    const textPrice = text.match(/(?:₹|Rs\.?|INR)\s?([\d,]+(?:\.\d+)?)/i)?.[1]
+    // The first non-zero amount: a Shopify cart's "Subtotal Rs. 0.00" often comes before the product price
+    const textPrice = [...text.matchAll(/(?:₹|Rs\.?|INR)\s?([\d,]+(?:\.\d+)?)/gi)].map((m) => m[1]).find((a) => parseFloat(a.replace(/,/g, '')) > 0)
     const price = formatPrice(String(offer?.price ?? metaPrice ?? textPrice ?? ''))
 
     let rating: string | null = null
@@ -222,6 +223,18 @@ const renderAll = (urls: string[]) =>
     }).catch(() => new Map<string, string>())
 
 // productUrl: check this product page instead of the first one linked from the homepage
+// Why a page could not be opened, in plain words (Node's "getaddrinfo ENOTFOUND" means nothing to a user)
+export const openError = (err: unknown): string => {
+    const e = err as { code?: string; message?: string; response?: { status?: number } }
+    const msg = e?.message || ''
+    if (e?.code === 'ENOTFOUND' || /ENOTFOUND|EAI_AGAIN/.test(msg)) return 'this website could not be found'
+    if (e?.code === 'ECONNREFUSED' || /ECONNREFUSED/.test(msg)) return 'the website refused the connection'
+    if (/timeout|ETIMEDOUT|ECONNABORTED/i.test(msg)) return 'the website took too long to answer'
+    if (/certificate|SSL|TLS/i.test(msg)) return "the website's security certificate is not valid"
+    if (e?.response?.status) return `the website answered with error ${e.response.status}`
+    return msg || 'unknown error'
+}
+
 export const runAiView = async (website: string, productUrl?: string): Promise<IAiView> => {
     const home = auditService.cleanUrl(website)
     try {
@@ -229,7 +242,7 @@ export const runAiView = async (website: string, productUrl?: string): Promise<I
     } catch (err) {
         return {
             checkedAt: new Date(),
-            pages: [{ url: home, label: 'Homepage', rows: [], aiPreview: '', error: `Couldn't open ${home} (${(err as Error).message})` }]
+            pages: [{ url: home, label: 'Homepage', rows: [], aiPreview: '', error: `Couldn't open ${home}: ${openError(err)}` }]
         }
     }
     const homeHtml = await fetchRaw(home).catch(() => '')
@@ -251,7 +264,7 @@ export const runAiView = async (website: string, productUrl?: string): Promise<I
                 ...(shopperHtml ? {} : { error: "Couldn't load the page like a shopper" })
             })
         } catch (err) {
-            pages.push({ ...t, rows: [], aiPreview: '', error: `Couldn't open ${t.url} (${(err as Error).message})` })
+            pages.push({ ...t, rows: [], aiPreview: '', error: `Couldn't open ${t.url}: ${openError(err)}` })
         }
     }
     return { checkedAt: new Date(), pages }

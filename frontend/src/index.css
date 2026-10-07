@@ -691,4 +691,6 @@ tbody tr:last-child td{border-bottom:none;}
   .plan-grid{grid-template-columns:1fr 1fr;}
 }
 
-
+/* Input + button rows (Settings competitors and queries): the input shrinks, the button never leaves the panel */
+.add-row input{flex:1;min-width:0;}
+.add-row .btn{flex-shrink:0;}

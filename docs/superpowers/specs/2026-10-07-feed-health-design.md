@@ -31,7 +31,7 @@ All products from `<store>/products.json` (`fetchShopifyProducts`, up to 1000), 
 | Brand | 10 | `vendor` not empty |
 | Main image | 10 | first image exists and is JPEG/PNG (by file extension; Shopify CDN URLs keep it) |
 | Extra images | 10 | 2+ images |
-| Price | 10 | default variant price > 0, and `compare_at_price` (MRP) empty or higher than the price |
+| Price | 10 | default variant price > 0, and `compare_at_price` (MRP) empty or not lower than the price (equal = no discount) |
 | Stock | 10 | at least one variant `available` |
 | Category | 10 | `product_type` set and not a Shopify placeholder ("variable", "simple", …) |
 | GTIN | 0 | not checked: "Connect Shopify to check" |

@@ -3,6 +3,7 @@ import { useOutletContext, useSearchParams } from 'react-router-dom';
 import api from '../utils/axios';
 import ScanProgress from '../components/ScanProgress';
 import AiViewPanel, { type AiView } from '../components/AiViewPanel';
+import StoreAuditPanel, { type StoreAudit } from '../components/StoreAuditPanel';
 
 interface AuditGridItem {
   name: string;
@@ -19,6 +20,7 @@ interface AuditData {
   marketplaceReadability: AuditGridItem[];
   lastAuditedAt?: string;
   aiView?: AiView | null;
+  storeAudit?: StoreAudit | null;
 }
 
 interface OutletContextType {
@@ -335,6 +337,8 @@ export default function WebsiteAudit() {
         initial={productUrl ? null : auditData?.aiView}
         productUrl={productUrl || undefined}
       />
+
+      <StoreAuditPanel key={`store-${activeBrandId}-${auditData?.lastAuditedAt ?? ''}`} brandId={activeBrandId} initial={auditData?.storeAudit} />
 
       {/* 1. Crawler Access Panel */}
       <div className="panel">

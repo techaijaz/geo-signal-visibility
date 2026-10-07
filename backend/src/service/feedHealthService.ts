@@ -1,5 +1,7 @@
 // Product feed health: how ready each Shopify product's data is for AI shopping (ChatGPT Shopping and
 // similar), against OpenAI's product feed rules. Pure scoring here; no AI calls.
+import { auditService } from './auditService'
+import { fetchShopifyProducts } from './productService'
 
 export interface IFeedCheck {
     key: 'description' | 'title' | 'brand' | 'image' | 'images' | 'price' | 'stock' | 'category' | 'gtin'
@@ -171,4 +173,12 @@ export const feedScoreFor = (url: string, feed: IFeedHealth | null | undefined):
     const key = productKey(url)
     if (!key || !feed?.products) return null
     return feed.products.find((p) => productKey(p.url) === key)?.score ?? null
+}
+
+// Read the store's catalogue (Shopify products.json, up to 1000 products) and score every product
+export const runFeedHealth = async (website: string, fetchText?: (url: string) => Promise<string>): Promise<IFeedHealth> => {
+    const origin = new URL(auditService.cleanUrl(website)).origin
+    const { shopify, raw } = await fetchShopifyProducts(website, fetchText)
+    const products = shopify ? raw.map((r) => scoreFeedProduct(r, origin)).filter((p): p is IFeedProduct => !!p) : []
+    return summarizeFeed(products, shopify)
 }

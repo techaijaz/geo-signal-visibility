@@ -65,6 +65,7 @@ router.route('/brands/:id/products/import').post(authentication, productControll
 router.route('/brands/:id/products/short-names').post(authentication, productController.shortNames)
 router.route('/brands/:id/products/refresh').post(authentication, productController.refreshProducts)
 router.route('/brands/:id/products/visibility').get(authentication, productController.getVisibility)
+router.route('/brands/:id/products/feed').post(authentication, productController.checkFeed)
 router.route('/brands/:id/audit').get(authentication, auditController.getBrandAudit)
 router.route('/brands/:id/audit/rescan').post(authentication, auditController.rescanBrandAudit)
 router.route('/brands/:id/audit/ai-view').post(authentication, auditController.runAiView)

@@ -61,6 +61,11 @@ const auditSchema = new mongoose.Schema<IAuditDocument>(
         storeAudit: {
             type: mongoose.Schema.Types.Mixed,
             default: null
+        },
+        // Product feed health of the store's catalogue (feedHealthService), run with the audit
+        feedHealth: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null
         }
     },
     { timestamps: true }

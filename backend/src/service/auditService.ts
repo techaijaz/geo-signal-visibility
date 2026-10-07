@@ -582,18 +582,28 @@ export const auditService = {
         // Product and collection pages; never fails the audit
         let storeAudit: unknown = undefined
         // Not when the homepage couldn't be opened: every page would time out against a dead site
-        if (fetchSuccess)
+        // Product feed health (catalogue data); also never fails the audit
+        let feedHealth: unknown = undefined
+        if (fetchSuccess) {
             try {
                 const { storeAuditForBrand } = await import('./storeAuditService')
                 storeAudit = await storeAuditForBrand(brand)
             } catch (err) {
                 logger.warn(`[auditService] Store audit failed for brand ${brandId}`, { meta: err })
             }
+            try {
+                const { runFeedHealth } = await import('./feedHealthService')
+                feedHealth = await runFeedHealth(brand.website)
+            } catch (err) {
+                logger.warn(`[auditService] Feed health failed for brand ${brandId}`, { meta: err })
+            }
+        }
 
         // Update or recreate audit in database
         const existingAudit = await auditModel.findOne({ brandId })
         if (existingAudit) {
             if (storeAudit !== undefined) existingAudit.storeAudit = storeAudit
+            if (feedHealth !== undefined) existingAudit.feedHealth = feedHealth
             existingAudit.healthScore = healthScore
             existingAudit.holdingBack = holdingBack
             existingAudit.crawlerAccess = crawlerAccess
@@ -614,6 +624,7 @@ export const auditService = {
             offSiteFootprint,
             marketplaceReadability,
             ...(storeAudit !== undefined ? { storeAudit } : {}),
+            ...(feedHealth !== undefined ? { feedHealth } : {}),
             lastAuditedAt: new Date()
         })
     }

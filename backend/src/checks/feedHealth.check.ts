@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 // Run: NODE_ENV=development DATABASE_URL=mongodb://127.0.0.1:1/none npx ts-node --transpile-only src/checks/feedHealth.check.ts
 import assert from 'assert'
-import { scoreFeedProduct, summarizeFeed, feedScoreFor } from '../service/feedHealthService'
+import { scoreFeedProduct, summarizeFeed, feedScoreFor, runFeedHealth } from '../service/feedHealthService'
 
 const O = 'https://hasanoud.com'
 const words = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(' ')
@@ -115,6 +115,17 @@ const run = async () => {
     assert.equal(feedScoreFor('https://www.hasanoud.com/products/silk-oud/?v=1', feed), 100)
     assert.equal(feedScoreFor(`${O}/products/none`, feed), null)
     assert.equal(feedScoreFor(`${O}/products/silk-oud`, null), null)
+
+    // Run against a store: Shopify's products.json through the injected fetcher; not a store → shopify false
+    const store = async (url: string) => {
+        if (url.includes('products.json?limit=250&page=1')) return JSON.stringify({ products: [product(), product({ handle: 'two', vendor: '' })] })
+        throw new Error('404')
+    }
+    const ran = await runFeedHealth('hasanoud.com', store)
+    assert.deepStrictEqual([ran.shopify, ran.total], [true, 2])
+    assert.equal(ran.products[0].url, `${O}/products/two`)
+    const notStore = await runFeedHealth('https://example.com', async () => '<html>not json</html>')
+    assert.deepStrictEqual([notStore.shopify, notStore.total, notStore.score], [false, 0, null])
 
     console.log('feed health checks: PASS')
     process.exit(0)

@@ -231,6 +231,27 @@ const run = async () => {
     assert.equal(aiReadyFor('', saved), null)
     assert.equal(aiReadyFor(`${O}/products/x`, null), null)
 
+    // Review fixes: an overall deadline returns partial results; saved duplicates are fetched once;
+    // collection handles are encoded; an empty page gets no alt-text points
+    const slow = async (url: string) => {
+        if (url.endsWith('.xml') || url.endsWith('.json') || url === O) throw new Error('404')
+        await new Promise((r) => setTimeout(r, 60))
+        return goodPage
+    }
+    const many = Array.from({ length: 8 }, (_, i) => ({ url: `${O}/products/p${i}`, shortName: `P${i}` }))
+    const t0 = Date.now()
+    const partial = await runStoreAudit(O, [...many, many[0]], 50, slow, { deadlineMs: 150, pageTimeoutMs: 1000 })
+    assert.ok(Date.now() - t0 < 1000, 'stops at the deadline')
+    assert.equal(partial.pages.filter((p) => p.kind === 'product').length, 8, 'duplicates fetched once')
+    const notChecked = partial.pages.filter((p) => p.error?.includes('ran out of time'))
+    assert.ok(notChecked.length > 0 && notChecked.length < 8, `partial: ${notChecked.length} not checked`)
+    assert.equal(partial.score, 100)
+    assert.deepStrictEqual(collectionUrlsFromJson(JSON.stringify({ collections: [{ handle: 'oud & musk' }] }), O), [
+        `${O}/collections/oud%20%26%20musk`
+    ])
+    const blank = scoreProductPage('<html><body></body></html>', `${O}/p`, false).checks.find((c) => c.key === 'alt')!
+    assert.deepStrictEqual([blank.points, blank.pass], [0, false])
+
     console.log('store audit checks: PASS')
     process.exit(0)
 }

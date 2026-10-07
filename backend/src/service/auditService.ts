@@ -581,12 +581,14 @@ export const auditService = {
 
         // Product and collection pages; never fails the audit
         let storeAudit: unknown = undefined
-        try {
-            const { storeAuditForBrand } = await import('./storeAuditService')
-            storeAudit = await storeAuditForBrand(brand)
-        } catch (err) {
-            logger.warn(`[auditService] Store audit failed for brand ${brandId}`, { meta: err })
-        }
+        // Not when the homepage couldn't be opened: every page would time out against a dead site
+        if (fetchSuccess)
+            try {
+                const { storeAuditForBrand } = await import('./storeAuditService')
+                storeAudit = await storeAuditForBrand(brand)
+            } catch (err) {
+                logger.warn(`[auditService] Store audit failed for brand ${brandId}`, { meta: err })
+            }
 
         // Update or recreate audit in database
         const existingAudit = await auditModel.findOne({ brandId })

@@ -106,7 +106,14 @@ export default {
             if (!(await databseService.consumeDailyRescan(brandId, 'audit', perDay))) {
                 return httpError(next, new Error(rescanLimitMessage('audit', plan, perDay)), req, 429)
             }
-            const storeAudit = await storeAuditForBrand(brand)
+            let storeAudit
+            try {
+                storeAudit = await storeAuditForBrand(brand)
+            } catch (err) {
+                // The audit didn't run, so the user gets today's re-scan back
+                await databseService.refundDailyRescan(brandId, 'audit')
+                throw err
+            }
             // No upsert: a bare audit document would stop the brand's first real audit from running
             await auditModel.updateOne({ brandId }, { $set: { storeAudit } })
             httpResponse(req, res, 200, responceseMessage.SUCCESS, { storeAudit })

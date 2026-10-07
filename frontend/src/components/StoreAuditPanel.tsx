@@ -154,6 +154,7 @@ export default function StoreAuditPanel({ brandId, initial }: { brandId?: string
         </>
       )}
       {!running && !view && !error && <p className="sub" style={{ marginTop: '10px' }}>Not audited yet. It also runs with every website audit.</p>}
+      <p style={{ ...small, marginTop: '6px' }}>The button uses one of today's website audit re-scans.</p>
     </div>
   );
 }

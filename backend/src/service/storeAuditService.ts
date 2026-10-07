@@ -110,7 +110,9 @@ export const scoreProductPage = (html: string, url: string, shopify: boolean): I
         .toArray()
         .filter((el) => /\?\s*$/.test($(el).text().trim())).length
     const { total, withAlt } = facts.images
-    const altPoints = total ? Math.round((10 * withAlt) / total) : 10
+    // No images and no content at all is a broken page, not a perfect one
+    const empty = !total && !words
+    const altPoints = total ? Math.round((10 * withAlt) / total) : empty ? 0 : 10
 
     const checks: IStoreCheck[] = [
         check(
@@ -145,10 +147,10 @@ export const scoreProductPage = (html: string, url: string, shopify: boolean): I
         check(
             'alt',
             'Image alt text',
-            !total || withAlt / total >= 0.8,
+            total ? withAlt / total >= 0.8 : !empty,
             altPoints,
             10,
-            total ? `${withAlt} of ${total} images have alt text` : 'No images',
+            total ? `${withAlt} of ${total} images have alt text` : empty ? 'No images or content' : 'No images',
             shopify
         ),
         metaCheck($, shopify)
@@ -189,6 +191,10 @@ export const scoreCollectionPage = (html: string, url: string, shopify: boolean)
 
 const COLLECTIONS = 5
 const AT_ONCE = 2
+// The whole audit stays well under the proxy's 120 s; pages not reached by then are listed as not checked
+const DEADLINE_MS = 75_000
+const PAGE_TIMEOUT_MS = 8_000
+const OUT_OF_TIME = 'Not checked: the audit ran out of time. Run it again to check this page.'
 
 const sameHost = (url: string, origin: string) => {
     try {
@@ -217,7 +223,7 @@ export const collectionUrlsFromJson = (json: string, origin: string): string[] =
             .map((c) => c.handle)
             .filter((h): h is string => !!h && h !== 'all' && h !== 'frontpage')
             .slice(0, COLLECTIONS)
-            .map((h) => `${origin}/collections/${h}`)
+            .map((h) => `${origin}/collections/${encodeURIComponent(h)}`)
     } catch {
         return []
     }
@@ -246,13 +252,14 @@ export const choosePages = async ({ origin, saved, max, fetchText }: { origin: s
     const home = () => (homepage ??= get(origin))
 
     let source: 'products' | 'sitemap' | 'homepage' = 'products'
-    let products = saved.filter((u) => sameHost(u, origin)).slice(0, max)
+    let products = [...new Set(saved.filter((u) => sameHost(u, origin)))].slice(0, max)
     if (!products.length) {
         source = 'sitemap'
         const root = productUrlsFromSitemap(await get(`${origin}/sitemap.xml`), origin)
         products = root.products
         // Shopify: /sitemap.xml → /sitemap_products_1.xml; read the product sitemaps first
-        const nested = [...root.nested.filter((u) => /product/i.test(u)), ...root.nested.filter((u) => !/product/i.test(u))].slice(0, 3)
+        // Only product sitemaps; other nested sitemaps (pages, blogs) can't list products
+        const nested = root.nested.filter((u) => /product/i.test(u)).slice(0, 2)
         for (const url of nested) {
             if (products.length >= max) break
             products.push(...productUrlsFromSitemap(await get(url), origin).products)
@@ -283,10 +290,27 @@ export const runStoreAudit = async (
     website: string,
     saved: Array<{ url: string; shortName: string }>,
     max: number,
-    fetchText: FetchText = (url) => fetchPublicText(url, { 'User-Agent': 'Mozilla/5.0 (compatible; SignalAI-StoreAudit/1.0)' })
+    fetchText?: FetchText,
+    { deadlineMs = DEADLINE_MS, pageTimeoutMs = PAGE_TIMEOUT_MS }: { deadlineMs?: number; pageTimeoutMs?: number } = {}
 ): Promise<IStoreAudit> => {
+    const deadline = Date.now() + deadlineMs
+    const fetchPage: FetchText =
+        fetchText ?? ((url) => fetchPublicText(url, { 'User-Agent': 'Mozilla/5.0 (compatible; SignalAI-StoreAudit/1.0)' }, pageTimeoutMs))
+    // Every fetch also stops at the overall deadline
+    const timeLeft = () => Math.max(deadline - Date.now(), 0)
+    const bounded: FetchText = async (url) => {
+        let timer: NodeJS.Timeout | undefined
+        const outOfTime = new Promise<string>((_, reject) => {
+            timer = setTimeout(() => reject(new Error(OUT_OF_TIME)), timeLeft())
+        })
+        try {
+            return await Promise.race([fetchPage(url), outOfTime])
+        } finally {
+            clearTimeout(timer)
+        }
+    }
     const origin = new URL(auditService.cleanUrl(website)).origin
-    const { source, products, collections } = await choosePages({ origin, saved: saved.map((s) => s.url), max, fetchText })
+    const { source, products, collections } = await choosePages({ origin, saved: saved.map((s) => s.url), max, fetchText: bounded })
     const nameOf = new Map(saved.map((s) => [s.url, s.shortName]))
     const jobs = [...products.map((url) => ({ url, kind: 'product' as const })), ...collections.map((url) => ({ url, kind: 'collection' as const }))]
 
@@ -296,8 +320,12 @@ export const runStoreAudit = async (
         while (next < jobs.length) {
             const i = next++
             const { url, kind } = jobs[i]
+            if (!timeLeft()) {
+                pages[i] = { url, name: nameOf.get(url) || url, kind, score: null, level: null, checks: [], error: OUT_OF_TIME }
+                continue
+            }
             try {
-                const html = await fetchText(url)
+                const html = await bounded(url)
                 const shopify = isShopifyHtml(html)
                 const page = kind === 'product' ? scoreProductPage(html, url, shopify) : scoreCollectionPage(html, url, shopify)
                 pages[i] = { ...page, name: nameOf.get(url) || page.name }
@@ -309,7 +337,7 @@ export const runStoreAudit = async (
                     score: null,
                     level: null,
                     checks: [],
-                    error: `Couldn't open this page: ${openError(err)}`
+                    error: (err as Error)?.message === OUT_OF_TIME ? OUT_OF_TIME : `Couldn't open this page: ${openError(err)}`
                 }
             }
         }

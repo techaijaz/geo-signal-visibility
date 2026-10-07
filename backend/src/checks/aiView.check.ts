@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 // Run: NODE_ENV=development npx ts-node --transpile-only src/checks/aiView.check.ts
 import assert from 'assert'
-import { extractPageFacts, compareFacts } from '../service/aiViewService'
+import { openError, extractPageFacts, compareFacts } from '../service/aiViewService'
 
 const spaRaw = '<html><head><title>Silk Oud | Shop</title></head><body><div id="root"></div><script>render()</script></body></html>'
 const spaRendered = `<html><head><title>Silk Oud | Shop</title></head><body><div id="root"><h1>Silk Oud Attar</h1>
@@ -49,5 +49,19 @@ const chrome = extractPageFacts(
     '<body><header><a>Skip to content</a> Your cart is empty</header><nav>Shop Men Women</nav><main><h1>Silk Oud</h1><p>Rich oud attar.</p></main><footer>Contact us</footer></body>'
 )
 assert.ok(chrome.preview.startsWith('Silk Oud'), chrome.preview)
+
+// Staging N4-03: a Shopify cart's "Subtotal Rs. 0.00" comes first in the page; the real price is the first non-zero one
+const cart = extractPageFacts('<html><body><div class="cart">Subtotal Rs. 0.00</div><h1>Vibe</h1><span>Rs. 1,111.00</span></body></html>')
+assert.equal(cart.price, '₹1,111')
+assert.equal(extractPageFacts('<html><body>Subtotal Rs. 0.00</body></html>').price, null)
+
+// Network errors read as plain words, not Node's error codes
+
+assert.equal(openError(Object.assign(new Error('getaddrinfo ENOTFOUND x.com'), { code: 'ENOTFOUND' })), 'this website could not be found')
+
+assert.equal(openError(new Error('timeout of 10000ms exceeded')), 'the website took too long to answer')
+
+assert.equal(openError(new Error('Only public websites can be checked')), 'Only public websites can be checked')
+
 console.log('ai-view checks: PASS')
 process.exit(0)

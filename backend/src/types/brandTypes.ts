@@ -81,6 +81,7 @@ export interface IBrand {
     lastScannedAt?: Date | null
     lastScanError?: { message: string; at: Date } | null
     lastScanSilentModels?: string[]
+    recommendationsSeedingAt?: Date | null
     nextScanAt?: Date | null
     manualRescanDay?: string | null
     manualRescanCount?: number

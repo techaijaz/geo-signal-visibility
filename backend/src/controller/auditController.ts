@@ -74,7 +74,9 @@ export default {
             }
             // Each run opens Chrome twice: a result under 5 minutes old is returned as is
             const existing = (await auditModel.findOne({ brandId }).select('aiView').lean())?.aiView as IAiView | null | undefined
-            if (existing?.checkedAt && Date.now() - new Date(existing.checkedAt).getTime() < 5 * 60 * 1000) {
+            // ...but only for the same website: after the brand's website changes, check the new one
+            const sameSite = existing?.pages?.some((p) => p.label === 'Homepage' && p.url === auditService.cleanUrl(brand.website))
+            if (existing?.checkedAt && sameSite && Date.now() - new Date(existing.checkedAt).getTime() < 5 * 60 * 1000) {
                 return httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: existing })
             }
             const aiView = await runAiView(brand.website)

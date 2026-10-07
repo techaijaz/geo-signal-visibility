@@ -41,6 +41,14 @@ const API_KEY_CACHE_TTL_MS = 60 * 1000
 const apiKeyCache = new Map<string, { value: string; expiresAt: number }>()
 const resolveApiKey = (provider: string) => databseService.getDecryptedApiKeyUncached(provider)
 
+// One engine's visibility in the latest scan: answers that named the brand out of the questions it was
+// asked in that scan (not the brand's current question list, which may have changed since)
+export const modelScore = (latest: Array<{ mentioned: boolean }>) => {
+    const totalQ = latest.length
+    const count = latest.filter((m) => m.mentioned).length
+    return { count, totalQ, score: totalQ > 0 ? Math.min(100, Math.round((count / totalQ) * 100)) : 0 }
+}
+
 const databseService = {
     connect: async () => {
         try {
@@ -249,7 +257,35 @@ const databseService = {
         }
         return recommendations
     },
+    // First list for a brand. Building it calls the AI and takes seconds, so a second page load in that time
+    // must not build and save another one: only save while the brand still has none
     seedDefaultRecommendations: async (brandId: string) => {
+        const now = Date.now()
+        // Atomic claim: only one caller builds; a claim older than 2 minutes is treated as abandoned
+        const claimed = await brandModel.findOneAndUpdate(
+            { _id: brandId, $or: [{ recommendationsSeedingAt: null }, { recommendationsSeedingAt: { $lt: new Date(now - 120_000) } }] },
+            { $set: { recommendationsSeedingAt: new Date(now) } }
+        )
+        if (!claimed) {
+            // Someone else is building the list: wait for it (up to 30 s) instead of building a second one
+            for (let i = 0; i < 60; i++) {
+                const ready = await recommendationModel.find({ brandId }).sort({ createdAt: 1 })
+                if (ready.length) return ready
+                await new Promise((r) => setTimeout(r, 500))
+            }
+            return []
+        }
+        try {
+            const list = await databseService.buildRecommendations(brandId)
+            const existing = await recommendationModel.find({ brandId }).sort({ createdAt: 1 })
+            if (existing.length || !list.length) return existing
+            return await recommendationModel.insertMany(list)
+        } finally {
+            await brandModel.updateOne({ _id: brandId }, { $set: { recommendationsSeedingAt: null } })
+        }
+    },
+    // The recommendations for a brand, built from its audit and mentions (AI, else the built-in list); saves nothing
+    buildRecommendations: async (brandId: string): Promise<IRecommendationData[]> => {
         const brand = await brandModel.findById(brandId)
         if (!brand) return []
 
@@ -267,7 +303,7 @@ const databseService = {
                 generateRecommendations(brand as unknown as IBrand, currentAudit, mentions, [])
             )
             if (aiRecs && aiRecs.length > 0) {
-                return await recommendationModel.insertMany(aiRecs)
+                return aiRecs
             }
         } catch (err) {
             logger.error('Failed to generate AI recommendations, falling back to smart defaults:', { meta: err })
@@ -334,14 +370,18 @@ const databseService = {
             }
         ]
 
-        return recommendationModel.insertMany(defaultList.filter((r) => !isResolvedByAudit(r.text, audit)))
+        return defaultList.filter((r) => !isResolvedByAudit(r.text, audit))
     },
     toggleRecommendationCompleted: async (recId: string, isCompleted: boolean) => {
         return recommendationModel.findByIdAndUpdate(recId, { isCompleted }, { new: true })
     },
+    // Build the new list first and swap it in at the end, so the page never sees an empty list in between
+    // (an empty list made the page build its own one too: every recommendation twice)
     rescanBrandRecommendations: async (brandId: string) => {
+        const list = await databseService.buildRecommendations(brandId)
+        if (!list.length) return recommendationModel.find({ brandId }).sort({ createdAt: 1 })
         await recommendationModel.deleteMany({ brandId })
-        return databseService.seedDefaultRecommendations(brandId)
+        return recommendationModel.insertMany(list)
     },
 
     // Report methods
@@ -474,9 +514,7 @@ const databseService = {
             })
 
             const latestList = Array.from(latestPerQuery.values())
-            const totalQ = totalBrandQueries > 0 ? totalBrandQueries : latestList.length > 0 ? latestList.length : 0
-            const count = latestList.filter((item: IMention) => item.mentioned).length
-            const score = totalQ > 0 ? Math.min(100, Math.round((count / totalQ) * 100)) : 0
+            const { count, totalQ, score } = modelScore(latestList)
 
             // Find matching meta entry or default
             const metaKey = Object.keys(modelMetaMap).find((k) => mName.toLowerCase().includes(k.toLowerCase())) || mName
@@ -500,8 +538,8 @@ const databseService = {
             }
         })
 
-        const totalQueriesTracked =
-            totalBrandQueries > 0 ? totalBrandQueries : mentions.length > 0 ? new Set(mentions.map((m: IMention) => m.queryText)).size : 0
+        // Questions the latest scan actually asked; the brand's current list may have changed since
+        const totalQueriesTracked = mentions.length > 0 ? new Set(mentions.map((m: IMention) => m.queryText)).size : totalBrandQueries
 
         // Calculate Blended Score from actual model stats or audit healthScore
         const blendedScore =

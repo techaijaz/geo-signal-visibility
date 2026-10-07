@@ -252,6 +252,14 @@ const run = async () => {
     const blank = scoreProductPage('<html><body></body></html>', `${O}/p`, false).checks.find((c) => c.key === 'alt')!
     assert.deepStrictEqual([blank.points, blank.pass], [0, false])
 
+    // QA: collection tips talk about collections and keep the Shopify sentence
+    const bareCol = scoreCollectionPage('<html><head><title>x</title></head><body></body></html>', `${O}/collections/x`, true)
+    for (const c of bareCol.checks) {
+        assert.ok(c.tip && /collection/i.test(c.tip), `${c.key} tip should be about the collection: ${c.tip}`)
+        assert.ok(/Shopify/.test(c.tip as string), `${c.key} tip should keep the Shopify sentence`)
+        assert.ok(!/product page/i.test(c.tip as string), `${c.key} tip mentions the product page`)
+    }
+
     console.log('store audit checks: PASS')
     process.exit(0)
 }

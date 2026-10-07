@@ -58,6 +58,22 @@ const TIPS: Record<IStoreCheck['key'], { tip: string; shopify: string }> = {
     }
 }
 
+// Collections are lists, so their tips talk about the collection, not a product
+const COLLECTION_TIPS: Record<'schema' | 'description' | 'meta', { tip: string; shopify: string }> = {
+    schema: {
+        tip: 'Add CollectionPage or ItemList schema listing the products in this collection, so AI engines see the range.',
+        shopify: 'In Shopify, check whether your theme or SEO app adds schema to collection pages; many add it only to products.'
+    },
+    description: {
+        tip: 'Write 30+ words at the top of the collection: what is in it and who it is for.',
+        shopify: "In Shopify, put it in the collection's Description field."
+    },
+    meta: {
+        tip: 'Use a collection title of 10–70 characters and a meta description of 50–160 characters that say what the collection is.',
+        shopify: "In Shopify, edit both under 'Search engine listing' on the collection page."
+    }
+}
+
 const tipFor = (key: IStoreCheck['key'], shopify: boolean) => (shopify ? `${TIPS[key].tip} ${TIPS[key].shopify}` : TIPS[key].tip)
 
 const check = (
@@ -165,24 +181,20 @@ export const scoreCollectionPage = (html: string, url: string, shopify: boolean)
     const { $, root } = mainOf(html)
     const words = wordCount(root.text())
     const listSchema = facts.schemaTypes.some((t) => t === 'collectionpage' || t === 'itemlist' || t === 'collection')
+    const colCheck = (key: 'schema' | 'description' | 'meta', label: string, pass: boolean, detail: string): IStoreCheck => ({
+        key,
+        label,
+        pass,
+        points: pass ? 1 : 0,
+        max: 1,
+        detail,
+        ...(pass ? {} : { tip: shopify ? `${COLLECTION_TIPS[key].tip} ${COLLECTION_TIPS[key].shopify}` : COLLECTION_TIPS[key].tip })
+    })
+    const meta = metaCheck($, shopify)
     const checks: IStoreCheck[] = [
-        {
-            ...check(
-                'schema',
-                'Collection schema',
-                listSchema,
-                listSchema ? 1 : 0,
-                1,
-                listSchema ? 'Found' : 'No CollectionPage or ItemList',
-                shopify
-            ),
-            ...(listSchema ? {} : { tip: 'Add CollectionPage or ItemList schema listing the products, so AI engines see the range.' })
-        },
-        {
-            ...check('description', 'Description', words >= 30, words >= 30 ? 1 : 0, 1, `${words} words`, shopify),
-            ...(words >= 30 ? {} : { tip: 'Write 30+ words at the top of the collection: what is in it and who it is for.' })
-        },
-        metaCheck($, shopify)
+        colCheck('schema', 'Collection schema', listSchema, listSchema ? 'Found' : 'No CollectionPage or ItemList'),
+        colCheck('description', 'Description', words >= 30, `${words} words`),
+        colCheck('meta', 'Title and meta', meta.pass, meta.detail)
     ]
     return { url, name: facts.name || url, kind: 'collection', score: null, level: null, checks }
 }

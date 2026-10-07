@@ -90,7 +90,7 @@ export default function StoreAuditPanel({ brandId, initial }: { brandId?: string
         </div>
         <button type="button" className="btn" onClick={run} disabled={running || !brandId}>{running ? 'Auditing…' : view ? 'Audit again' : 'Audit product pages'}</button>
       </div>
-      {running && <ScanProgress title="Auditing your product pages" hint="Reading each product and collection page the way AI crawlers do. This takes up to a minute." />}
+      {running && <ScanProgress engines={false} title="Auditing your product pages" hint="Reading each product and collection page the way AI crawlers do. This takes up to a minute." />}
       {error && <p style={{ color: 'var(--bad)', fontSize: '13px' }}>{error}</p>}
 
       {!running && view && (
@@ -115,7 +115,7 @@ export default function StoreAuditPanel({ brandId, initial }: { brandId?: string
                   {products.map((p) => (
                     <Fragment key={p.url}>
                       <tr onClick={() => setOpen(open === p.url ? null : p.url)} style={{ cursor: 'pointer' }}>
-                        <td style={{ maxWidth: 220, overflowWrap: 'anywhere' }}><strong>{p.name}</strong></td>
+                        <td style={{ maxWidth: 220, overflowWrap: 'break-word' }}><strong>{p.name}</strong></td>
                         <td>{p.score !== null ? <Pill score={p.score} /> : <span style={{ ...small, color: 'var(--bad)' }}>couldn't open</span>}</td>
                         {PRODUCT_COLS.map((k) => <td key={k}>{p.error ? <span style={small}>—</span> : <Mark c={p.checks.find((c) => c.key === k)} />}</td>)}
                       </tr>
@@ -139,7 +139,7 @@ export default function StoreAuditPanel({ brandId, initial }: { brandId?: string
                     {collections.map((p) => (
                       <Fragment key={p.url}>
                         <tr onClick={() => setOpen(open === p.url ? null : p.url)} style={{ cursor: 'pointer' }}>
-                          <td style={{ maxWidth: 220, overflowWrap: 'anywhere' }}><strong>{p.name}</strong></td>
+                          <td style={{ maxWidth: 220, overflowWrap: 'break-word' }}><strong>{p.name}</strong></td>
                           {['schema', 'description', 'meta'].map((k) => <td key={k}>{p.error ? <span style={small}>—</span> : <Mark c={p.checks.find((c) => c.key === k)} />}</td>)}
                         </tr>
                         {open === p.url && <tr><td colSpan={4}><div style={sticky}><Details page={p} /></div></td></tr>}
@@ -150,7 +150,7 @@ export default function StoreAuditPanel({ brandId, initial }: { brandId?: string
               </div>
             </>
           )}
-          <p style={{ ...small, marginTop: '10px' }}>Click a page to see what each check found and how to fix it.</p>
+          {view.pages.length > 0 && <p style={{ ...small, marginTop: '10px' }}>Click a page to see what each check found and how to fix it.</p>}
         </>
       )}
       {!running && !view && !error && <p className="sub" style={{ marginTop: '10px' }}>Not audited yet. It also runs with every website audit.</p>}

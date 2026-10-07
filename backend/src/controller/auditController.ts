@@ -101,6 +101,10 @@ export default {
             if (!brand) {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
             }
+            // The result is saved on the audit; without one it would be lost and the re-scan wasted
+            if (!(await auditModel.exists({ brandId }))) {
+                return httpError(next, new Error('Run the website audit first, then audit your product pages.'), req, 409)
+            }
             const plan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : ((org.plan || 'free') as PlanName)
             const perDay = (DAILY_RESCAN_LIMITS[plan] ?? DAILY_RESCAN_LIMITS.free).audit
             if (!(await databseService.consumeDailyRescan(brandId, 'audit', perDay))) {

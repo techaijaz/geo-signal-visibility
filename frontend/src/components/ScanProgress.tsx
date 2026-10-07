@@ -7,7 +7,8 @@ const ENGINES = [
 ];
 
 // The login page's scanner, shown while a scan or other slow AI job runs
-export default function ScanProgress({ title, hint }: { title: string; hint: string }) {
+// engines={false}: a job that calls no AI engine (e.g. the store audit) shows the timer without engine names
+export default function ScanProgress({ title, hint, engines = true }: { title: string; hint: string; engines?: boolean }) {
   const [seconds, setSeconds] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
@@ -25,7 +26,7 @@ export default function ScanProgress({ title, hint }: { title: string; hint: str
         <div className="scanner-grid"></div>
         <div className="scanner-sweep"></div>
         <div className="scanner-ticks">
-          {ENGINES.map((e) => (
+          {(engines ? ENGINES : []).map((e) => (
             <div className="scanner-tick" key={e.label}>
               <span className="tick-dot" style={{ background: e.color, color: e.color }}></span>
               <span className="tick-label">{e.label}</span>

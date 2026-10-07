@@ -159,11 +159,12 @@ export function ProductsTable({ brandId }: { brandId?: string }) {
       </div>
     );
   }
-  if (!data.textAvailable) return <div className="panel"><p className="sub">Results after your next scan.</p></div>;
-
   return (
     <div className="panel">
-      {data.products.every((r) => !r.answers) ? (
+      {/* Before the first scan the table still lists the products and their AI-ready score */}
+      {!data.textAvailable ? (
+        <p className="sub">AI answer results appear after your next scan.</p>
+      ) : data.products.every((r) => !r.answers) ? (
         <p style={{ fontSize: '13.5px', margin: '0 0 12px' }}>
           None of your products was named in the last {data.totalAnswers} {data.totalAnswers === 1 ? 'answer' : 'answers'}. Questions that name a product type and budget help. Open a product below.
         </p>
@@ -188,7 +189,7 @@ export function ProductsTable({ brandId }: { brandId?: string }) {
                     </span>
                   </td>
                   <td className="mono">
-                    {r.overLimit ? <span style={small}>upgrade</span> : r.answers ? `${r.answers}/${data.totalAnswers}` : <span className="tag">Not seen</span>}
+                    {r.overLimit ? <span style={small}>upgrade</span> : !data.textAvailable ? <span style={small}>—</span> : r.answers ? `${r.answers}/${data.totalAnswers}` : <span className="tag">Not seen</span>}
                   </td>
                   <td className="mono">{pos(r.bestPosition)}</td>
                   <td>{r.models.map((m) => <span key={m} className="tag" style={{ marginRight: 4 }}>{m}</span>)}</td>

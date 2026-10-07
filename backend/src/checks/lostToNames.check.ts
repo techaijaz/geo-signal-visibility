@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 // Run: NODE_ENV=development npx ts-node --transpile-only src/checks/lostToNames.check.ts
 import assert from 'assert'
-import { positionIn, nameMatcher, computeLostTo } from '../service/competitorService'
+import { positionIn, nameMatcher, computeLostTo, isNotBrand } from '../service/competitorService'
 import { validateNames } from '../service/brandExtractionService'
 import aiService from '../service/aiService'
 
@@ -60,6 +60,11 @@ const old = [
     { queryText: 'q', model: 'ChatGPT', mentioned: false, position: null, rawText: md, brandsNamed: [{ name: 'Ajmal', position: 5 }] }
 ] as never[]
 assert.equal(computeLostTo(old, 'Hasan Oud', [], []).brands[0].avgPosition, 1)
+
+// Staging: review sites are not brands, misspelled or not
+assert.equal(isNotBrand('Fragrantica'), true)
+assert.equal(isNotBrand('Fragnatica'), true)
+assert.equal(isNotBrand('Basenotes'), true)
 
 console.log('lost-to names checks: PASS')
 process.exit(0)

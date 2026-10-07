@@ -101,6 +101,8 @@ export const validateAiShortName = (name: unknown, title: string, brandName: str
     if (ws.length < 1 || ws.length > 4) return null
     const titleWords = new Set(words(title.replace(/[^\p{L}\p{N}\s]/gu, ' ')).map(brandKey))
     if (!ws.every((w) => titleWords.has(brandKey(w)))) return null
+    // "Fresh Aromatic" describes the product; a name needs at least one word that isn't a describing word
+    if (ws.every((w) => FILLER_WORDS.has(w.toLowerCase()))) return null
     // "Hasanoud Passion" is refused; "Passion Oud" is fine although "oud" sits inside "hasanoud":
     // a word is the brand only when the brand key starts with it and it is longer than 3 letters
     const own = brandKey(brandName)

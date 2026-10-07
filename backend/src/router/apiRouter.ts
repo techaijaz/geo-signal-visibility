@@ -15,8 +15,12 @@ import adminController from '../controller/adminController'
 import jobController from '../controller/jobController'
 import authentication from '../middleware/authentication'
 import adminOnly from '../middleware/adminOnly'
+import objectIdParam from '../middleware/objectIdParam'
 
 const router = Router()
+
+// Malformed ids (e.g. "undefined" from the app) get 400 instead of a database cast error (500)
+router.param('id', objectIdParam)
 
 router.use(rateLimit)
 router.route('/self').get(apiController.self)

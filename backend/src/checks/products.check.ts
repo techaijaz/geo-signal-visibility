@@ -352,6 +352,10 @@ const run = async () => {
     assert.equal(linePosition(table, 3), 2)
     assert.equal(linePosition(['| Brand | Price |', '| :-- | --: |', '| Ajmal | 500 |', '| Rasasi | 700 |', '| Hasan Oud | 900 |'], 4), 3)
 
+    // Staging: the AI named VIBE "Fresh Aromatic"; a name made only of describing words is refused
+    assert.equal(validateAiShortName('Fresh Aromatic', 'VIBE Long Lasting Fresh Aromatic Perfume By Hasan Oud', 'Hasan Oud'), null)
+    assert.equal(validateAiShortName('Vibe', 'VIBE Long Lasting Fresh Aromatic Perfume By Hasan Oud', 'Hasan Oud'), 'Vibe')
+
     console.log('products checks: PASS')
     process.exit(0)
 }

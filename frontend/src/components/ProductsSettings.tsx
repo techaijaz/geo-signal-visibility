@@ -58,6 +58,7 @@ export default function ProductsSettings({ brandId }: { brandId?: string }) {
   const save = async (next: Product[]) => {
     if (!brandId) return false;
     setError('');
+    setNote(''); // an old "updated from Shopify" line must not stay under a later change
     setBusy('save');
     try {
       const res = await api.put(`/brands/${brandId}/products`, { products: next.map(clean) });

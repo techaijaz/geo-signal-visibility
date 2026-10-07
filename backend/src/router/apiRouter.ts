@@ -64,6 +64,7 @@ router.route('/brands/:id/products/visibility').get(authentication, productContr
 router.route('/brands/:id/audit').get(authentication, auditController.getBrandAudit)
 router.route('/brands/:id/audit/rescan').post(authentication, auditController.rescanBrandAudit)
 router.route('/brands/:id/audit/ai-view').post(authentication, auditController.runAiView)
+router.route('/brands/:id/audit/store').post(authentication, auditController.runStoreAudit)
 router.route('/brands/:id/recommendations').get(authentication, recommendationController.getBrandRecommendations)
 router.route('/brands/:id/recommendations/:recId/toggle').patch(authentication, recommendationController.toggleRecommendation)
 router.route('/brands/:id/recommendations/rescan').post(authentication, recommendationController.rescanBrandRecommendations)

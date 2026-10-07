@@ -579,9 +579,19 @@ export const auditService = {
             await recommendationModel.updateMany({ _id: { $in: resolvedIds } }, { isCompleted: true })
         }
 
+        // Product and collection pages; never fails the audit
+        let storeAudit: unknown = undefined
+        try {
+            const { storeAuditForBrand } = await import('./storeAuditService')
+            storeAudit = await storeAuditForBrand(brand)
+        } catch (err) {
+            logger.warn(`[auditService] Store audit failed for brand ${brandId}`, { meta: err })
+        }
+
         // Update or recreate audit in database
         const existingAudit = await auditModel.findOne({ brandId })
         if (existingAudit) {
+            if (storeAudit !== undefined) existingAudit.storeAudit = storeAudit
             existingAudit.healthScore = healthScore
             existingAudit.holdingBack = holdingBack
             existingAudit.crawlerAccess = crawlerAccess
@@ -601,6 +611,7 @@ export const auditService = {
             structuredData,
             offSiteFootprint,
             marketplaceReadability,
+            ...(storeAudit !== undefined ? { storeAudit } : {}),
             lastAuditedAt: new Date()
         })
     }

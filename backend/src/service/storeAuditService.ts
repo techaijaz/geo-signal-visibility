@@ -4,6 +4,8 @@ import * as cheerio from 'cheerio'
 import { extractPageFacts, isShopifyHtml, openError } from './aiViewService'
 import { auditService } from './auditService'
 import { fetchPublicText } from '../util/publicUrl'
+import orgModel from '../model/orgModel'
+import { getPlanLimits, type PlanName } from '../config/planLimits'
 
 export interface IStoreCheck {
     key: 'schema' | 'price' | 'reviews' | 'description' | 'faq' | 'alt' | 'meta'
@@ -320,4 +322,34 @@ export const runStoreAudit = async (
     const rank = (p: IStorePage) => (p.kind === 'collection' ? 2 : p.score === null ? 1 : 0)
     pages.sort((a, b) => rank(a) - rank(b) || (a.score ?? 0) - (b.score ?? 0))
     return { checkedAt: new Date(), source, score, pages }
+}
+
+// "https://www.store.com/products/x/?v=1" and "https://store.com/products/x" are the same page
+const pageKey = (url: string) => {
+    try {
+        const u = new URL(url)
+        return `${u.hostname.replace(/^www\./, '')}${u.pathname.replace(/\/+$/, '')}`.toLowerCase()
+    } catch {
+        return ''
+    }
+}
+
+// A saved product's AI-readiness score from the latest store audit, for the Products page
+export const aiReadyFor = (url: string, audit: IStoreAudit | null | undefined): number | null => {
+    const key = pageKey(url)
+    if (!key || !audit?.pages) return null
+    return audit.pages.find((p) => p.kind === 'product' && pageKey(p.url) === key)?.score ?? null
+}
+
+// The store audit for a brand: its saved products (up to the plan's limit) or the store's own pages
+export const storeAuditForBrand = async (brand: {
+    _id: unknown
+    website: string
+    orgId: unknown
+    products?: Array<{ url: string; shortName: string }>
+}) => {
+    const org = await orgModel.findById(brand.orgId).select('plan').lean()
+    const { maxProducts } = getPlanLimits(((org as { plan?: string } | null)?.plan || 'free') as PlanName)
+    const saved = (brand.products || []).filter((p) => p.url).map((p) => ({ url: p.url, shortName: p.shortName }))
+    return runStoreAudit(brand.website, saved, maxProducts)
 }

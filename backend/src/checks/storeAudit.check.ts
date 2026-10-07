@@ -7,7 +7,8 @@ import {
     productUrlsFromSitemap,
     collectionUrlsFromJson,
     choosePages,
-    runStoreAudit
+    runStoreAudit,
+    aiReadyFor
 } from '../service/storeAuditService'
 
 const words = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(' ')
@@ -217,6 +218,18 @@ const run = async () => {
         [`${O}/collections/oud`]
     )
     assert.ok(audit.checkedAt instanceof Date)
+
+    // Products page: a saved product's score from the store audit, matched by URL (www, slash, query ignored)
+    const saved = {
+        checkedAt: new Date(),
+        source: 'products' as const,
+        score: 70,
+        pages: [{ url: `${O}/products/x`, name: 'X', kind: 'product' as const, score: 64, level: 'warn' as const, checks: [] }]
+    }
+    assert.equal(aiReadyFor('https://www.shop.example/products/x/?variant=1', saved), 64)
+    assert.equal(aiReadyFor(`${O}/products/other`, saved), null)
+    assert.equal(aiReadyFor('', saved), null)
+    assert.equal(aiReadyFor(`${O}/products/x`, null), null)
 
     console.log('store audit checks: PASS')
     process.exit(0)

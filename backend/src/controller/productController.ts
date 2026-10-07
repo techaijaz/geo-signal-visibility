@@ -21,6 +21,8 @@ import {
     suggestProductQuestions
 } from '../service/productService'
 import brandModel from '../model/brandModel'
+import auditModel from '../model/auditModel'
+import { aiReadyFor, type IStoreAudit } from '../service/storeAuditService'
 import costLogModel from '../model/costLogModel'
 import { IBrandProduct } from '../types/brandTypes'
 
@@ -153,7 +155,13 @@ export default {
             const suggestions = Object.fromEntries(
                 products.filter((p) => notSeen.has(p.shortName)).map((p) => [p.shortName, suggestProductQuestions(p, existing)])
             )
-            httpResponse(req, res, 200, responceseMessage.SUCCESS, { ...result, suggestions })
+            // Each product's AI-readiness from the latest store audit (null until the first one)
+            const storeAudit = (await auditModel.findOne({ brandId: brand._id }).select('storeAudit').lean())?.storeAudit as
+                | IStoreAudit
+                | null
+                | undefined
+            const rows = result.products.map((r) => ({ ...r, aiReady: aiReadyFor(r.url, storeAudit) }))
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, { ...result, products: rows, suggestions })
         } catch (error) {
             httpError(next, error, req, 500)
         }

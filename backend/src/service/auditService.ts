@@ -5,6 +5,7 @@ import brandModel from '../model/brandModel'
 import mentionModel from '../model/mentionModel'
 import recommendationModel from '../model/recommendationModel'
 import { isResolvedByAudit } from './recommendationService'
+import { markVerified, recordDone } from './fixEventService'
 import { IAuditGridItem } from '../types/auditTypes'
 import logger from '../util/loger'
 import type { IFeedHealth, keepSavedFeed } from './feedHealthService'
@@ -573,12 +574,19 @@ export const auditService = {
         // Recommendations made before this audit (or against an older one) may ask for things now in place
         const stale = await recommendationModel
             .find({ brandId, isCompleted: { $ne: true } })
-            .select('text')
+            .select('brandId text category')
             .lean()
-        const resolvedIds = stale.filter((r) => isResolvedByAudit(r.text, { brandId, healthScore, crawlerAccess, structuredData })).map((r) => r._id)
-        if (resolvedIds.length > 0) {
-            await recommendationModel.updateMany({ _id: { $in: resolvedIds } }, { isCompleted: true })
+        const resolved = stale.filter((r) => isResolvedByAudit(r.text, { brandId, healthScore, crawlerAccess, structuredData }))
+        if (resolved.length > 0) {
+            await recommendationModel.updateMany({ _id: { $in: resolved.map((r) => r._id) } }, { isCompleted: true })
+            for (const r of resolved) await recordDone(r, 'audit')
         }
+        // Work the user already ticked that the audit now confirms
+        const ticked = await recommendationModel.find({ brandId, isCompleted: true }).select('text').lean()
+        await markVerified(
+            String(brandId),
+            ticked.filter((r) => isResolvedByAudit(r.text, { brandId, healthScore, crawlerAccess, structuredData })).map((r) => r._id)
+        )
 
         // Product and collection pages; never fails the audit
         let storeAudit: unknown = undefined

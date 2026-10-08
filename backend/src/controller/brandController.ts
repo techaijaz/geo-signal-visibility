@@ -13,6 +13,7 @@ import { saveBrandsNamed } from '../service/brandExtractionService'
 import { withAiCallContext } from '../service/costLogService'
 import recommendationModel from '../model/recommendationModel'
 import costLogModel from '../model/costLogModel'
+import { deleteBrandFixEvents } from '../service/fixEventService'
 import { detectVertical, suggestQueries as suggestQueriesWithAi, templateQueries } from '../service/querySuggestionService'
 
 // AI query suggestions per brand per rolling 24 hours, counted from cost logs so restarts don't reset it
@@ -265,6 +266,7 @@ export default {
             if (!deletedBrand) {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
             }
+            await deleteBrandFixEvents(id)
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, { _id: id })
         } catch (error) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useOutletContext, useSearchParams } from 'react-router-dom';
+import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import api from '../utils/axios';
 import ScanProgress from '../components/ScanProgress';
 import AiViewPanel, { type AiView } from '../components/AiViewPanel';
@@ -21,6 +21,7 @@ interface AuditData {
   lastAuditedAt?: string;
   aiView?: AiView | null;
   storeAudit?: StoreAudit | null;
+  feedHealth?: { shopify: boolean; score: number | null; total: number } | null;
 }
 
 interface OutletContextType {
@@ -339,6 +340,11 @@ export default function WebsiteAudit() {
       />
 
       <StoreAuditPanel key={`store-${activeBrandId}-${auditData?.lastAuditedAt ?? ''}`} brandId={activeBrandId} initial={auditData?.storeAudit} />
+      {auditData?.feedHealth?.shopify && auditData.feedHealth.score != null && (
+        <p style={{ fontSize: '13px', margin: '-6px 0 18px' }}>
+          Product feed: <strong>{auditData.feedHealth.score}/100</strong> across {auditData.feedHealth.total} products. <Link to="/products">See Products →</Link>
+        </p>
+      )}
 
       {/* 1. Crawler Access Panel */}
       <div className="panel">

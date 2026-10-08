@@ -18,6 +18,7 @@ export interface IAuditData {
     lastAuditedAt?: Date
     aiView?: unknown
     storeAudit?: unknown
+    feedHealth?: unknown
 }
 
 export interface IAuditDocument extends IAuditData, Document {}

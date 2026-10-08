@@ -23,10 +23,14 @@ import {
 import brandModel from '../model/brandModel'
 import auditModel from '../model/auditModel'
 import { aiReadyFor, type IStoreAudit } from '../service/storeAuditService'
+import { feedScoreFor, feedScores, keepSavedFeed, runFeedHealth, type IFeedHealth } from '../service/feedHealthService'
 import costLogModel from '../model/costLogModel'
 import { IBrandProduct } from '../types/brandTypes'
 
 const AI_NAMES_PER_DAY = 10
+const FEED_EVERY_MS = 10 * 60 * 1000
+// Last feed run per brand, so the 10-minute limit also holds before a result is saved
+const lastFeedRun = new Map<string, number>()
 
 // The brand (in the user's own workspace) and the plan's product limit, or an error response
 const loadBrand = async (req: Request, next: NextFunction) => {
@@ -142,6 +146,54 @@ export default {
         }
     },
 
+    // The saved feed result with every product (kept out of the general audit reads: it can be large)
+    getFeed: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const found = await loadBrand(req, next)
+            if (!found) return
+            const saved = (await auditModel.findOne({ brandId: found.brand._id }).select('feedHealth').lean()) as {
+                feedHealth?: IFeedHealth | null
+            } | null
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, { feedHealth: saved?.feedHealth ?? null })
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+
+    // Feed health from the Products page; cheap (no AI), so no daily quota, but at most once per 10 minutes
+    checkFeed: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const found = await loadBrand(req, next)
+            if (!found) return
+            const { brand } = found
+            const id = brand._id.toString()
+            const saved = (await auditModel.findOne({ brandId: brand._id }).select('feedHealth').lean()) as { feedHealth?: IFeedHealth | null } | null
+            const last = Math.max(saved?.feedHealth?.checkedAt ? new Date(saved.feedHealth.checkedAt).getTime() : 0, lastFeedRun.get(id) ?? 0)
+            if (Date.now() - last < FEED_EVERY_MS) {
+                return httpResponse(req, res, 200, responceseMessage.SUCCESS, {
+                    feedHealth: saved?.feedHealth ?? null,
+                    saved: !!saved?.feedHealth,
+                    fresh: false
+                })
+            }
+            lastFeedRun.set(id, Date.now())
+            const feedHealth = await runFeedHealth(brand.website)
+            if (keepSavedFeed(saved?.feedHealth, feedHealth)) {
+                return httpResponse(req, res, 200, responceseMessage.SUCCESS, {
+                    feedHealth: saved!.feedHealth,
+                    saved: true,
+                    fresh: false,
+                    failed: true
+                })
+            }
+            // Saved only on an existing audit (no upsert: a bare audit would stop the brand's first real audit)
+            const result = await auditModel.updateOne({ brandId: brand._id }, { $set: { feedHealth } })
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, { feedHealth, saved: result.matchedCount > 0, fresh: true })
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+
     getVisibility: async (req: Request, res: Response, next: NextFunction) => {
         try {
             const found = await loadBrand(req, next)
@@ -160,7 +212,11 @@ export default {
                 | IStoreAudit
                 | null
                 | undefined
-            const rows = result.products.map((r) => ({ ...r, aiReady: aiReadyFor(r.url, storeAudit) }))
+            // Only each product's URL and score, not the full feed result
+            const feedHealth = (await auditModel.findOne({ brandId: brand._id }).select('feedHealth.products.url feedHealth.products.score').lean())
+                ?.feedHealth as Pick<IFeedHealth, 'products'> | null | undefined
+            const scores = feedScores(feedHealth)
+            const rows = result.products.map((r) => ({ ...r, aiReady: aiReadyFor(r.url, storeAudit), feed: feedScoreFor(r.url, scores) }))
             httpResponse(req, res, 200, responceseMessage.SUCCESS, { ...result, products: rows, suggestions })
         } catch (error) {
             httpError(next, error, req, 500)

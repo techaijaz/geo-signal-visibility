@@ -297,7 +297,7 @@ const MAX_PAGES = 4
 export const fetchShopifyProducts = async (
     website: string,
     fetchText: (url: string) => Promise<string> = (url) => fetchPublicText(url, { Accept: 'application/json' })
-): Promise<{ shopify: boolean; raw: unknown[]; truncated: boolean }> => {
+): Promise<{ shopify: boolean; raw: unknown[]; truncated: boolean; partial: boolean }> => {
     const origin = new URL(auditService.cleanUrl(website)).origin
     const raw: unknown[] = []
     for (let n = 1; n <= MAX_PAGES; n++) {
@@ -309,11 +309,14 @@ export const fetchShopifyProducts = async (
         }
         // An empty store on page 1 is treated like no store: the user gets the manual form
         if (!Array.isArray(products) || (n === 1 && !products.length))
-            return n === 1 ? { shopify: false, raw: [], truncated: false } : { shopify: true, raw, truncated: false }
+            // A later page that fails (rather than coming back empty) leaves the catalogue partial
+            return n === 1
+                ? { shopify: false, raw: [], truncated: false, partial: false }
+                : { shopify: true, raw, truncated: false, partial: !Array.isArray(products) }
         raw.push(...(products as unknown[]))
-        if (products.length < PAGE) return { shopify: true, raw, truncated: false }
+        if (products.length < PAGE) return { shopify: true, raw, truncated: false, partial: false }
     }
-    return { shopify: true, raw, truncated: true }
+    return { shopify: true, raw, truncated: true, partial: false }
 }
 
 const namesPrompt = (

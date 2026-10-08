@@ -431,10 +431,17 @@ const databseService = {
     },
 
     // Visibility per scan (oldest -> newest), from the scan history kept in mentions
-    getVisibilityTrendByBrandId: async (brandId: string, limit = 12): Promise<IVisibilityTrendPoint[]> => {
+    // `since`: only scans from that date (fix impact reads a date range instead of the last N scans)
+    getVisibilityTrendByBrandId: async (brandId: string, limit = 12, since?: Date): Promise<IVisibilityTrendPoint[]> => {
         const scans: Array<{ _id: string; scannedAt: Date; models: Array<{ name: string; total: number; mentioned: number }> }> =
             await mentionModel.aggregate([
-                { $match: { brandId: new mongoose.Types.ObjectId(brandId), scanId: { $ne: null } } },
+                {
+                    $match: {
+                        brandId: new mongoose.Types.ObjectId(brandId),
+                        scanId: { $ne: null },
+                        ...(since ? { extractedAt: { $gte: since } } : {})
+                    }
+                },
                 {
                     $group: {
                         _id: { scanId: '$scanId', model: '$model' },

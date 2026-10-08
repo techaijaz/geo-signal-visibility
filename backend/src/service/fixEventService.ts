@@ -14,7 +14,7 @@ interface IRecLike {
 // One open event per recommendation; the audit confirming a ticked one only marks it verified (the work happened when the user did it)
 export const recordDone = async (rec: IRecLike, source: FixSource, at = new Date()) => {
     try {
-        const open = await fixEventModel.findOne({ recommendationId: rec._id, undoneAt: null })
+        const open = await fixEventModel.findOne({ brandId: rec.brandId, recommendationId: rec._id, undoneAt: null })
         if (open) {
             if (source === 'audit' && !open.verified) await fixEventModel.updateOne({ _id: open._id }, { verified: true })
             return
@@ -33,11 +33,22 @@ export const recordDone = async (rec: IRecLike, source: FixSource, at = new Date
     }
 }
 
-export const recordUndone = async (recId: string) => {
+export const recordUndone = async (brandId: string, recId: string) => {
     try {
-        await fixEventModel.updateOne({ recommendationId: recId, undoneAt: null }, { undoneAt: new Date() })
+        await fixEventModel.updateOne({ brandId, recommendationId: recId, undoneAt: null }, { undoneAt: new Date() })
     } catch (err) {
         logger.error('[FixEvent] Could not record undone work', { meta: err })
+    }
+}
+
+// The audit confirmed work the user had already ticked: verify its open events, never create new ones
+// (a tick from before this feature would otherwise become an audit event dated today)
+export const markVerified = async (brandId: string, recIds: unknown[]) => {
+    if (!recIds.length) return
+    try {
+        await fixEventModel.updateMany({ brandId, recommendationId: { $in: recIds }, undoneAt: null, verified: false }, { verified: true })
+    } catch (err) {
+        logger.error('[FixEvent] Could not mark work verified', { meta: err })
     }
 }
 

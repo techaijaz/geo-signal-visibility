@@ -4,7 +4,9 @@ import assert from 'assert'
 import mongoose from 'mongoose'
 import config from '../config/config'
 import fixEventModel from '../model/fixEventModel'
-import { recordDone, recordUndone, deleteBrandFixEvents } from '../service/fixEventService'
+import { recordDone, recordUndone, deleteBrandFixEvents, markVerified } from '../service/fixEventService'
+import recommendationModel from '../model/recommendationModel'
+import databseService from '../service/databseService'
 ;(async () => {
     await mongoose.connect(config.DATABASE_URL as string)
     const brandId = new mongoose.Types.ObjectId()
@@ -23,7 +25,7 @@ import { recordDone, recordUndone, deleteBrandFixEvents } from '../service/fixEv
         assert.equal(list[0].text, 'Add FAQ schema')
 
         // Untick → undoneAt; tick → a new open event
-        await recordUndone(String(faq._id))
+        await recordUndone(String(brandId), String(faq._id))
         list = await events(faq._id)
         assert.ok(list[0].undoneAt)
         await recordDone(faq, 'user')
@@ -50,7 +52,41 @@ import { recordDone, recordUndone, deleteBrandFixEvents } from '../service/fixEv
         assert.equal(list[0].verified, true)
 
         // Untick with nothing open → no error, nothing written
-        await recordUndone(String(new mongoose.Types.ObjectId()))
+        await recordUndone(String(brandId), String(new mongoose.Types.ObjectId()))
+
+        // I1: the audit confirming recommendations the user already ticked → their open events become verified, no new events
+        const schema = rec('Add Product schema')
+        await recordDone(schema, 'user')
+        await markVerified(String(brandId), [schema._id])
+        list = await events(schema._id)
+        assert.equal(list.length, 1)
+        assert.equal(list[0].verified, true)
+        assert.equal(list[0].source, 'user')
+        await markVerified(String(brandId), [new mongoose.Types.ObjectId()]) // nothing open → nothing written
+        assert.equal(await fixEventModel.countDocuments({ brandId, source: 'audit', text: 'Add Product schema' }), 0)
+
+        // I2: a recommendation of another brand can't be toggled through this brand, and gets no event
+        const otherBrand = new mongoose.Types.ObjectId()
+        const foreign = await recommendationModel.create({
+            brandId: otherBrand,
+            text: 'Foreign rec',
+            category: 'Technical',
+            effort: 'Low effort',
+            impact: 'High impact'
+        })
+        try {
+            assert.equal(await databseService.toggleRecommendationCompleted(String(foreign._id), String(brandId), true), null)
+            assert.equal((await recommendationModel.findById(foreign._id).lean())!.isCompleted, false)
+            const own = await databseService.toggleRecommendationCompleted(String(foreign._id), String(otherBrand), true)
+            assert.equal(own!.isCompleted, true)
+            // recordUndone scoped by brand: another brand can't close this brand's event
+            await recordDone({ _id: foreign._id, brandId: otherBrand, text: 'Foreign rec' }, 'user')
+            await recordUndone(String(brandId), String(foreign._id))
+            assert.equal(await fixEventModel.countDocuments({ brandId: otherBrand, undoneAt: null }), 1)
+        } finally {
+            await recommendationModel.deleteOne({ _id: foreign._id })
+            await fixEventModel.deleteMany({ brandId: otherBrand })
+        }
 
         // Brand delete removes its events
         await deleteBrandFixEvents(String(brandId))

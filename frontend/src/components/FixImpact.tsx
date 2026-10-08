@@ -50,7 +50,9 @@ function Numbers({ g }: { g: FixGroup }) {
 function StateLine({ g }: { g: FixGroup }) {
   if (g.state === 'no-before') return <span style={small}>No scan before this work, so there is nothing to compare with.</span>;
   if (g.state === 'no-after') return <span style={small}>Not enough scans after this work to measure it.</span>;
-  if (g.state === 'measuring') return <span style={small}>Measuring the effect, about {g.daysLeft} day{g.daysLeft === 1 ? '' : 's'} to go.</span>;
+  if (g.state === 'measuring') {
+    return <span style={small}>{g.daysLeft ? `Measuring the effect, about ${g.daysLeft} day${g.daysLeft === 1 ? '' : 's'} to go.` : 'Measuring the effect, waiting for the next scans.'}</span>;
+  }
   return <Numbers g={g} />;
 }
 
@@ -94,7 +96,8 @@ export function FixImpactCard({ brandId }: { brandId?: string }) {
         <div style={{ fontSize: '13.5px' }}>{names(g)} → <Numbers g={g} /></div>
       ) : (
         <p className="sub" style={{ margin: 0 }}>
-          Measuring the effect of {data.measuringCount} fix{data.measuringCount === 1 ? '' : 'es'}, result in about {data.measuringDays} day{data.measuringDays === 1 ? '' : 's'}.
+          Measuring the effect of {data.measuringCount} fix{data.measuringCount === 1 ? '' : 'es'}
+          {data.measuringDays ? `, result in about ${data.measuringDays} day${data.measuringDays === 1 ? '' : 's'}.` : '.'}
         </p>
       )}
       <div style={{ textAlign: 'right', marginTop: '10px', fontSize: '13px' }}><Link to="/recommendations">See all →</Link></div>

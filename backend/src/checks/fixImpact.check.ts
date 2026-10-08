@@ -80,7 +80,7 @@ const run = async () => {
 
     // States
     assert.equal(measureGroup([ev(0)], [scan(8, { ChatGPT: 10 }), scan(9, { ChatGPT: 10 })], at(40), 24).state, 'no-before')
-    const measuring = measureGroup([ev(0)], [scan(-2, { ChatGPT: 10 }), scan(8, { ChatGPT: 10 })], at(9), 24)
+    const measuring = measureGroup([ev(0)], [scan(-2, { ChatGPT: 10 }), scan(7.5, { ChatGPT: 10 })], at(8), 24)
     assert.equal(measuring.state, 'measuring')
     assert.ok(measuring.daysLeft! >= 1)
     assert.equal(measuring.before, undefined)
@@ -88,6 +88,11 @@ const run = async () => {
     assert.equal(interim.state, 'interim')
     assert.equal(interim.delta, 10)
     assert.equal(measureGroup([ev(0)], [scan(-2, { ChatGPT: 10 }), scan(8, { ChatGPT: 20 })], at(31), 24).state, 'no-after')
+
+    // M2: an overdue estimate drops the number instead of saying "about 1 day" for weeks
+    const overdue = measureGroup([ev(0)], [scan(-2, { ChatGPT: 10 }), scan(8, { ChatGPT: 10 })], at(20), 24)
+    assert.equal(overdue.state, 'measuring')
+    assert.equal(overdue.daysLeft, undefined)
 
     // Result bands: > +3 up, -3..+3 flat, < -3 down
     const band = (after: number) =>

@@ -56,13 +56,13 @@ export default {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
             }
 
-            const updatedRec = await databseService.toggleRecommendationCompleted(recId, Boolean(isCompleted))
+            const updatedRec = await databseService.toggleRecommendationCompleted(recId, brandId, Boolean(isCompleted))
             if (!updatedRec) {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Recommendation')), req, 404)
             }
             // Both are idempotent: a repeated tick or untick changes nothing
             if (updatedRec.isCompleted) await recordDone(updatedRec, 'user')
-            else await recordUndone(recId)
+            else await recordUndone(brandId, recId)
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 recommendation: updatedRec
@@ -97,7 +97,7 @@ export default {
                 overview: pickOverviewGroup(groups, now),
                 // For the Overview card when nothing is ready yet: fixes being measured and the soonest result
                 measuringCount: measuring.reduce((n, g) => n + g.fixes.length, 0),
-                measuringDays: measuring.length ? Math.min(...measuring.map((g) => g.daysLeft ?? 1)) : null
+                measuringDays: measuring.some((g) => g.daysLeft) ? Math.min(...measuring.filter((g) => g.daysLeft).map((g) => g.daysLeft!)) : null
             })
         } catch (error) {
             httpError(next, error, req, 500)

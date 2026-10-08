@@ -87,8 +87,10 @@ export const measureGroup = (group: IFixEvent[], scans: IScanPoint[], now: Date,
     if (before.count === 0) return { ...base, state: 'no-before' }
     if (after.count < MIN_AFTER_SCANS) {
         if (over) return { ...base, state: 'no-after' }
+        // Expected once enough scans have run; once that has passed (late or stopped scans) give no number
         const ready = last + AFTER_START_DAYS * DAY + MIN_AFTER_SCANS * scanIntervalHours * 60 * 60 * 1000
-        return { ...base, state: 'measuring', daysLeft: Math.max(1, Math.ceil((ready - time(now)) / DAY)) }
+        const left = Math.ceil((ready - time(now)) / DAY)
+        return { ...base, state: 'measuring', daysLeft: left > 0 ? left : undefined }
     }
 
     // Only engines present in both windows: a plan change that adds an engine must not move the number

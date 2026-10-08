@@ -373,8 +373,9 @@ const databseService = {
 
         return defaultList.filter((r) => !isResolvedByAudit(r.text, audit))
     },
-    toggleRecommendationCompleted: async (recId: string, isCompleted: boolean) => {
-        return recommendationModel.findByIdAndUpdate(recId, { isCompleted }, { new: true })
+    // Scoped to the brand: a recommendation of another brand is never touched (null → 404)
+    toggleRecommendationCompleted: async (recId: string, brandId: string, isCompleted: boolean) => {
+        return recommendationModel.findOneAndUpdate({ _id: recId, brandId }, { isCompleted }, { new: true })
     },
     // Build the new list first and swap it in at the end, so the page never sees an empty list in between
     // (an empty list made the page build its own one too: every recommendation twice)

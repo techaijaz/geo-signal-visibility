@@ -39,7 +39,7 @@ const TIP: Record<Key, string> = {
   category: 'Set a Product type (e.g. "Attar", "Perfume") in Products → Product organization, so AI can place the product in the right category.',
   gtin: '',
 };
-const COLS: Key[] = ['description', 'title', 'brand', 'image', 'images', 'price', 'stock', 'category'];
+const COLS: Key[] = ['description', 'title', 'brand', 'image', 'images', 'price', 'stock', 'category', 'gtin'];
 const COL_LABELS: Record<Key, string> = { description: 'Description', title: 'Title', brand: 'Brand', image: 'Image', images: 'Images', price: 'Price', stock: 'Stock', category: 'Category', gtin: 'GTIN' };
 const PAGE = 50;
 const small: React.CSSProperties = { fontSize: '12px', color: 'var(--text-faint)' };

@@ -9,6 +9,7 @@ import logger from '../util/loger'
 import responceseMessage from '../constent/responceseMessage'
 import { EUserRole } from '../constent/userConstent'
 import { DAILY_RESCAN_LIMITS, rescanLimitMessage, type PlanName } from '../config/planLimits'
+import { recordDone, recordUndone } from '../service/fixEventService'
 
 export default {
     getBrandRecommendations: async (req: Request, res: Response, next: NextFunction) => {
@@ -58,6 +59,9 @@ export default {
             if (!updatedRec) {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Recommendation')), req, 404)
             }
+            // Both are idempotent: a repeated tick or untick changes nothing
+            if (updatedRec.isCompleted) await recordDone(updatedRec, 'user')
+            else await recordUndone(recId)
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 recommendation: updatedRec

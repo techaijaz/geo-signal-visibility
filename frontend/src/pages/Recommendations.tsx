@@ -3,6 +3,7 @@ import { useOutletContext, useNavigate } from 'react-router-dom';
 import api from '../utils/axios';
 import ScanProgress from '../components/ScanProgress';
 import { usePlanLimits } from '../hooks/usePlanLimits';
+import { FixImpactSection } from '../components/FixImpact';
 
 interface RecommendationItem {
   _id: string;
@@ -213,6 +214,8 @@ const Recommendations: React.FC = () => {
         <h3 style={{ color: 'var(--amber)', marginBottom: '16px' }}>🔒 Recommendations are not available on the {plan.toUpperCase()} plan</h3>
         <p className="sub" style={{ marginBottom: '24px' }}>
           Upgrade to Starter or higher to get AI-powered recommendations on improving your brand visibility.
+          <br />
+          On a paid plan you can see how much your work raised your AI visibility.
         </p>
         <button className="btn btn-primary" onClick={() => navigate('/pricing')}>
           View Plans & Upgrade
@@ -446,6 +449,8 @@ const Recommendations: React.FC = () => {
           </div>
         )}
       </div>
+
+      <FixImpactSection brandId={activeBrandId} key={activeBrandId} />
     </div>
   );
 };

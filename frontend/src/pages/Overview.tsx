@@ -5,6 +5,7 @@ import VisibilityTrendChart, { type VisibilityTrendPoint } from '../components/V
 import ScanErrorBanner, { type ScanError } from '../components/ScanErrorBanner';
 import { LostToCard } from '../components/LostTo';
 import { ProductsCard } from '../components/ProductVisibility';
+import { FixImpactCard } from '../components/FixImpact';
 
 interface ModelStat {
   name: string;
@@ -141,6 +142,8 @@ const Overview: React.FC = () => {
       <LostToCard brandId={activeBrandId} brandName={data?.brandName} />
 
       <ProductsCard brandId={activeBrandId} key={activeBrandId} />
+
+      <FixImpactCard brandId={activeBrandId} key={`fix-${activeBrandId}`} />
 
       {/* Model Visibility & Sentiment Matrix Table */}
       <div className="panel">

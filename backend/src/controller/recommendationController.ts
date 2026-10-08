@@ -10,6 +10,7 @@ import responceseMessage from '../constent/responceseMessage'
 import { EUserRole } from '../constent/userConstent'
 import { DAILY_RESCAN_LIMITS, rescanLimitMessage, type PlanName } from '../config/planLimits'
 import { recordDone, recordUndone } from '../service/fixEventService'
+import { getFixImpact, pickOverviewGroup } from '../service/fixImpactService'
 
 export default {
     getBrandRecommendations: async (req: Request, res: Response, next: NextFunction) => {
@@ -65,6 +66,38 @@ export default {
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 recommendation: updatedRec
+            })
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+
+    // Visibility before and after the work the brand did (feature #14)
+    getFixImpact: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { authenticatedUser } = req as IAuthenticatedRequest
+            const { id: brandId } = req.params
+
+            const org = await databseService.findOrgByOwnerId(authenticatedUser._id.toString())
+            if (!org) {
+                return httpError(next, new Error(responceseMessage.NOT_FOUND('Workspace')), req, 404)
+            }
+
+            const brand = await databseService.findBrandByIdAndOrgId(brandId, org._id.toString())
+            if (!brand) {
+                return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
+            }
+
+            const plan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : ((org.plan || 'free') as PlanName)
+            const now = new Date()
+            const groups = await getFixImpact(brandId, plan, now)
+            const measuring = groups.filter((g) => g.state === 'measuring')
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, {
+                groups,
+                overview: pickOverviewGroup(groups, now),
+                // For the Overview card when nothing is ready yet: fixes being measured and the soonest result
+                measuringCount: measuring.reduce((n, g) => n + g.fixes.length, 0),
+                measuringDays: measuring.length ? Math.min(...measuring.map((g) => g.daysLeft ?? 1)) : null
             })
         } catch (error) {
             httpError(next, error, req, 500)

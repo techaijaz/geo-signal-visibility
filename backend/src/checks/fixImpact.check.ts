@@ -1,7 +1,17 @@
 /* eslint-disable no-console */
 // Run: NODE_ENV=development DATABASE_URL=mongodb://127.0.0.1:1/none npx ts-node --transpile-only src/checks/fixImpact.check.ts
 import assert from 'assert'
-import { groupFixEvents, measureGroup, pickEmailGroup, pickOverviewGroup, type IScanPoint, type IFixGroup } from '../service/fixImpactService'
+import {
+    groupFixEvents,
+    measureGroup,
+    pickEmailGroup,
+    pickOverviewGroup,
+    fixResultLine,
+    type IScanPoint,
+    type IFixGroup
+} from '../service/fixImpactService'
+import { renderWeeklyEmail } from '../service/reportService/weeklyReport'
+import type { IReportData } from '../service/reportService/reportData'
 import type { IFixEvent } from '../types/fixEventTypes'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -114,6 +124,37 @@ const run = async () => {
     assert.equal(pickOverviewGroup([G({ end: at(30), delta: 20 })], now), null) // older than 60 days
     assert.equal(pickOverviewGroup([G({ end: at(50), state: 'measuring', result: undefined })], now), null)
     assert.equal(pickOverviewGroup([G({ end: at(50), state: 'interim', delta: 4 }), G({ end: at(60), delta: 8 })], now)!.delta, 8)
+
+    // Monday email line: first fix + "N more", its date, before → after
+    const fix = (text: string) => ({ text, category: 'Technical', verified: true, doneAt: new Date('2026-09-12T06:00:00Z') })
+    assert.equal(
+        fixResultLine(G({ fixes: [fix('Add FAQ schema')], before: 12, after: 19 })),
+        'Result: after Add FAQ schema (12 Sept) your AI visibility went from 12% to 19% ↑'
+    )
+    assert.equal(
+        fixResultLine(G({ fixes: [fix('Add llms.txt'), fix('Add FAQ schema'), fix('Fix robots.txt')], before: 12, after: 19 })),
+        'Result: after Add llms.txt + 2 more (12 Sept) your AI visibility went from 12% to 19% ↑'
+    )
+    const report = {
+        brandName: 'Hasan Oud',
+        website: 'https://hasanoud.com',
+        generatedAt: '',
+        scannedAt: null,
+        visibility: 19,
+        previousVisibility: 12,
+        engines: [{ name: 'ChatGPT', score: 19, mentioned: 2, total: 10 }],
+        trend: [],
+        questions: [],
+        shareOfVoice: null,
+        audit: null,
+        recommendations: []
+    } as unknown as IReportData
+    const withLine = renderWeeklyEmail(report, 'https://x/unsub', 'Result: after Add FAQ schema (12 Sept) your AI visibility went from 12% to 19% ↑')
+    assert.ok(withLine.text.includes('Result: after Add FAQ schema'))
+    assert.ok(withLine.html.includes('Result: after Add FAQ schema'))
+    const without = renderWeeklyEmail(report, 'https://x/unsub')
+    assert.ok(!without.text.includes('Result:') && !without.html.includes('Result:'))
+    assert.ok(!without.text.includes('undefined') && !without.html.includes('undefined'))
 
     console.log('fixImpact checks passed')
 }

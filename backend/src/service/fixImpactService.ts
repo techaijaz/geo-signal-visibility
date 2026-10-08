@@ -124,6 +124,13 @@ export const pickOverviewGroup = (groups: IFixGroup[], now: Date) =>
         groups.filter((g) => (g.state === 'interim' || g.state === 'final') && g.result === 'up' && time(now) - time(g.end) <= OVERVIEW_DAYS * DAY)
     )
 
+// The Monday email's one line for a final, positive group
+export const fixResultLine = (g: IFixGroup) => {
+    const name = g.fixes.length === 1 ? g.fixes[0].text : `${g.fixes[0].text} + ${g.fixes.length - 1} more`
+    const date = new Date(g.fixes[0].doneAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })
+    return `Result: after ${name} (${date}) your AI visibility went from ${g.before}% to ${g.after}% ↑`
+}
+
 // Every group of the brand's recent work, newest first
 export const getFixImpact = async (brandId: string, plan: PlanName, now = new Date()): Promise<IFixGroup[]> => {
     const events = (await fixEventModel

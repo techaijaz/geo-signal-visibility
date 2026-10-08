@@ -13,6 +13,9 @@ import emailService from '../emailService'
 import logger from '../../util/loger'
 import { generateReportPdf } from './pdfService'
 import { IReportData } from './reportData'
+import fixEventModel from '../../model/fixEventModel'
+import { fixResultLine, getFixImpact, pickEmailGroup, type IFixGroup } from '../fixImpactService'
+import type { PlanName } from '../../config/planLimits'
 
 export const WEEKLY_REPORT_PLANS = ['starter', 'growth', 'agency']
 
@@ -49,7 +52,8 @@ const deltaLine = (d: IReportData) => {
     return `${delta > 0 ? 'Up' : 'Down'} ${Math.abs(delta)} points since last scan`
 }
 
-export const renderWeeklyEmail = (d: IReportData, unsubscribe: string) => {
+// fixLine: a fix impact result (feature #14), only when one became final this week
+export const renderWeeklyEmail = (d: IReportData, unsubscribe: string, fixLine?: string) => {
     const dashboard = `${config.FRONTEND_URL.replace(/\/$/, '')}/`
     const subject = `${d.brandName}: ${d.visibility}% AI visibility this week`
     const recs = d.recommendations.slice(0, 3)
@@ -59,6 +63,7 @@ export const renderWeeklyEmail = (d: IReportData, unsubscribe: string) => {
         '',
         `Visibility: ${d.visibility}% (${deltaLine(d)})`,
         ...d.engines.map((e) => `- ${e.name}: ${e.score}% (named in ${e.mentioned} of ${e.total} answers)`),
+        ...(fixLine ? ['', fixLine] : []),
         '',
         recs.length ? 'What to do next:' : '',
         ...recs.map((r, i) => `${i + 1}. ${r.text}`),
@@ -82,6 +87,7 @@ export const renderWeeklyEmail = (d: IReportData, unsubscribe: string) => {
   <tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px">
     ${d.engines.map((e) => row(esc(e.name), `${e.score}%`)).join('')}
   </table></td></tr>
+  ${fixLine ? `<tr><td style="font-size:14px;font-weight:bold;color:#1E7A4C;padding:16px 0 0">${esc(fixLine)}</td></tr>` : ''}
   ${
       recs.length
           ? `<tr><td style="font-size:15px;font-weight:bold;padding:22px 0 8px">What to do next</td></tr>
@@ -133,13 +139,22 @@ export const sendWeeklyReport = async (brandId: string): Promise<{ sent: number;
         (await databseService.generateBrandReport(brandId, 'weekly'))
     const data = report.data as IReportData
 
+    // A final, positive fix impact result not emailed yet; never blocks the report
+    let fixGroup: IFixGroup | null = null
+    try {
+        fixGroup = pickEmailGroup(await getFixImpact(brandId, (org.plan || 'free') as PlanName))
+    } catch (err) {
+        logger.error(`[WeeklyReport] Fix impact for brand ${brandId} failed`, { meta: err })
+    }
+    const fixLine = fixGroup ? fixResultLine(fixGroup) : undefined
+
     const pdf = await generateReportPdf(data)
     const safeName = brand.name.replace(/[^A-Za-z0-9-]+/g, '_').replace(/^_+|_+$/g, '') || 'Brand'
 
     let sent = 0
     for (const to of recipients) {
         const unsubscribe = unsubscribeUrl(brandId, to)
-        const { subject, text, html } = renderWeeklyEmail(data, unsubscribe)
+        const { subject, text, html } = renderWeeklyEmail(data, unsubscribe, fixLine)
         try {
             await emailService.sendEmail([to], subject, text, {
                 html,
@@ -155,6 +170,7 @@ export const sendWeeklyReport = async (brandId: string): Promise<{ sent: number;
     if (sent === 0) throw new Error(`Weekly report for brand ${brandId}: no email could be sent`)
     report.emailedAt = new Date()
     await report.save()
+    if (fixGroup) await fixEventModel.updateMany({ _id: { $in: fixGroup.eventIds } }, { emailedAt: new Date() })
     logger.info(`[WeeklyReport] Sent report for brand ${brandId} to ${sent}/${recipients.length} recipient(s)`)
     return { sent }
 }

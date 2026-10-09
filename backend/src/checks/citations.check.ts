@@ -179,6 +179,17 @@ const run = async () => {
     assert.equal(pageType('https://www.instagram.com/p/x', 'https://instagram.com/hasanoud', []), 'article')
     assert.equal(pageType('https://linktr.ee/other', own, ['https://linktr.ee/ajmal']), 'article')
 
+    // A competitor's own site is known by its name in the domain, even with no website saved
+    const rivals = ['Ajmal', 'Al Haramain', 'Oud']
+    assert.equal(pageType('https://in.ajmal.com/collections/attar', own, [], rivals), 'competitor')
+    assert.equal(pageType('https://alharamainperfumes.com/x', own, [], rivals), 'competitor')
+    assert.equal(pageType('https://al-haramain.in/x', own, [], rivals), 'competitor')
+    assert.equal(pageType('https://lbb.in/all/best-attars', own, [], rivals), 'article')
+    assert.equal(pageType('https://oudhouse.in/blog', own, [], rivals), 'article') // short names match the whole label only
+    assert.equal(pageType('https://www.amazon.in/stores/ajmal', own, [], rivals), 'marketplace')
+    assert.equal(pageType('https://ajmal.myshopify.com/x', own, [], rivals), 'competitor')
+    assert.equal(pageType('https://hasanoud.com/x', own, [], ['Hasan']), 'own') // own site wins over a competitor's name
+
     // I3: a run stuck in "running" for hours is shown as failed (never re-run, so never paid twice)
     const stuck = { ...R('2026-W43', 'running', []), startedAt: new Date(Date.now() - 4 * 3600 * 1000) }
     const stuckView = citationView([stuck, R('2026-W42', 'ok', [A])])

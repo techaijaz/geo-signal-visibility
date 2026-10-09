@@ -80,10 +80,17 @@ const sameSite = (domain: string, site: string) => {
     return !!d && (domain === d || domain.endsWith(`.${d}`))
 }
 
-export const pageType = (url: string, ownSite: string, competitorSites: string[]): PageType => {
+// in.ajmal.com, alharamainperfumes.com: a domain label is the name, or starts with a name of 5+ letters
+const namedSite = (domain: string, names: string[]) => {
+    if (isPlatform(domain)) return false
+    const labels = domain.split('.').map(brandKey)
+    return names.map(brandKey).some((k) => k.length >= 3 && labels.some((l) => l === k || (k.length >= 5 && l.startsWith(k))))
+}
+
+export const pageType = (url: string, ownSite: string, competitorSites: string[], competitorNames: string[] = []): PageType => {
     const domain = domainOf(url)
     if (sameSite(domain, ownSite)) return 'own'
-    if (competitorSites.some((s) => sameSite(domain, s))) return 'competitor'
+    if (competitorSites.some((s) => sameSite(domain, s)) || namedSite(domain, competitorNames)) return 'competitor'
     if (VIDEO.some((v) => domain === v || domain.endsWith(`.${v}`))) return 'video'
     if (domain.split('.').some((label) => MARKETPLACES.includes(label))) return 'marketplace'
     return 'article'
@@ -287,7 +294,12 @@ export const runCitationScan = async (brandId: string, deps: ICitationDeps = {})
                     url,
                     domain: domainOf(url),
                     title: res.sources[i].title,
-                    type: pageType(url, brand.website || '', competitorSites),
+                    type: pageType(
+                        url,
+                        brand.website || '',
+                        competitorSites,
+                        competitors.map((c) => c.name)
+                    ),
                     citedIn: [],
                     brands: [],
                     brandFound: false,

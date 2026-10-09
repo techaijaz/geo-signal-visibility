@@ -248,13 +248,14 @@ const aiService = {
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    signal: AbortSignal.timeout(120000),
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: prompt }] }],
                         tools: [{ google_search: {} }],
                         generationConfig: { maxOutputTokens: 400, thinkingConfig: { thinkingLevel: 'low' } }
                     })
-                }
+                },
+                // Grounded answers can take ~2 minutes; a retry would pay for the same answer twice
+                { timeoutMs: 120000, retries: 0 }
             )
             if (!response.ok) {
                 await logProviderFailure('Gemini', GEMINI_GROUNDED_MODEL, response)

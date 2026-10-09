@@ -5,7 +5,7 @@ import orgModel from '../model/orgModel'
 import brandModel from '../model/brandModel'
 import mentionModel from '../model/mentionModel'
 import databseService from './databseService'
-import { enqueueScanJob, enqueueWeeklyReportJob, schedulerQueue } from './queueService'
+import { enqueueCitationJob, enqueueScanJob, enqueueWeeklyReportJob, schedulerQueue } from './queueService'
 import { WEEKLY_REPORT_PLANS } from './reportService/weeklyReport'
 import { paymentService } from './paymentService'
 import logger from '../util/loger'
@@ -75,8 +75,6 @@ export const runSchedulerTick = async () => {
     return { enqueued }
 }
 
-// ISO week key like 2026-W40, used to dedupe weekly report jobs
-
 // Monday 9:00 IST: queue one weekly report job per brand on a paid plan
 export const runWeeklyReportTick = async () => {
     const orgs = await orgModel
@@ -96,8 +94,29 @@ export const runWeeklyReportTick = async () => {
     return { queued }
 }
 
+// Sunday 22:00 IST: one citation run per brand on a paid plan, ready for Monday's email
+export const runCitationTick = async () => {
+    if (!config.CITATIONS_ENABLED) return { queued: 0 }
+    const orgs = await orgModel
+        .find({ plan: { $in: WEEKLY_REPORT_PLANS } })
+        .select('_id')
+        .lean()
+    const brands = await brandModel
+        .find({ orgId: { $in: orgs.map((o) => o._id) } })
+        .select('_id')
+        .lean()
+    const week = isoWeek()
+    let queued = 0
+    for (const brand of brands) {
+        if (await enqueueCitationJob(brand._id.toString(), week)) queued++
+    }
+    logger.info(`[Scheduler] Citation tick: ${queued}/${brands.length} brand run(s) queued for ${week}`)
+    return { queued }
+}
+
 // Idempotent: every worker instance upserts the same scheduler ids, so Redis holds exactly one of each
 export const startScheduler = async () => {
     await schedulerQueue.upsertJobScheduler('scan-scheduler-tick', { every: TICK_INTERVAL_MS }, { name: 'scheduler-tick' })
     await schedulerQueue.upsertJobScheduler('weekly-report-tick', { pattern: '0 9 * * 1', tz: 'Asia/Kolkata' }, { name: 'weekly-report-tick' })
+    await schedulerQueue.upsertJobScheduler('citation-tick', { pattern: '0 22 * * 0', tz: 'Asia/Kolkata' }, { name: 'citation-tick' })
 }

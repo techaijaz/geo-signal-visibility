@@ -92,6 +92,9 @@ export default {
         CACHE_TTL_HOURS: Number(process.env.AI_CACHE_TTL_HOURS ?? 6)
     },
 
+    // Where AI reads (#9): weekly Gemini + Google Search check; 'false' stops all new runs (no cost)
+    CITATIONS_ENABLED: process.env.CITATIONS_ENABLED !== 'false',
+
     // BullMQ worker concurrency (jobs processed in parallel per worker process)
     WORKER_CONCURRENCY: {
         SCAN: Number(process.env.SCAN_WORKER_CONCURRENCY) || 5,

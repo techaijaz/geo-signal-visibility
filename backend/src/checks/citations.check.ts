@@ -12,8 +12,10 @@ import {
     topSources,
     ownSiteLine,
     citationEmailLine,
+    citationView,
     type ICitedPage
 } from '../service/citationService'
+import type { ICitationRun } from '../types/citationTypes'
 
 const page = (over: Partial<ICitedPage>): ICitedPage => ({
     url: 'https://lbb.in/all/best-attars',
@@ -111,6 +113,37 @@ const run = async () => {
         'Top source to reach this week: lbb.in — Best attars (names Ajmal, Al Haramain; not you)'
     )
     assert.equal(citationEmailLine([]), null)
+
+    // View: latest ok run shown; a failed or running latest falls back to the last ok run; New only vs a previous ok run
+    const R = (week: string, status: ICitationRun['status'], ps: ICitedPage[]): ICitationRun => ({
+        brandId: 'b',
+        week,
+        status,
+        startedAt: new Date(),
+        finishedAt: new Date('2026-10-11T17:00:00Z'),
+        questions: [
+            { text: 'q1', ok: status === 'ok' },
+            { text: 'q2', ok: false }
+        ],
+        pages: ps
+    })
+    const A = page({ url: 'https://a.in/1', domain: 'a.in' })
+    const B = page({ url: 'https://b.in/1', domain: 'b.in' })
+    assert.equal(citationView([]).run, null)
+    const first = citationView([R('2026-W41', 'ok', [A])])
+    assert.equal(first.outreach.length, 1)
+    assert.equal(first.newCount, 0) // first run: nothing to compare with
+    assert.deepEqual(first.counts, { questions: 2, failed: 1, pages: 1, read: 1 })
+    const second = citationView([R('2026-W42', 'ok', [A, B]), R('2026-W41', 'ok', [A])])
+    assert.equal(second.newCount, 1)
+    assert.equal(second.outreach.find((p) => p.url === 'https://b.in/1')!.isNew, true)
+    const failed = citationView([R('2026-W43', 'failed', []), R('2026-W42', 'ok', [A, B]), R('2026-W41', 'ok', [A])])
+    assert.equal(failed.failedLatest, true)
+    assert.equal(failed.run!.week, '2026-W42')
+    assert.equal(failed.newCount, 1)
+    const running = citationView([R('2026-W43', 'running', [])])
+    assert.equal(running.run!.status, 'running')
+    assert.equal(running.outreach.length, 0)
 
     console.log('citations checks passed')
 }

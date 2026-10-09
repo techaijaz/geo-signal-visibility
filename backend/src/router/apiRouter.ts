@@ -58,6 +58,7 @@ router.route('/brands/:id/mentions').get(authentication, mentionController.getBr
 router.route('/brands/:id/mentions/rescan').post(authentication, mentionController.rescanMentions)
 router.route('/brands/:id/competitors/compare').get(authentication, brandController.getCompetitorComparison)
 router.route('/brands/:id/lost-to').get(authentication, brandController.getLostTo)
+router.route('/brands/:id/citations').get(authentication, brandController.getCitations)
 router.route('/brands/:id/query-suggestions').post(authentication, brandController.suggestQueries)
 router.route('/queries/templates').get(authentication, brandController.getQueryTemplates)
 router.route('/brands/:id/products').get(authentication, productController.getProducts).put(authentication, productController.saveProducts)

@@ -11,6 +11,7 @@ import citationRunModel from '../model/citationRunModel'
 import { fetchPublicText } from '../util/publicUrl'
 import { isoWeek } from '../util/isoWeek'
 import logger from '../util/loger'
+import type { ICitationRun } from '../types/citationTypes'
 
 export type PageType = 'marketplace' | 'video' | 'own' | 'competitor' | 'article'
 
@@ -128,6 +129,35 @@ export const citationEmailLine = (outreach: IOutreachRow[]): string | null => {
     const top = outreach.find((p) => p.isNew) || outreach[0]
     if (!top) return null
     return `Top source to reach this week: ${top.domain} — ${top.title} (names ${top.brands.join(', ')}; not you)`
+}
+
+// What the page shows (runs newest first): the latest ok run; a failed or running latest falls back to the last
+// ok one. "New" compares with the ok run before it, so the very first run marks nothing new.
+export const citationView = (runs: ICitationRun[]) => {
+    const latest = runs[0] ?? null
+    const ok = runs.filter((r) => r.status === 'ok')
+    const shown = latest?.status === 'ok' ? latest : (ok[0] ?? null)
+    const prev = shown ? ok[ok.indexOf(shown) + 1] : undefined
+    const pages = shown?.pages ?? []
+    const prevUrls = prev ? new Set(buildOutreach(prev.pages, new Set()).map((p) => p.url)) : new Set(pages.map((p) => p.url))
+    const outreach = buildOutreach(pages, prevUrls)
+    const head = shown ?? latest
+    return {
+        run: head
+            ? { week: head.week, status: latest!.status, checkedAt: head.finishedAt ?? head.startedAt, questions: head.questions.length }
+            : null,
+        failedLatest: latest?.status === 'failed' && !!shown,
+        outreach,
+        topSources: topSources(pages),
+        ownSite: ownSiteLine(pages, shown ? shown.questions.filter((q) => q.ok).length : 0),
+        counts: {
+            questions: shown?.questions.length ?? 0,
+            failed: shown?.questions.filter((q) => !q.ok).length ?? 0,
+            pages: pages.length,
+            read: pages.filter((p) => p.readFrom === 'page').length
+        },
+        newCount: outreach.filter((p) => p.isNew).length
+    }
 }
 
 // ---- The weekly run ----------------------------------------------------------------------------

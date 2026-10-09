@@ -15,6 +15,8 @@ import recommendationModel from '../model/recommendationModel'
 import costLogModel from '../model/costLogModel'
 import { deleteBrandFixEvents } from '../service/fixEventService'
 import citationRunModel from '../model/citationRunModel'
+import { CITATION_QUESTIONS, citationView } from '../service/citationService'
+import type { ICitationRun } from '../types/citationTypes'
 import { detectVertical, suggestQueries as suggestQueriesWithAi, templateQueries } from '../service/querySuggestionService'
 
 // AI query suggestions per brand per rolling 24 hours, counted from cost logs so restarts don't reset it
@@ -271,6 +273,27 @@ export default {
             await citationRunModel.deleteMany({ brandId: id })
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, { _id: id })
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+
+    // Where AI reads (#9): the latest weekly Gemini + Google Search check
+    getCitations: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { authenticatedUser } = req as IAuthenticatedRequest
+            const { id } = req.params
+            const org = await ensureUserOrg(authenticatedUser._id.toString(), authenticatedUser.name)
+            const brand = await databseService.findBrandByIdAndOrgId(id, org)
+            if (!brand) {
+                return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
+            }
+            const plan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : ((org.plan || 'free') as PlanName)
+            if (CITATION_QUESTIONS[plan] === 0) {
+                return httpResponse(req, res, 200, responceseMessage.SUCCESS, { locked: true })
+            }
+            const runs = await citationRunModel.find({ brandId: brand._id }).sort({ week: -1 }).limit(8).lean()
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, citationView(runs as unknown as ICitationRun[]))
         } catch (error) {
             httpError(next, error, req, 500)
         }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { LostToSection } from '../components/LostTo';
+import { CitationsSection } from '../components/Citations';
 import api from '../utils/axios';
 
 interface SovItem {
@@ -150,6 +151,8 @@ export default function Competitors() {
       </div>
 
       <LostToSection brandId={activeBrandId} brandName={context?.currentBrand?.name} />
+
+      <CitationsSection brandId={activeBrandId} key={`cit-${activeBrandId}`} />
     </div>
   );
 }

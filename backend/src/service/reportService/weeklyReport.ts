@@ -14,6 +14,9 @@ import logger from '../../util/loger'
 import { generateReportPdf } from './pdfService'
 import { IReportData } from './reportData'
 import fixEventModel from '../../model/fixEventModel'
+import citationRunModel from '../../model/citationRunModel'
+import { citationEmailLine, citationView, isRecentWeek } from '../citationService'
+import type { ICitationRun } from '../../types/citationTypes'
 import { fixResultLine, getFixImpact, pickEmailGroup, type IFixGroup } from '../fixImpactService'
 import type { PlanName } from '../../config/planLimits'
 
@@ -53,7 +56,8 @@ const deltaLine = (d: IReportData) => {
 }
 
 // fixLine: a fix impact result (feature #14), only when one became final this week
-export const renderWeeklyEmail = (d: IReportData, unsubscribe: string, fixLine?: string) => {
+// citationLine: the top page to reach from this week's "where AI reads" check (feature #9)
+export const renderWeeklyEmail = (d: IReportData, unsubscribe: string, fixLine?: string, citationLine?: string) => {
     const dashboard = `${config.FRONTEND_URL.replace(/\/$/, '')}/`
     const subject = `${d.brandName}: ${d.visibility}% AI visibility this week`
     const recs = d.recommendations.slice(0, 3)
@@ -64,6 +68,7 @@ export const renderWeeklyEmail = (d: IReportData, unsubscribe: string, fixLine?:
         `Visibility: ${d.visibility}% (${deltaLine(d)})`,
         ...d.engines.map((e) => `- ${e.name}: ${e.score}% (named in ${e.mentioned} of ${e.total} answers)`),
         ...(fixLine ? ['', fixLine] : []),
+        ...(citationLine ? ['', citationLine] : []),
         '',
         recs.length ? 'What to do next:' : '',
         ...recs.map((r, i) => `${i + 1}. ${r.text}`),
@@ -88,6 +93,7 @@ export const renderWeeklyEmail = (d: IReportData, unsubscribe: string, fixLine?:
     ${d.engines.map((e) => row(esc(e.name), `${e.score}%`)).join('')}
   </table></td></tr>
   ${fixLine ? `<tr><td style="font-size:14px;font-weight:bold;color:#1E7A4C;padding:16px 0 0">${esc(fixLine)}</td></tr>` : ''}
+  ${citationLine ? `<tr><td style="font-size:14px;color:#0F2629;padding:12px 0 0">${esc(citationLine)}</td></tr>` : ''}
   ${
       recs.length
           ? `<tr><td style="font-size:15px;font-weight:bold;padding:22px 0 8px">What to do next</td></tr>
@@ -148,13 +154,24 @@ export const sendWeeklyReport = async (brandId: string): Promise<{ sent: number;
     }
     const fixLine = fixGroup ? fixResultLine(fixGroup) : undefined
 
+    // The top page to reach from this week's citation check; never blocks the report
+    let citationLine: string | undefined
+    try {
+        const runs = await citationRunModel.find({ brandId }).sort({ week: -1 }).limit(8).lean()
+        const view = citationView(runs as unknown as ICitationRun[])
+        // "This week" only from a recent run, never an old one repeated every Monday
+        if (view.run?.status === 'ok' && isRecentWeek(view.run.week, new Date())) citationLine = citationEmailLine(view.outreach) ?? undefined
+    } catch (err) {
+        logger.error(`[WeeklyReport] Citations for brand ${brandId} failed`, { meta: err })
+    }
+
     const pdf = await generateReportPdf(data)
     const safeName = brand.name.replace(/[^A-Za-z0-9-]+/g, '_').replace(/^_+|_+$/g, '') || 'Brand'
 
     let sent = 0
     for (const to of recipients) {
         const unsubscribe = unsubscribeUrl(brandId, to)
-        const { subject, text, html } = renderWeeklyEmail(data, unsubscribe, fixLine)
+        const { subject, text, html } = renderWeeklyEmail(data, unsubscribe, fixLine, citationLine)
         try {
             await emailService.sendEmail([to], subject, text, {
                 html,

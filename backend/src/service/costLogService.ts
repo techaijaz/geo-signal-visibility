@@ -5,7 +5,7 @@ import logger from '../util/loger'
 
 interface IAiCallContext {
     brandId?: string
-    purpose: 'scan' | 'recommendations' | 'brands' | 'queries' | 'products'
+    purpose: 'scan' | 'recommendations' | 'brands' | 'queries' | 'products' | 'citations'
 }
 
 // Which brand and feature the AI calls inside a run belong to, without passing it through every function

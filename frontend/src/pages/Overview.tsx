@@ -6,6 +6,7 @@ import ScanErrorBanner, { type ScanError } from '../components/ScanErrorBanner';
 import { LostToCard } from '../components/LostTo';
 import { ProductsCard } from '../components/ProductVisibility';
 import { FixImpactCard } from '../components/FixImpact';
+import { CitationsCard } from '../components/Citations';
 
 interface ModelStat {
   name: string;
@@ -144,6 +145,8 @@ const Overview: React.FC = () => {
       <ProductsCard brandId={activeBrandId} key={activeBrandId} />
 
       <FixImpactCard brandId={activeBrandId} key={`fix-${activeBrandId}`} />
+
+      <CitationsCard brandId={activeBrandId} key={`cit-${activeBrandId}`} />
 
       {/* Model Visibility & Sentiment Matrix Table */}
       <div className="panel">

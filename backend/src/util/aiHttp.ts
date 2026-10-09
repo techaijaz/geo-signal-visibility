@@ -37,9 +37,17 @@ const backoffMs = (attempt: number, retryAfter: string | null) => {
  * fetch for AI provider calls: per-request timeout, retries on 429/5xx/network errors
  * (honouring Retry-After), and a per-provider concurrency cap.
  * Returns the final Response (possibly non-ok); throws only if every attempt failed at the network level.
+ * opts: a slow, paid call (Gemini with Google Search) sets its own timeout and retries, so it isn't cut at the
+ * default timeout and sent (and billed) again.
  */
-export const aiFetch = async (provider: string, url: string, init: RequestInit): Promise<Response> => {
-    const { TIMEOUT_MS, RETRIES } = config.AI_LIMITS
+export const aiFetch = async (
+    provider: string,
+    url: string,
+    init: RequestInit,
+    opts: { timeoutMs?: number; retries?: number } = {}
+): Promise<Response> => {
+    const TIMEOUT_MS = opts.timeoutMs ?? config.AI_LIMITS.TIMEOUT_MS
+    const RETRIES = opts.retries ?? config.AI_LIMITS.RETRIES
     await acquire(provider)
     try {
         let lastError: unknown = null

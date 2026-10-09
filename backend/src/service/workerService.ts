@@ -5,8 +5,19 @@ import aiService from './aiService'
 import { auditService } from './auditService'
 import logger from '../util/loger'
 import config from '../config/config'
-import { connection, ScanJobData, AuditJobData, RecommendationJobData, WeeklyReportJobData } from './queueService'
-import { runSchedulerTick, runWeeklyReportTick } from './schedulerService'
+import {
+    connection,
+    ScanJobData,
+    AuditJobData,
+    RecommendationJobData,
+    WeeklyReportJobData,
+    CitationJobData,
+    enqueueCitationJob
+} from './queueService'
+import { runCitationTick, runSchedulerTick, runWeeklyReportTick } from './schedulerService'
+import { runCitationScan } from './citationService'
+import citationRunModel from '../model/citationRunModel'
+import { isoWeek } from '../util/isoWeek'
 import { sendWeeklyReport } from './reportService/weeklyReport'
 
 export const startWorkers = () => {
@@ -17,6 +28,10 @@ export const startWorkers = () => {
             logger.info(`[BullMQ Worker] Starting AI scan job for brand: ${brandId}`)
             const mentions = await aiService.scanMentionsWithAi(brandId)
             logger.info(`[BullMQ Worker] Completed AI scan job for brand: ${brandId} (${mentions.length} mentions processed)`)
+            // A brand's first citation run follows its first scan, so "Where AI reads" isn't empty until Sunday
+            if (config.CITATIONS_ENABLED && mentions.length && !(await citationRunModel.exists({ brandId }))) {
+                await enqueueCitationJob(brandId, isoWeek())
+            }
             return { brandId, count: mentions.length }
         },
         { connection, concurrency: config.WORKER_CONCURRENCY.SCAN }
@@ -54,14 +69,25 @@ export const startWorkers = () => {
         { connection, concurrency: 2 }
     )
 
+    // Gemini with Google Search is slow and paid: one brand at a time
+    const citationWorker = new Worker<CitationJobData>(
+        'citation-scan',
+        async (job: Job<CitationJobData>) => runCitationScan(job.data.brandId, { week: job.data.week }),
+        {
+            connection,
+            concurrency: 1
+        }
+    )
+
     // Each tick is a single job, so only one worker instance runs it even when scaled out
     const schedulerWorker = new Worker(
         'scan-scheduler',
-        async (job: Job) => (job.name === 'weekly-report-tick' ? runWeeklyReportTick() : runSchedulerTick()),
+        async (job: Job) =>
+            job.name === 'weekly-report-tick' ? runWeeklyReportTick() : job.name === 'citation-tick' ? runCitationTick() : runSchedulerTick(),
         { connection }
     )
 
-    const workers = [scanWorker, auditWorker, recommendationWorker, weeklyReportWorker, schedulerWorker]
+    const workers = [scanWorker, auditWorker, recommendationWorker, weeklyReportWorker, citationWorker, schedulerWorker]
 
     // Attach worker error listeners to avoid unhandled crashes when Redis is disconnected
     for (const worker of workers) {

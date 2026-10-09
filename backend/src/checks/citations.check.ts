@@ -13,6 +13,10 @@ import {
     ownSiteLine,
     citationEmailLine,
     citationView,
+    titleOf,
+    textOf,
+    isRecentWeek,
+    groundedUsage,
     type ICitedPage
 } from '../service/citationService'
 import type { ICitationRun } from '../types/citationTypes'
@@ -169,6 +173,49 @@ const run = async () => {
     assert.ok(!mail.html.includes('<attars>'))
     const plain = renderWeeklyEmail(report, 'https://x/unsub')
     assert.ok(!plain.text.includes('Top source') && !plain.html.includes('Top source'))
+
+    // I7: a website on a shared platform (Instagram, an Amazon store) never claims the whole platform
+    assert.equal(pageType('https://www.amazon.in/dp/B01', own, ['https://www.amazon.in/stores/ajmal']), 'marketplace')
+    assert.equal(pageType('https://www.instagram.com/p/x', 'https://instagram.com/hasanoud', []), 'article')
+    assert.equal(pageType('https://linktr.ee/other', own, ['https://linktr.ee/ajmal']), 'article')
+
+    // I3: a run stuck in "running" for hours is shown as failed (never re-run, so never paid twice)
+    const stuck = { ...R('2026-W43', 'running', []), startedAt: new Date(Date.now() - 4 * 3600 * 1000) }
+    const stuckView = citationView([stuck, R('2026-W42', 'ok', [A])])
+    assert.equal(stuckView.run!.status, 'failed')
+    assert.equal(stuckView.failedLatest, true)
+    const fresh = { ...R('2026-W43', 'running', []), startedAt: new Date() }
+    assert.equal(citationView([fresh]).run!.status, 'running')
+
+    // I8: the email line only uses a run from this week or last week
+    assert.equal(isRecentWeek('2026-W41', new Date('2026-10-12T04:00:00Z')), true) // Monday after a W41 Sunday run
+    assert.equal(isRecentWeek('2026-W42', new Date('2026-10-12T04:00:00Z')), true)
+    assert.equal(isRecentWeek('2026-W39', new Date('2026-10-12T04:00:00Z')), false)
+
+    // I4: thinking tokens are billed as output
+    assert.deepEqual(groundedUsage({ promptTokenCount: 8, candidatesTokenCount: 396, thoughtsTokenCount: 120 }), {
+        inputTokens: 8,
+        outputTokens: 516
+    })
+    assert.deepEqual(groundedUsage(undefined), { inputTokens: 0, outputTokens: 0 })
+
+    // M1/M2: HTML entities decoded in titles and page text
+    assert.equal(titleOf('<title>Best &#8211; Attar &amp; Oud&#039;s &quot;Top&quot;</title>'), `Best – Attar & Oud's "Top"`)
+    assert.equal(titleOf(`<title>${'x'.repeat(300)}</title>`).length, 120)
+    assert.ok(textOf('<p>Adil&nbsp;Qadri</p><script>Ajmal</script>').includes('Adil Qadri'))
+    assert.ok(!textOf('<p>x</p><script>Ajmal</script>').includes('Ajmal'))
+
+    // M3: own-site line counts distinct questions, never more than asked
+    assert.deepEqual(
+        ownSiteLine(
+            [
+                page({ type: 'own', domain: 'hasanoud.com', url: 'https://hasanoud.com/1', citedIn: ['q1', 'q2'] }),
+                page({ type: 'own', domain: 'hasanoud.com', url: 'https://hasanoud.com/2', citedIn: ['q1'] })
+            ],
+            2
+        ).own,
+        2
+    )
 
     console.log('citations checks passed')
 }

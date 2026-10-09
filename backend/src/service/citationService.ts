@@ -11,6 +11,8 @@ import citationRunModel from '../model/citationRunModel'
 import { fetchPublicText } from '../util/publicUrl'
 import { isoWeek } from '../util/isoWeek'
 import logger from '../util/loger'
+import config from '../config/config'
+export { groundedUsage } from '../util/groundedUsage'
 import type { ICitationRun } from '../types/citationTypes'
 
 export type PageType = 'marketplace' | 'video' | 'own' | 'competitor' | 'article'
@@ -65,8 +67,16 @@ export const domainOf = (url: string): string => {
     }
 }
 
+// A "website" on a shared platform (an Instagram page, an Amazon store, a Linktree) must not claim the whole platform
+const PLATFORMS = ['instagram.com', 'facebook.com', 'linktr.ee', 'wa.me', 'twitter.com', 'x.com', 'linkedin.com']
+const isPlatform = (d: string) =>
+    PLATFORMS.some((p) => d === p || d.endsWith(`.${p}`)) ||
+    VIDEO.some((v) => d === v || d.endsWith(`.${v}`)) ||
+    d.split('.').some((l) => MARKETPLACES.includes(l))
+
 const sameSite = (domain: string, site: string) => {
     const d = domainOf(site)
+    if (isPlatform(d)) return false
     return !!d && (domain === d || domain.endsWith(`.${d}`))
 }
 
@@ -114,13 +124,14 @@ export const topSources = (pages: ICitedPage[]) => {
 
 // "Your site was cited in 0 of 10 answers; Ajmal's site: 3"
 export const ownSiteLine = (pages: ICitedPage[], questions: number) => {
-    const own = pages.filter((p) => p.type === 'own').reduce((n, p) => n + p.citedIn.length, 0)
-    const byCompetitor = new Map<string, number>()
+    // Distinct questions, so two own pages cited for one question never read "6 of 5"
+    const own = new Set(pages.filter((p) => p.type === 'own').flatMap((p) => p.citedIn)).size
+    const byCompetitor = new Map<string, Set<string>>()
     for (const p of pages.filter((x) => x.type === 'competitor')) {
         const name = p.brands[0] || p.domain
-        byCompetitor.set(name, (byCompetitor.get(name) || 0) + p.citedIn.length)
+        byCompetitor.set(name, new Set([...(byCompetitor.get(name) || []), ...p.citedIn]))
     }
-    const best = [...byCompetitor.entries()].sort((a, b) => b[1] - a[1])[0]
+    const best = [...byCompetitor.entries()].map(([n, qs]) => [n, qs.size] as const).sort((a, b) => b[1] - a[1])[0]
     return { own, questions, topCompetitor: best ? { name: best[0], count: best[1] } : null }
 }
 
@@ -133,7 +144,13 @@ export const citationEmailLine = (outreach: IOutreachRow[]): string | null => {
 
 // What the page shows (runs newest first): the latest ok run; a failed or running latest falls back to the last
 // ok one. "New" compares with the ok run before it, so the very first run marks nothing new.
-export const citationView = (runs: ICitationRun[]) => {
+const STUCK_MS = 3 * 60 * 60 * 1000
+
+export const citationView = (allRuns: ICitationRun[]) => {
+    // A run left "running" by a restart is shown as failed; it is never re-run, so never paid twice
+    const runs = allRuns.map((r) =>
+        r.status === 'running' && Date.now() - new Date(r.startedAt).getTime() > STUCK_MS ? { ...r, status: 'failed' as const } : r
+    )
     const latest = runs[0] ?? null
     const ok = runs.filter((r) => r.status === 'ok')
     const shown = latest?.status === 'ok' ? latest : (ok[0] ?? null)
@@ -160,40 +177,69 @@ export const citationView = (runs: ICitationRun[]) => {
     }
 }
 
+// The Monday email only uses a run from this ISO week or the one before
+export const isRecentWeek = (week: string, now: Date) => week === isoWeek(now) || week === isoWeek(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000))
+
+const ENTITIES: Record<string, string> = {
+    amp: '&',
+    nbsp: ' ',
+    quot: '"',
+    apos: "'",
+    lt: '<',
+    gt: '>',
+    ndash: '–',
+    mdash: '—',
+    rsquo: '’',
+    lsquo: '‘'
+}
+const decode = (s: string) =>
+    s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
+        if (e[0] === '#') {
+            const code = e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : Number(e.slice(1))
+            return Number.isFinite(code) && code > 0 && code < 0x110000 ? String.fromCodePoint(code) : m
+        }
+        return ENTITIES[e.toLowerCase()] ?? m
+    })
+
+export const titleOf = (html: string) =>
+    decode(/<title[^>]*>([^<]*)<\/title>/i.exec(html)?.[1] || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 120)
+export const textOf = (html: string) => decode(html.replace(/<(script|style|noscript|svg|template)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' '))
+
 // ---- The weekly run ----------------------------------------------------------------------------
 
 export interface ICitationDeps {
     grounded?: (prompt: string) => ReturnType<typeof aiService.callGeminiGrounded>
-    resolve?: (uri: string) => Promise<string>
+    resolve?: (uri: string) => Promise<string | null> // null: the redirect couldn't be resolved
     fetchText?: (url: string) => Promise<string>
     now?: Date
+    week?: string // the week the job was queued for; a late job still belongs to it
 }
 
 const KEEP_RUNS = 8
 const PAGE_UA = 'Mozilla/5.0 (compatible; SignalAI-Citations/1.0)'
 
-// Gemini's source links are redirects; the Location header is the real page
-const resolveRedirect = async (uri: string) => {
+// Gemini's source links are Google redirects; the Location header is the real page. Only Google's own
+// redirect host is asked, and only an http(s) location is accepted
+const resolveRedirect = async (uri: string): Promise<string | null> => {
+    if (!uri.startsWith('https://vertexaisearch.cloud.google.com/')) return /^https?:\/\//i.test(uri) ? uri : null
     try {
         const res = await fetch(uri, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(5000) })
-        return res.headers.get('location') || uri
+        const location = res.headers.get('location')
+        return location && /^https?:\/\//i.test(location) ? location : null
     } catch {
-        return uri
+        return null
     }
 }
-
-const titleOf = (html: string) => (/<title[^>]*>([^<]*)<\/title>/i.exec(html)?.[1] || '').replace(/\s+/g, ' ').trim()
-const textOf = (html: string) =>
-    html
-        .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&amp;/g, '&')
 
 export const runCitationScan = async (brandId: string, deps: ICitationDeps = {}): Promise<'ok' | 'failed' | 'skipped'> => {
     const grounded = deps.grounded ?? aiService.callGeminiGrounded
     const resolve = deps.resolve ?? resolveRedirect
     const fetchText = deps.fetchText ?? ((url: string) => fetchPublicText(url, { 'User-Agent': PAGE_UA }, 10000))
-    const week = isoWeek(deps.now ?? new Date())
+    if (!config.CITATIONS_ENABLED) return 'skipped' // switched off: jobs already queued cost nothing
+    const week = deps.week ?? isoWeek(deps.now ?? new Date())
 
     const brand = await brandModel.findById(brandId).lean()
     if (!brand) return 'skipped'
@@ -216,7 +262,7 @@ export const runCitationScan = async (brandId: string, deps: ICitationDeps = {})
             ? await mentionModel.find({ brandId, scanId: brand.lastScanId }).select('queryText mentioned brandsNamed').lean()
             : []
         const questions = pickQuestions(
-            (brand.queries || []).map((q) => q.text),
+            (brand.queries || []).filter((q) => (q as { enabled?: boolean }).enabled !== false).map((q) => q.text),
             latest,
             competitors.map((c) => c.name),
             limit
@@ -228,8 +274,15 @@ export const runCitationScan = async (brandId: string, deps: ICitationDeps = {})
             const res = await withAiCallContext({ brandId, purpose: 'citations' }, () => grounded(q))
             asked.push({ text: q, ok: !!res })
             if (!res) continue
-            const urls = await Promise.all(res.sources.map(async (s) => cleanUrl(await resolve(s.uri))))
-            urls.forEach((url, i) => {
+            // Unresolved redirect → the source's domain (Gemini's title), judged by the answer text only
+            const urls = await Promise.all(
+                res.sources.map(async (s) => {
+                    const real = await resolve(s.uri)
+                    return real ? { url: cleanUrl(real), unresolved: false } : { url: `https://${s.title}/`, unresolved: true }
+                })
+            )
+            urls.forEach(({ url, unresolved }, i) => {
+                if (!domainOf(url)) return
                 const page = pages.get(url) ?? {
                     url,
                     domain: domainOf(url),
@@ -238,7 +291,7 @@ export const runCitationScan = async (brandId: string, deps: ICitationDeps = {})
                     citedIn: [],
                     brands: [],
                     brandFound: false,
-                    readFrom: 'page' as const,
+                    readFrom: (unresolved ? 'answer' : 'page') as ICitedPage['readFrom'],
                     answer: ''
                 }
                 if (!page.citedIn.includes(q)) page.citedIn.push(q)
@@ -255,6 +308,7 @@ export const runCitationScan = async (brandId: string, deps: ICitationDeps = {})
         // Each page once; one that can't be read is judged by the answer text it supported
         for (const page of pages.values()) {
             try {
+                if (page.readFrom === 'answer') throw new Error('redirect not resolved')
                 const html = await fetchText(page.url)
                 page.title = titleOf(html) || page.title
                 const text = textOf(html)

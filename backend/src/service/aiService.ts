@@ -1,6 +1,7 @@
 import config from '../config/config'
 import { createHash } from 'crypto'
 import { aiFetch } from '../util/aiHttp'
+import { groundedUsage } from '../util/groundedUsage'
 import aiResponseCacheModel from '../model/aiResponseCacheModel'
 import { randomUUID } from 'crypto'
 import brandModel from '../model/brandModel'
@@ -35,7 +36,8 @@ interface IGeminiResponse {
     usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number }
 }
 
-interface IGeminiGroundedResponse extends IGeminiResponse {
+interface IGeminiGroundedResponse extends Omit<IGeminiResponse, 'usageMetadata'> {
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number }
     candidates?: Array<{
         content?: { parts?: Array<{ text?: string }> }
         groundingMetadata?: {
@@ -265,8 +267,7 @@ const aiService = {
             await recordAiUsage({
                 provider: 'Google',
                 model: GEMINI_GROUNDED_MODEL,
-                inputTokens: data.usageMetadata?.promptTokenCount ?? 0,
-                outputTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+                ...groundedUsage(data.usageMetadata),
                 latencyMs: Date.now() - startedAt,
                 prompt
             })

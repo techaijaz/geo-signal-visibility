@@ -16,7 +16,7 @@ import { runCitationScan, type ICitationDeps } from '../service/citationService'
         website: 'https://www.hasanoud.com/',
         category: 'Fragrances & Perfumes',
         competitors: [{ name: 'Ajmal', website: 'https://www.ajmal.com' }, { name: 'Adil Qadri' }],
-        queries: [{ text: 'best attar for gifting' }, { text: 'alcohol free attar' }]
+        queries: [{ text: 'best attar for gifting' }, { text: 'paused question', enabled: false }, { text: 'alcohol free attar' }]
     })
     const brandId = String(brand._id)
     const pages: Record<string, string> = {
@@ -28,7 +28,8 @@ import { runCitationScan, type ICitationDeps } from '../service/citationService'
         { title: 'lbb.in', uri: 'r1' },
         { title: 'ajmal.com', uri: 'r2' },
         { title: 'blocked.in', uri: 'r3' },
-        { title: 'hasanoud.com', uri: 'r4' }
+        { title: 'hasanoud.com', uri: 'r4' },
+        { title: 'sultanattar.com', uri: 'r5' }
     ]
     const redirects: Record<string, string> = {
         r1: 'https://lbb.in/all/best-attars?utm_source=gemini',
@@ -42,7 +43,7 @@ import { runCitationScan, type ICitationDeps } from '../service/citationService'
             sources,
             supports: [{ text: 'Adil Qadri attars are popular for gifting', chunks: [2] }]
         }),
-        resolve: async (uri) => redirects[uri],
+        resolve: async (uri) => redirects[uri] ?? null,
         fetchText: async (url) => {
             if (!pages[url]) throw new Error('blocked')
             return pages[url]
@@ -73,6 +74,24 @@ import { runCitationScan, type ICitationDeps } from '../service/citationService'
         const blocked = run.pages.find((p) => p.domain === '10.0.0.5')!
         assert.equal(blocked.readFrom, 'answer')
         assert.deepEqual(blocked.brands, ['Adil Qadri'])
+
+        // I5: paused questions are not checked
+        assert.ok(!run.questions.some((q) => q.text === 'paused question'))
+        // I6: a redirect that can't be resolved becomes the source's domain, judged by the answer, not a Google link
+        const unresolved = run.pages.find((p) => p.domain === 'sultanattar.com')!
+        assert.equal(unresolved.url, 'https://sultanattar.com/')
+        assert.equal(unresolved.readFrom, 'answer')
+        assert.ok(!run.pages.some((p) => p.domain.includes('vertexaisearch')))
+
+        // I2: the run is saved under the week it was queued for, not the day it runs
+        assert.equal(await runCitationScan(brandId, deps({ week: '2026-W45', now: new Date('2026-11-09T02:00:00Z') })), 'ok')
+        assert.equal(await citationRunModel.countDocuments({ brandId, week: '2026-W45' }), 1)
+        await citationRunModel.deleteOne({ brandId, week: '2026-W45' })
+
+        // I1: switch off → queued jobs do nothing (no cost)
+        ;(config as { CITATIONS_ENABLED: boolean }).CITATIONS_ENABLED = false
+        assert.equal(await runCitationScan(brandId, deps({ now: new Date('2026-12-28T16:30:00Z') })), 'skipped')
+        ;(config as { CITATIONS_ENABLED: boolean }).CITATIONS_ENABLED = true
 
         // Same week again → skipped, no second run
         assert.equal(await runCitationScan(brandId, deps()), 'skipped')

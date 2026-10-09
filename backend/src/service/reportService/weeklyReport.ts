@@ -15,7 +15,7 @@ import { generateReportPdf } from './pdfService'
 import { IReportData } from './reportData'
 import fixEventModel from '../../model/fixEventModel'
 import citationRunModel from '../../model/citationRunModel'
-import { citationEmailLine, citationView } from '../citationService'
+import { citationEmailLine, citationView, isRecentWeek } from '../citationService'
 import type { ICitationRun } from '../../types/citationTypes'
 import { fixResultLine, getFixImpact, pickEmailGroup, type IFixGroup } from '../fixImpactService'
 import type { PlanName } from '../../config/planLimits'
@@ -159,7 +159,8 @@ export const sendWeeklyReport = async (brandId: string): Promise<{ sent: number;
     try {
         const runs = await citationRunModel.find({ brandId }).sort({ week: -1 }).limit(8).lean()
         const view = citationView(runs as unknown as ICitationRun[])
-        if (view.run?.status === 'ok') citationLine = citationEmailLine(view.outreach) ?? undefined
+        // "This week" only from a recent run, never an old one repeated every Monday
+        if (view.run?.status === 'ok' && isRecentWeek(view.run.week, new Date())) citationLine = citationEmailLine(view.outreach) ?? undefined
     } catch (err) {
         logger.error(`[WeeklyReport] Citations for brand ${brandId} failed`, { meta: err })
     }

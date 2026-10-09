@@ -70,10 +70,14 @@ export const startWorkers = () => {
     )
 
     // Gemini with Google Search is slow and paid: one brand at a time
-    const citationWorker = new Worker<CitationJobData>('citation-scan', async (job: Job<CitationJobData>) => runCitationScan(job.data.brandId), {
-        connection,
-        concurrency: 1
-    })
+    const citationWorker = new Worker<CitationJobData>(
+        'citation-scan',
+        async (job: Job<CitationJobData>) => runCitationScan(job.data.brandId, { week: job.data.week }),
+        {
+            connection,
+            concurrency: 1
+        }
+    )
 
     // Each tick is a single job, so only one worker instance runs it even when scaled out
     const schedulerWorker = new Worker(

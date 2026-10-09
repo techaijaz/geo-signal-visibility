@@ -251,9 +251,11 @@ const aiService = {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        // A short answer ends inside the cap; a cut one loses the brands at the end of its list
+                        system_instruction: { parts: [{ text: 'Answer in under 150 words. Name the brands or products you recommend.' }] },
                         contents: [{ parts: [{ text: prompt }] }],
                         tools: [{ google_search: {} }],
-                        generationConfig: { maxOutputTokens: 400, thinkingConfig: { thinkingLevel: 'low' } }
+                        generationConfig: { maxOutputTokens: 800, thinkingConfig: { thinkingLevel: 'low' } }
                     })
                 },
                 // Grounded answers can take ~2 minutes; a retry would pay for the same answer twice

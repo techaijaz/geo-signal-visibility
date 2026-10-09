@@ -96,10 +96,12 @@ export default function Competitors() {
         <p className="sub">Of all tracked mentions this week, who's actually showing up</p>
 
         <div className="sov-bar">
-          {sovList.map((item, idx) => (
+          {/* A 0% brand gets no segment (its label would squeeze in at the end); the legend still shows it */}
+          {sovList.filter((item) => item.percentage > 0).map((item, idx) => (
             <div
               key={idx}
               className="sov-seg"
+              title={`${item.name} · ${item.percentage}%`}
               style={{
                 width: `${item.percentage}%`,
                 background: item.color,
@@ -115,7 +117,7 @@ export default function Competitors() {
           {sovList.map((item, idx) => (
             <div key={idx} className="sov-legend-item">
               <span className="sov-legend-swatch" style={{ background: item.color }}></span>
-              {item.isUserBrand ? `${item.name} (you)` : item.name}
+              {item.isUserBrand ? `${item.name} (you)` : item.name} · {item.percentage}%
             </div>
           ))}
         </div>

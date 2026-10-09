@@ -2,6 +2,15 @@
 // and the outreach list of pages that name competitors but not the brand. One engine's view (Gemini + Google Search).
 import { brandKey, nameMatcher } from './competitorService'
 import type { PlanName } from '../config/planLimits'
+import aiService from './aiService'
+import { withAiCallContext } from './costLogService'
+import brandModel from '../model/brandModel'
+import orgModel from '../model/orgModel'
+import mentionModel from '../model/mentionModel'
+import citationRunModel from '../model/citationRunModel'
+import { fetchPublicText } from '../util/publicUrl'
+import { isoWeek } from '../util/isoWeek'
+import logger from '../util/loger'
 
 export type PageType = 'marketplace' | 'video' | 'own' | 'competitor' | 'article'
 
@@ -119,4 +128,126 @@ export const citationEmailLine = (outreach: IOutreachRow[]): string | null => {
     const top = outreach.find((p) => p.isNew) || outreach[0]
     if (!top) return null
     return `Top source to reach this week: ${top.domain} — ${top.title} (names ${top.brands.join(', ')}; not you)`
+}
+
+// ---- The weekly run ----------------------------------------------------------------------------
+
+export interface ICitationDeps {
+    grounded?: (prompt: string) => ReturnType<typeof aiService.callGeminiGrounded>
+    resolve?: (uri: string) => Promise<string>
+    fetchText?: (url: string) => Promise<string>
+    now?: Date
+}
+
+const KEEP_RUNS = 8
+const PAGE_UA = 'Mozilla/5.0 (compatible; SignalAI-Citations/1.0)'
+
+// Gemini's source links are redirects; the Location header is the real page
+const resolveRedirect = async (uri: string) => {
+    try {
+        const res = await fetch(uri, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(5000) })
+        return res.headers.get('location') || uri
+    } catch {
+        return uri
+    }
+}
+
+const titleOf = (html: string) => (/<title[^>]*>([^<]*)<\/title>/i.exec(html)?.[1] || '').replace(/\s+/g, ' ').trim()
+const textOf = (html: string) =>
+    html
+        .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&amp;/g, '&')
+
+export const runCitationScan = async (brandId: string, deps: ICitationDeps = {}): Promise<'ok' | 'failed' | 'skipped'> => {
+    const grounded = deps.grounded ?? aiService.callGeminiGrounded
+    const resolve = deps.resolve ?? resolveRedirect
+    const fetchText = deps.fetchText ?? ((url: string) => fetchPublicText(url, { 'User-Agent': PAGE_UA }, 10000))
+    const week = isoWeek(deps.now ?? new Date())
+
+    const brand = await brandModel.findById(brandId).lean()
+    if (!brand) return 'skipped'
+    const org = await orgModel.findById(brand.orgId).select('plan').lean()
+    const limit = CITATION_QUESTIONS[(org?.plan || 'free') as PlanName] ?? 0
+    if (limit === 0) return 'skipped'
+    if (await citationRunModel.exists({ brandId, week })) return 'skipped'
+
+    let run
+    try {
+        run = await citationRunModel.create({ brandId, week, status: 'running', startedAt: new Date() })
+    } catch {
+        return 'skipped' // another worker started this week's run
+    }
+
+    try {
+        const competitors = (brand.competitors || []).map((c) => ({ name: c.name, aliases: (c as { aliases?: string[] }).aliases }))
+        const competitorSites = (brand.competitors || []).map((c) => (c as { website?: string }).website || '').filter(Boolean)
+        const latest = brand.lastScanId
+            ? await mentionModel.find({ brandId, scanId: brand.lastScanId }).select('queryText mentioned brandsNamed').lean()
+            : []
+        const questions = pickQuestions(
+            (brand.queries || []).map((q) => q.text),
+            latest,
+            competitors.map((c) => c.name),
+            limit
+        )
+
+        const pages = new Map<string, ICitedPage & { answer: string }>()
+        const asked: Array<{ text: string; ok: boolean }> = []
+        for (const q of questions) {
+            const res = await withAiCallContext({ brandId, purpose: 'citations' }, () => grounded(q))
+            asked.push({ text: q, ok: !!res })
+            if (!res) continue
+            const urls = await Promise.all(res.sources.map(async (s) => cleanUrl(await resolve(s.uri))))
+            urls.forEach((url, i) => {
+                const page = pages.get(url) ?? {
+                    url,
+                    domain: domainOf(url),
+                    title: res.sources[i].title,
+                    type: pageType(url, brand.website || '', competitorSites),
+                    citedIn: [],
+                    brands: [],
+                    brandFound: false,
+                    readFrom: 'page' as const,
+                    answer: ''
+                }
+                if (!page.citedIn.includes(q)) page.citedIn.push(q)
+                page.answer +=
+                    ' ' +
+                    res.supports
+                        .filter((s) => s.chunks.includes(i))
+                        .map((s) => s.text)
+                        .join(' ')
+                pages.set(url, page)
+            })
+        }
+
+        // Each page once; one that can't be read is judged by the answer text it supported
+        for (const page of pages.values()) {
+            try {
+                const html = await fetchText(page.url)
+                page.title = titleOf(html) || page.title
+                const text = textOf(html)
+                page.brands = brandsOnText(text, competitors)
+                page.brandFound = brandsOnText(text, [{ name: brand.name }]).length > 0
+            } catch {
+                page.readFrom = 'answer'
+                page.brands = brandsOnText(page.answer, competitors)
+                page.brandFound = brandsOnText(page.answer, [{ name: brand.name }]).length > 0
+            }
+        }
+
+        const status = asked.some((a) => a.ok) ? 'ok' : 'failed'
+        await citationRunModel.updateOne(
+            { _id: run._id },
+            { status, finishedAt: new Date(), questions: asked, pages: [...pages.values()].map(({ answer: _answer, ...p }) => p) }
+        )
+        const old = await citationRunModel.find({ brandId }).sort({ week: -1 }).skip(KEEP_RUNS).select('_id').lean()
+        if (old.length) await citationRunModel.deleteMany({ _id: { $in: old.map((o) => o._id) } })
+        return status
+    } catch (err) {
+        logger.error(`[Citations] Run for brand ${brandId} failed`, { meta: err })
+        await citationRunModel.updateOne({ _id: run._id }, { status: 'failed', finishedAt: new Date() })
+        return 'failed'
+    }
 }

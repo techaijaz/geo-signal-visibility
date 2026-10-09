@@ -35,6 +35,20 @@ interface IGeminiResponse {
     usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number }
 }
 
+interface IGeminiGroundedResponse extends IGeminiResponse {
+    candidates?: Array<{
+        content?: { parts?: Array<{ text?: string }> }
+        groundingMetadata?: {
+            groundingChunks?: Array<{ web?: { uri?: string; title?: string } }>
+            groundingSupports?: Array<{ segment?: { text?: string }; groundingChunkIndices?: number[] }>
+        }
+    }>
+}
+
+// Where AI reads (#9): Gemini answers with Google Search and lists its sources. Flash 3.x needs thinkingLevel
+// 'low' at least ('minimal' is refused); grounding is billed per search after a monthly free allowance
+const GEMINI_GROUNDED_MODEL = 'gemini-3.8-flash'
+
 interface IClaudeResponse {
     content?: Array<{
         text?: string
@@ -216,6 +230,54 @@ const aiService = {
             )
         } catch (error) {
             logger.error('Gemini API Error:', { meta: error })
+            return null
+        }
+    },
+
+    // An answer from Gemini with Google Search, with its sources; null on any failure (the caller skips the question)
+    callGeminiGrounded: async (
+        prompt: string
+    ): Promise<{ text: string; sources: Array<{ title: string; uri: string }>; supports: Array<{ text: string; chunks: number[] }> } | null> => {
+        const apiKey = await databseService.getDecryptedApiKey('GEMINI')
+        if (!apiKey) return null
+        try {
+            const startedAt = Date.now()
+            const response = await aiFetch(
+                'GEMINI',
+                `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_GROUNDED_MODEL}:generateContent?key=${apiKey}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: AbortSignal.timeout(120000),
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        tools: [{ google_search: {} }],
+                        generationConfig: { maxOutputTokens: 400, thinkingConfig: { thinkingLevel: 'low' } }
+                    })
+                }
+            )
+            if (!response.ok) {
+                await logProviderFailure('Gemini', GEMINI_GROUNDED_MODEL, response)
+                return null
+            }
+            const data = (await response.json()) as IGeminiGroundedResponse
+            await recordAiUsage({
+                provider: 'Google',
+                model: GEMINI_GROUNDED_MODEL,
+                inputTokens: data.usageMetadata?.promptTokenCount ?? 0,
+                outputTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+                latencyMs: Date.now() - startedAt,
+                prompt
+            })
+            const c = data.candidates?.[0]
+            const meta = c?.groundingMetadata
+            return {
+                text: (c?.content?.parts || []).map((p) => p.text || '').join(''),
+                sources: (meta?.groundingChunks || []).map((ch) => ({ title: ch.web?.title || '', uri: ch.web?.uri || '' })).filter((s) => s.uri),
+                supports: (meta?.groundingSupports || []).map((s) => ({ text: s.segment?.text || '', chunks: s.groundingChunkIndices || [] }))
+            }
+        } catch (error) {
+            logger.error('Gemini grounded API Error:', { meta: error })
             return null
         }
     },

@@ -9,6 +9,7 @@ import { enqueueScanJob, enqueueWeeklyReportJob, schedulerQueue } from './queueS
 import { WEEKLY_REPORT_PLANS } from './reportService/weeklyReport'
 import { paymentService } from './paymentService'
 import logger from '../util/loger'
+import { isoWeek } from '../util/isoWeek'
 
 const TICK_INTERVAL_MS = 5 * 60 * 1000
 // If an enqueued scan never completes, the brand becomes due again after this lease
@@ -75,14 +76,6 @@ export const runSchedulerTick = async () => {
 }
 
 // ISO week key like 2026-W40, used to dedupe weekly report jobs
-const isoWeek = (d = new Date()) => {
-    const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-    const day = t.getUTCDay() || 7
-    t.setUTCDate(t.getUTCDate() + 4 - day)
-    const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1))
-    const week = Math.ceil(((t.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
-    return `${t.getUTCFullYear()}-W${String(week).padStart(2, '0')}`
-}
 
 // Monday 9:00 IST: queue one weekly report job per brand on a paid plan
 export const runWeeklyReportTick = async () => {

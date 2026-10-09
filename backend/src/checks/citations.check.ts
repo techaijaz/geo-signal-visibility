@@ -16,6 +16,8 @@ import {
     type ICitedPage
 } from '../service/citationService'
 import type { ICitationRun } from '../types/citationTypes'
+import { renderWeeklyEmail } from '../service/reportService/weeklyReport'
+import type { IReportData } from '../service/reportService/reportData'
 
 const page = (over: Partial<ICitedPage>): ICitedPage => ({
     url: 'https://lbb.in/all/best-attars',
@@ -144,6 +146,29 @@ const run = async () => {
     const running = citationView([R('2026-W43', 'running', [])])
     assert.equal(running.run!.status, 'running')
     assert.equal(running.outreach.length, 0)
+
+    // Monday email: the line shows (escaped in HTML) next to the fix line; absent without one
+    const report = {
+        brandName: 'Hasan Oud',
+        website: 'https://hasanoud.com',
+        generatedAt: '',
+        scannedAt: null,
+        visibility: 19,
+        previousVisibility: 12,
+        engines: [{ name: 'ChatGPT', score: 19, mentioned: 2, total: 10 }],
+        trend: [],
+        questions: [],
+        shareOfVoice: null,
+        audit: null,
+        recommendations: []
+    } as unknown as IReportData
+    const cl = 'Top source to reach this week: lbb.in — Best <attars> & oud (names Ajmal; not you)'
+    const mail = renderWeeklyEmail(report, 'https://x/unsub', undefined, cl)
+    assert.ok(mail.text.includes(cl))
+    assert.ok(mail.html.includes('Best &lt;attars&gt; &amp; oud'))
+    assert.ok(!mail.html.includes('<attars>'))
+    const plain = renderWeeklyEmail(report, 'https://x/unsub')
+    assert.ok(!plain.text.includes('Top source') && !plain.html.includes('Top source'))
 
     console.log('citations checks passed')
 }

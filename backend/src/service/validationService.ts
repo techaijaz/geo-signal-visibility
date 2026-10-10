@@ -132,3 +132,20 @@ export const validationFreeCheckEmail = Joi.object({
     marketingConsent: Joi.boolean().default(false)
 })
 export const validationFreeCheckVerify = Joi.object({ code: Joi.string().trim().length(6).required() })
+
+// Seller details printed on invoices (Admin → Billing)
+export const validationBillingSeller = Joi.object({
+    legalName: Joi.string().trim().min(2).max(120).required(),
+    address: Joi.string().trim().min(5).max(300).required(),
+    email: Joi.string().trim().email().required(),
+    pan: Joi.string()
+        .trim()
+        .uppercase()
+        .allow('')
+        .pattern(/^[A-Z]{5}[0-9]{4}[A-Z]$/),
+    gstin: Joi.string()
+        .trim()
+        .uppercase()
+        .allow('')
+        .pattern(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/)
+})

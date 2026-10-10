@@ -10,6 +10,8 @@ import leadModel from '../model/leadModel'
 import { getSetting, setSetting } from '../model/appSettingModel'
 import { KEYS, redisStore, type IFreeCheckStore } from '../service/freeCheck/store'
 import { istDay } from '../service/freeCheck/helpers'
+import { getSeller, saveSeller, type ISeller } from '../service/billing/seller'
+import { validateJoiSchema, validationBillingSeller } from '../service/validationService'
 
 const adminController = {
     getStats: async (req: Request, res: Response, next: NextFunction) => {
@@ -144,6 +146,26 @@ const adminController = {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('AI Model')), req, 404)
             }
             httpResponse(req, res, 200, responceseMessage.SUCCESS, { _id: id })
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+
+    // Seller details printed on invoices
+    getBillingSettings: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, await getSeller())
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+
+    saveBillingSettings: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { error, value } = validateJoiSchema<ISeller>(validationBillingSeller, req.body)
+            if (error) return httpError(next, new Error(error), req, 422)
+            await saveSeller(value)
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, value)
         } catch (error) {
             httpError(next, error, req, 500)
         }

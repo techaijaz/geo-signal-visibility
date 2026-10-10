@@ -138,6 +138,10 @@ router
     .route('/admin/free-check')
     .get(authentication, adminOnly, adminController.getFreeCheck)
     .put(authentication, adminOnly, adminController.setFreeCheckLimit)
+router
+    .route('/admin/billing-settings')
+    .get(authentication, adminOnly, adminController.getBillingSettings)
+    .put(authentication, adminOnly, adminController.saveBillingSettings)
 router.route('/admin/free-check/leads.csv').get(authentication, adminOnly, adminController.getFreeCheckLeadsCsv)
 
 // Admin Encrypted API Keys Management

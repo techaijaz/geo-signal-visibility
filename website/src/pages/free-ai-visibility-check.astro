@@ -13,7 +13,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
 
     <form id="fc-site" class="card">
       <label>Your website <input id="fc-url" type="text" inputmode="url" placeholder="https://hasanoud.com" required /></label>
-      <button class="btn btn--marker">Check karo</button>
+      <button class="btn btn--marker">Check</button>
       <p class="err" id="fc-site-err" hidden></p>
     </form>
 
@@ -25,7 +25,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
         <div id="fc-list"></div>
       </fieldset>
       <div id="fc-turnstile"></div>
-      <button class="btn btn--marker" id="fc-run">ChatGPT aur Gemini se poochho</button>
+      <button class="btn btn--marker" id="fc-run">Ask ChatGPT and Gemini</button>
       <p class="err" id="fc-run-err" hidden></p>
     </form>
 
@@ -274,11 +274,12 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
   .fc input:not([type='checkbox']) { width: 100%; padding: 11px 12px; border: 1px solid #c3ccca; border-radius: 8px; font: inherit; font-weight: 400; }
   .fc fieldset { border: 0; padding: 0; display: grid; gap: 10px; }
   .fc legend { font-weight: 600; margin-bottom: 6px; }
-  .fc .q, .fc .check { display: flex; gap: 8px; align-items: baseline; font-weight: 400; }
-  .fc .tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #FFC857; color: var(--ink); white-space: nowrap; }
+  .fc .check, .fc :global(.q) { display: flex; gap: 8px; align-items: baseline; font-weight: 400; }
+  .fc :global(.tag) { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #FFC857; color: var(--ink); white-space: nowrap; }
   .fc .big { font-size: clamp(1.4rem, 3vw, 1.9rem); font-weight: 700; }
   .fc ul { display: grid; gap: 10px; padding-left: 18px; }
-  .fc .blur { filter: blur(5px); user-select: none; }
+  .fc :global(#fc-list) { display: grid; gap: 10px; }
+  .fc :global(.blur) { filter: blur(5px); user-select: none; }
   .fc .err { color: #b3261e; }
   .fc .btn { justify-self: start; }
 </style>

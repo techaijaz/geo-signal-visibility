@@ -266,15 +266,13 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
       show('fc-code', false)
       el<HTMLAnchorElement>('fc-signup').href = `${APP}/signup?fc=${encodeURIComponent(checkId)}`
       const others = (d.otherBrands || []) as Array<{ name: string; count: number }>
-      el('fc-instead').innerHTML =
-        d.status === 'scheduled'
-          ? "Done. Your result will reach your inbox tomorrow morning."
-          : others.length
-            ? `AI recommends these instead of you: <b>${others
-                .slice(0, 6)
-                .map((b) => `${esc(b.name)} (${b.count}/${d.total})`)
-                .join(', ')}</b>`
-            : 'AI named no other brands.'
+      // The blurred line above becomes the real names; the box below keeps only the advice and the button
+      if (d.status !== 'scheduled' && others.length) {
+        const shown = others.slice(0, 10).map((b) => `${esc(b.name)} (${b.count}/${d.total})`)
+        const more = others.length - shown.length
+        el('fc-others').innerHTML = `AI named <b>${others.length} other brands</b>: <b>${shown.join(', ')}</b>${more > 0 ? ` and ${more} more` : ''}`
+      }
+      el('fc-instead').textContent = d.status === 'scheduled' ? 'Done. Your result will reach your inbox tomorrow morning.' : 'The full report is in your inbox.'
       show('fc-full')
     } catch (x) {
       err('fc-code-err', (x as Error).message)

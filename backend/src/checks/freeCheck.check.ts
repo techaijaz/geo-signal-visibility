@@ -195,6 +195,29 @@ const run = async () => {
     assert.ok(!reportEmail(check, 'owner@hasanoud.com', false).html.includes('unsubscribe'))
     const evil = { ...check, brandName: '<b>x</b>' } as IFreeCheck
     assert.ok(!reportEmail(evil, 'a@b.co', false).html.includes('<b>x</b>'))
+    // Designed like the account emails: big number, who instead, a card per question, button, what you get
+    assert.ok(mail.html.startsWith('<!doctype html>'))
+    assert.ok(mail.html.includes('>1 of 3<'))
+    assert.ok(mail.html.includes('Recommended instead of you'))
+    assert.ok(mail.html.includes('Ajmal') && mail.html.includes('3 of 3'))
+    assert.ok(mail.html.includes('q1') && mail.html.includes('q2'))
+    assert.ok(mail.html.includes('no answer')) // the ChatGPT answer that failed
+    assert.ok(mail.html.includes('named #3')) // Gemini named the brand at #3
+    assert.ok(mail.html.includes('Create a free account'))
+    assert.ok(mail.html.includes('What you get'))
+    assert.ok(mail.text.includes('Recommended instead of you:') && mail.text.includes('Ajmal: 3 of 3'))
+    assert.ok(mail.text.includes('- q1') && mail.text.includes('/signup?fc=c1'))
+    // only the top 8 brands, then "and N more"
+    const many = {
+        ...check,
+        questions: [
+            {
+                text: 'q',
+                answers: [{ engine: 'ChatGPT', ok: true, named: false, position: null, brands: 'ABCDEFGHIJ'.split('').map((c) => 'Brand' + c) }]
+            }
+        ]
+    } as IFreeCheck
+    assert.ok(reportEmail(many, 'a@b.co', false).html.includes('and 2 more'))
     const u = new URL(leadUnsubscribeUrl('owner@hasanoud.com'))
     assert.equal(verifyLeadUnsubscribe('owner@hasanoud.com', u.searchParams.get('t')!), true)
     assert.equal(verifyLeadUnsubscribe('other@hasanoud.com', u.searchParams.get('t')!), false)

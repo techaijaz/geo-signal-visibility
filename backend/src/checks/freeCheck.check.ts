@@ -17,6 +17,8 @@ import {
 } from '../service/freeCheck/helpers'
 import type { IFreeCheck } from '../types/freeCheckTypes'
 import { memoryStore, consume, refund, KEYS } from '../service/freeCheck/store'
+import { verifyTurnstile } from '../service/freeCheck/turnstile'
+import { otpEmail, reportEmail, leadUnsubscribeUrl, verifyLeadUnsubscribe } from '../service/freeCheck/emails'
 
 // Every seeded category (script/seed categories)
 const CATEGORIES = [
@@ -162,6 +164,29 @@ const run = async () => {
     assert.equal(await s.get(KEYS.cache('h', 'hasanoud.com')), null)
     assert.equal(await s.setOnce(KEYS.alert + day, 60), true)
     assert.equal(await s.setOnce(KEYS.alert + day, 60), false)
+
+    // Turnstile: no secret outside production → allowed; with a secret the siteverify answer decides
+    delete process.env.TURNSTILE_SECRET_KEY
+    assert.equal(await verifyTurnstile(undefined, '1.1.1.1'), true)
+    process.env.TURNSTILE_SECRET_KEY = 's'
+    const fake = (success: boolean) => (async () => ({ json: async () => ({ success }) })) as unknown as typeof fetch
+    assert.equal(await verifyTurnstile('t', '1.1.1.1', fake(true)), true)
+    assert.equal(await verifyTurnstile('t', '1.1.1.1', fake(false)), false)
+    assert.equal(await verifyTurnstile(undefined, '1.1.1.1', fake(true)), false)
+    delete process.env.TURNSTILE_SECRET_KEY
+
+    // Emails
+    assert.ok(otpEmail('482913').text.includes('482913'))
+    const mail = reportEmail(check, 'owner@hasanoud.com', true)
+    assert.ok(mail.subject.includes('Hasan Oud') && mail.subject.includes('1 of 3'))
+    assert.ok(mail.html.includes('Ajmal') && mail.html.includes('/signup?fc=c1'))
+    assert.ok(mail.html.includes('unsubscribe'))
+    assert.ok(!reportEmail(check, 'owner@hasanoud.com', false).html.includes('unsubscribe'))
+    const evil = { ...check, brandName: '<b>x</b>' } as IFreeCheck
+    assert.ok(!reportEmail(evil, 'a@b.co', false).html.includes('<b>x</b>'))
+    const u = new URL(leadUnsubscribeUrl('owner@hasanoud.com'))
+    assert.equal(verifyLeadUnsubscribe('owner@hasanoud.com', u.searchParams.get('t')!), true)
+    assert.equal(verifyLeadUnsubscribe('other@hasanoud.com', u.searchParams.get('t')!), false)
 
     console.log('freeCheck checks passed')
 }

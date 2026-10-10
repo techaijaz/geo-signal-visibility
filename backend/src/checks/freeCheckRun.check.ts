@@ -58,6 +58,17 @@ const run = async () => {
     assert.equal(await runFreeCheck('nope', { ask, extract: extract as never, store: memoryStore(), send }), 'failed')
     assert.equal(await runFreeCheck('ok1', { ask, extract: extract as never, store: memoryStore(), send }), 'failed')
 
+    // A verified, scheduled check emails its report when it finishes; an unverified one does not
+    const mails: string[] = []
+    const sendTo = async (to: string[]) => {
+        mails.push(to[0])
+    }
+    await freeCheckModel.create({ ...base('sched1'), status: 'scheduled', email: 'o@hasanoud.com', verifiedAt: new Date() })
+    await runFreeCheck('sched1', { ask, extract: extract as never, store: memoryStore(), send: sendTo })
+    await freeCheckModel.create(base('plain1'))
+    await runFreeCheck('plain1', { ask, extract: extract as never, store: memoryStore(), send: sendTo })
+    assert.deepEqual(mails, ['o@hasanoud.com'])
+
     await mongoose.connection.dropDatabase()
     await mongoose.disconnect()
     console.log('freeCheckRun checks passed')

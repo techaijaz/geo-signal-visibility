@@ -6,6 +6,8 @@ import { istDay } from './helpers'
 import { KEYS, redisStore, refund, type IFreeCheckStore } from './store'
 import type { FreeCheckEngine, FreeCheckStatus, IFreeCheckAnswer } from '../../types/freeCheckTypes'
 import logger from '../../util/loger'
+import emailService from '../emailService'
+import { reportEmail } from './emails'
 
 // The scan models: the 6-hour response cache answers repeat questions for free
 export const ENGINES: Array<{ engine: FreeCheckEngine; provider: string; modelId: string }> = [
@@ -66,6 +68,13 @@ export const runFreeCheck = async (checkId: string, deps: IRunDeps = {}): Promis
         const status: FreeCheckStatus = answered.length ? 'done' : 'failed'
         if (status === 'failed') await giveBack()
         await freeCheckModel.updateOne({ checkId }, { $set: { questions, status } })
+        // A check that ran the next morning was verified already: its report goes out now
+        if (status === 'done' && check.verifiedAt && check.email) {
+            const send = deps.send ?? ((to, s, t, h) => emailService.sendEmail(to, s, t, { html: h }))
+            const done = (await freeCheckModel.findOne({ checkId }).lean())!
+            const mail = reportEmail(done, check.email, Boolean(check.consentRequested))
+            await send([check.email], mail.subject, mail.text, mail.html).catch((e) => logger.warn('[freeCheck] report email failed', { meta: e }))
+        }
         return status
     } catch (err) {
         logger.error(`[freeCheck] Run ${checkId} failed`, { meta: err })

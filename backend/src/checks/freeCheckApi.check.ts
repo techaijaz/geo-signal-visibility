@@ -10,6 +10,7 @@ import { hashIp } from '../service/freeCheck/helpers'
 import { leadUnsubscribeUrl } from '../service/freeCheck/emails'
 import { setSetting } from '../model/appSettingModel'
 import adminController from '../controller/adminController'
+import { markLeadSignedUp } from '../service/freeCheck/lead'
 
 type Body = { data?: Record<string, unknown>; message?: string }
 type Res = { code: number; body: Body }
@@ -189,6 +190,12 @@ const run = async () => {
     const csv = await call(adminController.getFreeCheckLeadsCsv as Handler)
     assert.ok(csv.body.message!.startsWith('email,site,brand'))
     assert.ok(csv.body.message!.includes('owner@hasanoud.com'))
+
+    // A lead that signs up is marked; an unknown email creates nothing
+    await markLeadSignedUp('OWNER@hasanoud.com')
+    assert.ok((await leadModel.findOne({ email: 'owner@hasanoud.com' }).lean())!.signedUpAt)
+    await markLeadSignedUp('nobody@x.com')
+    assert.equal(await leadModel.countDocuments({ email: 'nobody@x.com' }), 0)
 
     await mongoose.connection.dropDatabase()
     await mongoose.disconnect()

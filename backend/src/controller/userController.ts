@@ -25,6 +25,7 @@ import {
 } from '../service/validationService'
 import quiker from '../util/quiker'
 import databseService from '../service/databseService'
+import { markLeadSignedUp } from '../service/freeCheck/lead'
 import { EUserRole } from '../constent/userConstent'
 
 import emailService from '../service/emailService'
@@ -143,6 +144,7 @@ export default {
                 weeklyReportEmailsUpdatedAt: new Date()
             }
             const newUser = await databseService.registerUser(payload)
+            await markLeadSignedUp(newUser.email).catch(() => undefined)
 
             // * send verification email
             const confirmationalURL = `${config.FRONTEND_URL}/confirmation/${token}?code=${code}`

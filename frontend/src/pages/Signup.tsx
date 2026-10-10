@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Link } from 'react-router-dom';
 import api from '../utils/axios';
+import { loadFreeCheck, saveFreeCheckId } from '../utils/freeCheckHandoff';
 import { SITE_URL } from '../utils/siteUrl';
 
 const signupSchema = z.object({
@@ -27,10 +28,20 @@ export default function Signup() {
   const [isResending, setIsResending] = useState(false);
   const [resendMessage, setResendMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<SignupFormValues>({
+  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
     defaultValues: { acceptTerms: false, weeklyReportEmails: false },
   });
+
+  // Coming from the website's free check (?fc=): keep it for onboarding and pre-fill the verified email
+  useEffect(() => {
+    const fc = new URLSearchParams(window.location.search).get('fc');
+    if (!fc) return;
+    saveFreeCheckId(fc);
+    loadFreeCheck().then((f) => {
+      if (f?.email) setValue('email', f.email);
+    });
+  }, [setValue]);
 
   const onSubmit = async (data: SignupFormValues) => {
     setApiError(null);

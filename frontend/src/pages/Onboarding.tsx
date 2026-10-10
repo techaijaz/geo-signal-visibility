@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../utils/axios';
 import { useAuth } from '../context/AuthContext';
 import { usePlanLimits } from '../hooks/usePlanLimits';
 import { fetchQueryTemplates, toQueryItems, type QueryItem } from '../utils/queryTemplates';
+import { clearFreeCheck, loadFreeCheck, type FreeCheckHandoff } from '../utils/freeCheckHandoff';
 
 const FALLBACK_CATEGORIES = [
   'SaaS & Software',
@@ -75,6 +76,18 @@ export default function Onboarding() {
   // Exit setup and Cancel go to / , which sends a user without a brand straight back here.
   // So they only show when there is a dashboard to return to (null while loading)
   const [hasBrands, setHasBrands] = useState<boolean | null>(null);
+  // A free check from the website pre-fills the site, brand, category and its 3 questions
+  const freeCheck = useRef<FreeCheckHandoff | null>(null);
+  useEffect(() => {
+    loadFreeCheck().then((f) => {
+      if (!f) return;
+      freeCheck.current = f;
+      setWebsite(f.url);
+      setBrandName(f.brandName);
+      setCategory(f.category);
+    });
+  }, []);
+
   useEffect(() => {
     api
       .get('/orgs/brands')
@@ -126,7 +139,9 @@ export default function Onboarding() {
     setTemplatesError('');
     try {
       const items = await fetchQueryTemplates(category, brandName.trim());
-      if (!cancelled()) setQueries(queriesWithinPlan(toQueryItems(items)));
+      const fc = freeCheck.current;
+      const list = toQueryItems(items).map((q) => (fc ? { ...q, enabled: fc.questions.includes(q.text) } : q));
+      if (!cancelled()) setQueries(queriesWithinPlan(list));
     } catch {
       if (!cancelled()) {
         setQueries([]);
@@ -335,6 +350,7 @@ export default function Onboarding() {
         })),
       });
 
+      clearFreeCheck();
       // Redirect to main workspace overview
       navigate('/');
     } catch (err: any) {

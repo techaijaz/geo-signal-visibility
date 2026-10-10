@@ -29,7 +29,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
       <p class="err" id="fc-run-err" hidden></p>
     </form>
 
-    <div id="fc-wait" class="card" hidden><p id="fc-wait-text" aria-live="polite">ChatGPT se poochh rahe hain…</p></div>
+    <div id="fc-wait" class="card" hidden><p id="fc-wait-text" aria-live="polite">Asking ChatGPT…</p></div>
 
     <div id="fc-result" class="card" hidden>
       <p class="big" id="fc-score"></p>
@@ -38,23 +38,23 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
     </div>
 
     <form id="fc-email" class="card" hidden>
-      <p id="fc-email-lead">Kaun aapki jagah aa raha hai? Email daalo: naam abhi dikhenge, report inbox me.</p>
+      <p id="fc-email-lead">Who is AI recommending instead of you? Enter your email to see the names now and get the report in your inbox.</p>
       <label>Email <input id="fc-mail" type="email" required /></label>
-      <label class="check"><input id="fc-consent" type="checkbox" /> Mujhe AI visibility ke tips aur updates bhejo</label>
-      <button class="btn btn--marker">Code bhejo</button>
+      <label class="check"><input id="fc-consent" type="checkbox" /> Send me AI visibility tips and updates</label>
+      <button class="btn btn--marker">Send code</button>
       <p class="err" id="fc-email-err" hidden></p>
     </form>
 
     <form id="fc-code" class="card" hidden>
       <label>6-digit code (check your inbox) <input id="fc-otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required /></label>
-      <button class="btn btn--marker">Naam dikhao</button>
+      <button class="btn btn--marker">Show the names</button>
       <p class="err" id="fc-code-err" hidden></p>
     </form>
 
     <div id="fc-full" class="card" hidden>
       <p id="fc-instead"></p>
       <p>AI recommends brands it has read about in many places: reviews, lists and comparison pages.</p>
-      <a id="fc-signup" class="btn btn--marker">Har hafte 15 sawaal × 5 AI pe nazar rakho → Free account banao</a>
+      <a id="fc-signup" class="btn btn--marker">Track 15 questions across 5 AIs every week → Create a free account</a>
     </div>
   </section>
   {siteKey && <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>}
@@ -91,11 +91,11 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
   const post = async (path: string, body: object) => {
     const r = await fetch(`${API}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(
       () => {
-        throw new Error('Server se baat nahi ho payi. Internet check karke dobara koshish karo.')
+        throw new Error("Couldn't reach the server. Check your connection and try again.")
       }
     )
     const j = await r.json().catch(() => ({}))
-    if (!r.ok) throw new Error(j.message || 'Kuch gadbad hui. Dobara koshish karo.')
+    if (!r.ok) throw new Error(j.message || 'Something went wrong. Please try again.')
     return j.data
   }
 
@@ -164,7 +164,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
     e.preventDefault()
     err('fc-run-err')
     const questions = [...el('fc-list').querySelectorAll<HTMLInputElement>('input:checked')].map((i) => i.value)
-    if (questions.length !== 3) return err('fc-run-err', 'Theek 3 sawaal chuno.')
+    if (questions.length !== 3) return err('fc-run-err', 'Pick exactly 3 questions.')
     try {
       const d = await post('/free-check', {
         url: input('fc-url').value,
@@ -177,7 +177,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
       checkId = d.checkId
       show('fc-questions', false)
       if (d.status === 'waiting-email') {
-        el('fc-email-lead').textContent = 'Aaj bheed zyada hai. Email do, kal subah result bhej denge.'
+        el('fc-email-lead').textContent = "We're busy today. Enter your email and we'll send your result tomorrow morning."
         show('fc-email')
       } else void poll()
     } catch (x) {
@@ -186,7 +186,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
     }
   })
 
-  const steps = ['ChatGPT se poochh rahe hain…', 'Gemini se poochh rahe hain…', 'Jawab padh rahe hain…']
+  const steps = ['Asking ChatGPT…', 'Asking Gemini…', 'Reading the answers…']
   async function poll() {
     show('fc-wait')
     for (let i = 0; i < 60; i++) {
@@ -198,7 +198,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
       if (d && (d.status === 'done' || d.status === 'failed')) {
         show('fc-wait', false)
         if (d.status === 'failed') {
-          err('fc-run-err', 'Abhi check nahi ho paya, 5 minute baad dobara karo.')
+          err('fc-run-err', "The check couldn't run right now. Please try again in 5 minutes.")
           freshToken()
           return show('fc-questions')
         }
@@ -207,23 +207,23 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
       await new Promise((ok) => setTimeout(ok, 2000))
     }
     show('fc-wait', false)
-    err('fc-run-err', 'Is baar der lag rahi hai. Thodi der baad page refresh karo.')
+    err('fc-run-err', 'This is taking longer than usual. Refresh the page in a little while.')
     freshToken()
     show('fc-questions')
   }
 
   function renderHalf(d: Half) {
-    el('fc-score').textContent = `${d.total} me se ${d.namedCount} jawabon me ${d.brandName} ka naam aaya`
+    el('fc-score').textContent = `${d.brandName} was named in ${d.namedCount} of ${d.total} AI answers`
     el('fc-rows').innerHTML = d.questions
       .map(
         (q) =>
           `<li><b>${esc(q.text)}</b><br/>${q.engines.map((e) => `${e.engine} ${!e.ok ? '—' : e.named ? `✓${e.position ? ` #${e.position}` : ''}` : '✗'}`).join(' · ')}</li>`
       )
       .join('')
-    const failed = d.failedEngines.length ? `<br/><small>${d.failedEngines.join(', ')} ne jawab nahi diya.</small>` : ''
+    const failed = d.failedEngines.length ? `<br/><small>${d.failedEngines.join(', ')} didn't answer this time.</small>` : ''
     el('fc-others').innerHTML = d.otherBrandsCount
-      ? `AI ne <b>${d.otherBrandsCount} aur brands</b> bataye: <span class="blur" aria-hidden="true">Brand · Brand · Brand</span>${failed}`
-      : `AI ne koi aur brand nahi bataya.${failed}`
+      ? `AI named <b>${d.otherBrandsCount} other brands</b>: <span class="blur" aria-hidden="true">Brand · Brand · Brand</span>${failed}`
+      : `AI named no other brands.${failed}`
     show('fc-result')
     if (d.otherBrandsCount) show('fc-email')
   }
@@ -250,13 +250,13 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
       const others = (d.otherBrands || []) as Array<{ name: string; count: number }>
       el('fc-instead').innerHTML =
         d.status === 'scheduled'
-          ? 'Ho gaya. Kal subah result aapke inbox me aayega.'
+          ? "Done. Your result will reach your inbox tomorrow morning."
           : others.length
-            ? `AI aapki jagah ye bata raha hai: <b>${others
+            ? `AI recommends these instead of you: <b>${others
                 .slice(0, 6)
                 .map((b) => `${esc(b.name)} (${b.count}/${d.total})`)
                 .join(', ')}</b>`
-            : 'AI ne koi aur brand nahi bataya.'
+            : 'AI named no other brands.'
       show('fc-full')
     } catch (x) {
       err('fc-code-err', (x as Error).message)

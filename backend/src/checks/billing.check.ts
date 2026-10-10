@@ -13,6 +13,7 @@ import userModel from '../model/userModel'
 import { PaymentError } from '../service/billing/prices'
 import crypto from 'crypto'
 import { handleRazorpayWebhook, validWebhookSignature } from '../service/billing/razorpayWebhook'
+import { reuseOrCreateOrder } from '../service/paymentService'
 
 const run = async () => {
     await mongoose.connect('mongodb://127.0.0.1:27017/signal_billing_check')
@@ -152,6 +153,21 @@ const run = async () => {
         throw new Error('db down')
     }) as never
     assert.equal((await handleRazorpayWebhook(body, sig, { secret, fetchOrder, activate: failing })).status, 200)
+
+    // Checkout: same org/plan/cycle within 15 min reuses the unpaid order; paid or older → a new one
+    let created = 0
+    const create = async () => ({ id: 'order_N' + ++created })
+    const co = { orgId: order.orgId, userId: order.userId, plan: 'growth' as const, billingCycle: 'monthly' as const, amount: 9999 }
+    const t0 = new Date()
+    const o1 = await reuseOrCreateOrder(co, create, t0)
+    const [o2, o3] = await Promise.all([reuseOrCreateOrder(co, create, t0), reuseOrCreateOrder(co, create, t0)])
+    assert.equal(o2, o1)
+    assert.equal(o3, o1)
+    assert.equal(created, 1)
+    assert.notEqual(await reuseOrCreateOrder({ ...co, billingCycle: 'yearly', amount: 99990 }, create, t0), o1)
+    assert.notEqual(await reuseOrCreateOrder(co, create, new Date(t0.getTime() + 16 * 60 * 1000)), o1)
+    await paymentModel.create({ ...co, paymentId: 'pay_R', orderId: o1, gateway: 'razorpay', status: 'done', source: 'browser' })
+    assert.notEqual(await reuseOrCreateOrder(co, create, t0), o1)
 
     await mongoose.connection.dropDatabase()
     await mongoose.disconnect()

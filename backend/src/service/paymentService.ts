@@ -8,6 +8,8 @@ import logger from '../util/loger'
 import config from '../config/config'
 import { PaymentError, PLAN_PRICES } from './billing/prices'
 import { activatePayment, orderInfoFromRazorpay } from './billing/activatePayment'
+import checkoutOrderModel from '../model/checkoutOrderModel'
+import paymentModel from '../model/paymentModel'
 
 // ─── SDK instances (lazy-init so missing keys don't crash on startup) ─────────
 
@@ -32,6 +34,52 @@ const getStripe = (): Stripe => {
 
 // PaymentError and the price list live in billing/prices so billing/* can use them without a cycle
 export { PaymentError, PLAN_PRICES }
+
+// ─── Checkout orders ──────────────────────────────────────────────────────────
+
+const REUSE_MS = 15 * 60 * 1000
+const opening = new Map<string, Promise<string>>()
+
+// Two tabs or a double click within 15 min get the same unpaid Razorpay order
+export const reuseOrCreateOrder = async (
+    input: { orgId: string; userId: string; plan: SubscriptionPlan; billingCycle: 'monthly' | 'yearly'; amount: number },
+    create: () => Promise<{ id: string }>,
+    now = new Date()
+): Promise<string> => {
+    const key = `${input.orgId}:${input.plan}:${input.billingCycle}`
+    // Parallel requests in this process share one creation
+    const inflight = opening.get(key)
+    if (inflight) return inflight
+    const work = (async () => {
+        const recent = await checkoutOrderModel
+            .find({
+                orgId: input.orgId,
+                plan: input.plan,
+                billingCycle: input.billingCycle,
+                amount: input.amount,
+                createdAt: { $gt: new Date(now.getTime() - REUSE_MS), $lte: now }
+            })
+            .sort({ createdAt: -1 })
+            .lean()
+        for (const r of recent) if (!(await paymentModel.exists({ orderId: r.orderId }))) return r.orderId
+        const o = await create()
+        await checkoutOrderModel.create({
+            orgId: input.orgId,
+            plan: input.plan,
+            billingCycle: input.billingCycle,
+            amount: input.amount,
+            orderId: o.id,
+            createdAt: now
+        })
+        return o.id
+    })()
+    opening.set(key, work)
+    try {
+        return await work
+    } finally {
+        opening.delete(key)
+    }
+}
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -79,19 +127,23 @@ export const paymentService = {
         if (gateway === 'razorpay') {
             const rzp = getRazorpay()
             // Razorpay requires amount in paise (INR × 100)
-            const order = await rzp.orders.create({
-                amount: amount * 100,
-                currency: 'INR',
-                receipt: `rcpt_${orgId}_${Date.now()}`,
-                notes: { plan, billingCycle, orgId, userId }
-            })
+            const orderId = await reuseOrCreateOrder(
+                { orgId, userId, plan, billingCycle, amount },
+                () =>
+                    rzp.orders.create({
+                        amount: amount * 100,
+                        currency: 'INR',
+                        receipt: `rcpt_${orgId}_${Date.now()}`,
+                        notes: { plan, billingCycle, orgId, userId }
+                    }) as unknown as Promise<{ id: string }>
+            )
 
-            logger.info(`[PaymentService] Razorpay order created: ${order.id} for plan ${plan} (₹${amount})`)
+            logger.info(`[PaymentService] Razorpay order ${orderId} for plan ${plan} (₹${amount})`)
 
             return {
                 isFree: false,
                 gateway: 'razorpay',
-                orderId: order.id,
+                orderId,
                 amount,
                 currency: 'INR',
                 plan,

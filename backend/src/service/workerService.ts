@@ -16,6 +16,7 @@ import {
 } from './queueService'
 import { runCitationTick, runSchedulerTick, runWeeklyReportTick } from './schedulerService'
 import { runCitationScan } from './citationService'
+import { runFreeCheck } from './freeCheck/runFreeCheck'
 import citationRunModel from '../model/citationRunModel'
 import { isoWeek } from '../util/isoWeek'
 import { sendWeeklyReport } from './reportService/weeklyReport'
@@ -87,7 +88,12 @@ export const startWorkers = () => {
         { connection }
     )
 
-    const workers = [scanWorker, auditWorker, recommendationWorker, weeklyReportWorker, citationWorker, schedulerWorker]
+    const freeCheckWorker = new Worker<{ checkId: string }>('free-check', async (job: Job<{ checkId: string }>) => runFreeCheck(job.data.checkId), {
+        connection,
+        concurrency: 2
+    })
+
+    const workers = [scanWorker, auditWorker, recommendationWorker, weeklyReportWorker, citationWorker, freeCheckWorker, schedulerWorker]
 
     // Attach worker error listeners to avoid unhandled crashes when Redis is disconnected
     for (const worker of workers) {

@@ -12,6 +12,7 @@ import reportController from '../controller/reportController'
 import overviewController from '../controller/overviewController'
 import categoryController from '../controller/categoryController'
 import adminController from '../controller/adminController'
+import freeCheckController from '../controller/freeCheckController'
 import jobController from '../controller/jobController'
 import authentication from '../middleware/authentication'
 import adminOnly from '../middleware/adminOnly'
@@ -77,6 +78,14 @@ router.route('/brands/:id/fix-impact').get(authentication, recommendationControl
 router.route('/brands/:id/recommendations/rescan').post(authentication, recommendationController.rescanBrandRecommendations)
 
 // Reports router
+// Public: free AI visibility checker on the marketing website (limits and Turnstile in the controller)
+router.route('/public/free-check/site').post(freeCheckController.site)
+router.route('/public/free-check').post(freeCheckController.create)
+router.route('/public/free-check/:checkId').get(freeCheckController.status)
+router.route('/public/free-check/:checkId/email').post(freeCheckController.sendCode)
+router.route('/public/free-check/:checkId/verify').post(freeCheckController.verify)
+router.route('/public/leads/unsubscribe').get(freeCheckController.unsubscribe)
+
 // Public: link in the weekly report email (GET) and one-click unsubscribe from mail clients (POST)
 router
     .route('/reports/unsubscribe')
@@ -125,6 +134,11 @@ router.route('/admin/categories/:id').delete(authentication, adminOnly, category
 
 // Admin Cost Logs & API Usage
 router.route('/admin/cost-logs').get(authentication, adminOnly, adminController.getCostLogs)
+router
+    .route('/admin/free-check')
+    .get(authentication, adminOnly, adminController.getFreeCheck)
+    .put(authentication, adminOnly, adminController.setFreeCheckLimit)
+router.route('/admin/free-check/leads.csv').get(authentication, adminOnly, adminController.getFreeCheckLeadsCsv)
 
 // Admin Encrypted API Keys Management
 router.route('/admin/api-keys').get(authentication, adminOnly, adminController.getApiKeys)

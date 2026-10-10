@@ -32,6 +32,7 @@ x-backend: &backend
     - REDIS_PASSWORD=${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     - FRONTEND_URL=https://app.${DOMAIN:?Set DOMAIN in .env}
     - SERVER_URL=https://app.${DOMAIN}
+    - WEBSITE_URL=https://${DOMAIN}
     - WORKER_HEALTH_PORT=8081
   image: ${IMAGE_REGISTRY:-ghcr.io/techaijaz}/signal-ai-backend:${IMAGE_TAG:-main}
   build:

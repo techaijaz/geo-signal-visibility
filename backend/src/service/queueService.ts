@@ -28,6 +28,8 @@ export const auditQueue = new Queue('brand-audit', { connection, defaultJobOptio
 export const recommendationQueue = new Queue('ai-recommendation', { connection, defaultJobOptions })
 export const weeklyReportQueue = new Queue('weekly-report', { connection, defaultJobOptions })
 export const citationQueue = new Queue('citation-scan', { connection, defaultJobOptions })
+// One try: a retry would pay for the same answers again; the visitor can run it again
+export const freeCheckQueue = new Queue('free-check', { connection, defaultJobOptions: { ...defaultJobOptions, attempts: 1 } })
 export const schedulerQueue = new Queue('scan-scheduler', { connection, defaultJobOptions: { removeOnComplete: 100, removeOnFail: 100 } })
 
 // 2. Define Interfaces
@@ -216,4 +218,18 @@ export default {
     enqueueAuditJob,
     enqueueRecommendationJob,
     getJobStatus
+}
+
+// One job per check; a delayed job runs the next morning when the day's budget was used up
+export const enqueueFreeCheckJob = async (checkId: string, runAt?: Date): Promise<Job<{ checkId: string }> | null> => {
+    try {
+        const delay = runAt ? Math.max(0, runAt.getTime() - Date.now()) : 0
+        return await enqueueWithTimeout(
+            freeCheckQueue.add('free-check-job', { checkId }, { jobId: `free-check-${checkId}-${runAt ? runAt.getTime() : 'now'}`, delay }),
+            1500
+        )
+    } catch (err) {
+        logger.error(`[BullMQ Queue Error] Failed to enqueue free check ${checkId}:`, { meta: err })
+        return null
+    }
 }

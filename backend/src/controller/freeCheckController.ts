@@ -139,7 +139,7 @@ export default {
                     await refund(store(), KEYS.global, day)
                     await refund(store(), KEYS.ipChecks(ip), day)
                     await store().del(KEYS.cache(ip, site.domain))
-                    return fail(next, req, 503, 'Abhi check shuru nahi ho paya. 5 minute baad dobara karo.')
+                    return fail(next, req, 503, "The check couldn't start right now. Please try again in 5 minutes.")
                 }
                 const used = Number((await store().get(KEYS.global + day)) || 0)
                 alertIfBusy(used, limit).catch((e) => logger.warn('[freeCheck] alert failed', { meta: e }))
@@ -217,7 +217,7 @@ export default {
             const scheduled = check.status === 'waiting-email'
             if (scheduled && !(await deps.enqueue(check.checkId, nextMorningIst(now)))) {
                 await refund(store(), KEYS.emailChecks(check.email), istDay(now))
-                return fail(next, req, 503, 'Abhi check line me nahi lag paya. Thodi der baad code dobara daalo.')
+                return fail(next, req, 503, "We couldn't queue your check right now. Please enter the code again in a few minutes.")
             }
             await freeCheckModel.updateOne(
                 { checkId: check.checkId },

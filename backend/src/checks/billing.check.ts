@@ -5,6 +5,12 @@ import mongoose from 'mongoose'
 import { financialYear, nextInvoiceNumber } from '../service/billing/invoiceNumber'
 import { DEFAULT_SELLER, getSeller, saveSeller } from '../service/billing/seller'
 import { validateJoiSchema, validationBillingSeller } from '../service/validationService'
+import { activatePayment, orderInfoFromRazorpay } from '../service/billing/activatePayment'
+import paymentModel from '../model/paymentModel'
+import { InvoiceModel, SubscriptionModel } from '../model/billingModel'
+import orgModel from '../model/orgModel'
+import userModel from '../model/userModel'
+import { PaymentError } from '../service/billing/prices'
 
 const run = async () => {
     await mongoose.connect('mongodb://127.0.0.1:27017/signal_billing_check')
@@ -33,6 +39,87 @@ const run = async () => {
     assert.ok(validateJoiSchema(validationBillingSeller, { ...DEFAULT_SELLER, gstin: '123' }).error)
     assert.ok(!validateJoiSchema(validationBillingSeller, { ...DEFAULT_SELLER, gstin: '09ABCDE1234F1Z5' }).error)
     assert.ok(validateJoiSchema(validationBillingSeller, { ...DEFAULT_SELLER, legalName: 'A' }).error)
+
+    // Fixtures straight into the collections (the user schema needs signup-only fields)
+    const userId = new mongoose.Types.ObjectId()
+    const orgId = new mongoose.Types.ObjectId()
+    await userModel.collection.insertOne({ _id: userId, name: 'Owner One', email: 'owner@shop.in' })
+    await orgModel.collection.insertOne({ _id: orgId, name: 'Shop One', ownerId: userId, plan: 'free' })
+    const order = { orgId: String(orgId), userId: String(userId), plan: 'starter' as const, billingCycle: 'monthly' as const, amount: 2999 }
+    const notes = { plan: 'starter', billingCycle: 'monthly', orgId: order.orgId, userId: order.userId }
+
+    // Order info: notes and amount must match the price list
+    assert.deepEqual(orderInfoFromRazorpay({ id: 'order_1', amount: 299900, notes }), order)
+    assert.throws(() => orderInfoFromRazorpay({ id: 'order_2', amount: 100, notes }), PaymentError)
+    assert.throws(() => orderInfoFromRazorpay({ id: 'order_3', amount: 299900, notes: {} }), PaymentError)
+
+    // One payment, 10 callers at once (browser + webhook mix): one invoice, one extension, same result for all
+    const sent: string[] = []
+    const deps = {
+        sendInvoice: async (id: string) => {
+            sent.push(id)
+        },
+        waitMs: 5000
+    }
+    const results = await Promise.all(
+        Array.from({ length: 10 }, (_, i) =>
+            activatePayment(
+                {
+                    paymentId: 'pay_A',
+                    orderId: 'order_1',
+                    order,
+                    gateway: 'razorpay',
+                    paymentMethod: 'UPI / Card (Razorpay)',
+                    source: i % 2 ? 'webhook' : 'browser'
+                },
+                deps
+            )
+        )
+    )
+    assert.equal(await InvoiceModel.countDocuments({ gatewayPaymentId: 'pay_A' }), 1)
+    assert.equal(new Set(results.map((r) => String(r.invoice._id))).size, 1)
+    assert.equal(sent.length, 1)
+    const sub = await SubscriptionModel.findOne({ orgId }).lean()
+    assert.equal(Math.round((sub!.currentPeriodEnd!.getTime() - sub!.currentPeriodStart!.getTime()) / 86400000), 30)
+    const inv = results[0].invoice
+    assert.match(inv.invoiceNumber, /^SAI\/\d{4}-\d{2}\/\d{4}$/)
+    assert.equal(inv.seller.legalName, 'Aijaz Ahmad, trading as GeoSignal AI')
+    assert.deepEqual({ ...inv.buyer }, { name: 'Owner One', email: 'owner@shop.in', orgName: 'Shop One' })
+    assert.equal(inv.taxNote, 'GST not charged: supplier is not registered under GST.')
+    assert.equal((await paymentModel.findOne({ paymentId: 'pay_A' }).lean())!.status, 'done')
+    assert.equal((await orgModel.findById(orgId).lean())!.plan, 'starter')
+
+    // Seller edited later: the issued invoice keeps its snapshot
+    await saveSeller({ ...DEFAULT_SELLER, legalName: 'GeoSignal AI Pvt Ltd' })
+    assert.equal((await InvoiceModel.findById(inv._id).lean())!.seller.legalName, 'Aijaz Ahmad, trading as GeoSignal AI')
+    await saveSeller(DEFAULT_SELLER)
+
+    // A claim stuck in processing for > 2 min is taken over and finished
+    const base = { ...order, gateway: 'razorpay', source: 'browser' }
+    await paymentModel.create({
+        ...base,
+        paymentId: 'pay_B',
+        orderId: 'order_9',
+        status: 'processing',
+        claimedAt: new Date(Date.now() - 3 * 60 * 1000)
+    })
+    const taken = await activatePayment(
+        { paymentId: 'pay_B', orderId: 'order_9', order, gateway: 'razorpay', paymentMethod: 'UPI / Card (Razorpay)', source: 'webhook' },
+        { ...deps, waitMs: 300 }
+    )
+    assert.ok(taken.invoice.invoiceNumber)
+    assert.equal((await paymentModel.findOne({ paymentId: 'pay_B' }).lean())!.status, 'done')
+
+    // A fresh claim that doesn't finish in time: the waiting caller gets a PaymentError, no second invoice
+    await paymentModel.create({ ...base, paymentId: 'pay_C', orderId: 'order_8', status: 'processing', claimedAt: new Date() })
+    await assert.rejects(
+        activatePayment(
+            { paymentId: 'pay_C', orderId: 'order_8', order, gateway: 'razorpay', paymentMethod: 'x', source: 'webhook' },
+            { ...deps, waitMs: 300 }
+        ),
+        PaymentError
+    )
+    assert.equal(await InvoiceModel.countDocuments({ gatewayPaymentId: 'pay_C' }), 0)
 
     await mongoose.connection.dropDatabase()
     await mongoose.disconnect()

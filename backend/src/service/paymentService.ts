@@ -6,11 +6,13 @@ import orgModel from '../model/orgModel'
 import { SubscriptionPlan } from '../types/billingTypes'
 import logger from '../util/loger'
 import config from '../config/config'
+import { PaymentError, PLAN_PRICES } from './billing/prices'
+import { activatePayment, orderInfoFromRazorpay } from './billing/activatePayment'
 
 // ─── SDK instances (lazy-init so missing keys don't crash on startup) ─────────
 
 let _razorpay: Razorpay | null = null
-const getRazorpay = (): Razorpay => {
+export const getRazorpay = (): Razorpay => {
     if (_razorpay) return _razorpay
     const keyId = config.PAYMENT.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || ''
     const keySecret = config.PAYMENT.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET || ''
@@ -28,17 +30,8 @@ const getStripe = (): Stripe => {
     return _stripe
 }
 
-// Payment verification failures: the client's fault (400), not a server error
-export class PaymentError extends Error {}
-
-// ─── Plan pricing ─────────────────────────────────────────────────────────────
-
-const PLAN_PRICES: Record<SubscriptionPlan, { monthly: number; yearly: number }> = {
-    free: { monthly: 0, yearly: 0 },
-    starter: { monthly: 2999, yearly: 29990 },
-    growth: { monthly: 9999, yearly: 99990 },
-    agency: { monthly: 19999, yearly: 199990 }
-}
+// PaymentError and the price list live in billing/prices so billing/* can use them without a cycle
+export { PaymentError, PLAN_PRICES }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -196,10 +189,11 @@ export const paymentService = {
             if (expectedSignature !== gatewaySignature) {
                 throw new PaymentError('Razorpay payment signature verification failed — possible fraud attempt')
             }
-            const order = await getRazorpay().orders.fetch(gatewayOrderId)
-            assertOrderMatches(order.notes as Record<string, unknown>)
-            amount = Number(order.amount) / 100
-            paymentMethod = 'Razorpay'
+            const info = orderInfoFromRazorpay(await getRazorpay().orders.fetch(gatewayOrderId))
+            if (info.plan !== plan || info.billingCycle !== billingCycle || info.orgId !== orgId)
+                throw new PaymentError('Payment does not match the selected plan')
+            amount = info.amount
+            paymentMethod = 'UPI / Card (Razorpay)'
             logger.info(`[PaymentService] Razorpay payment verified: ${gatewayPaymentId}`)
         }
 
@@ -228,65 +222,16 @@ export const paymentService = {
             throw new PaymentError(`Unsupported payment gateway: ${gateway}`)
         }
 
-        // A verified payment can only activate a plan once
-        const paymentRef = gatewayPaymentId || gatewayOrderId
-        if (paymentRef && (await InvoiceModel.exists({ gatewayPaymentId: paymentRef }))) {
-            throw new PaymentError('This payment has already been used')
-        }
-
-        // ── Activate subscription ─────────────────────────────────────────────
-        await orgModel.findByIdAndUpdate(orgId, { plan })
-
-        // Renewing the same plan before it lapses extends it from the current expiry, so no paid days are lost
-        const periodDays = billingCycle === 'yearly' ? 365 : 30
-        const existing = await SubscriptionModel.findOne({ orgId }).lean()
-        const now = new Date()
-        const currentPeriodStart =
-            existing?.plan === plan && existing.status === 'active' && existing.expiresAt && existing.expiresAt > now ? existing.expiresAt : now
-        const currentPeriodEnd = new Date(currentPeriodStart.getTime() + periodDays * 24 * 60 * 60 * 1000)
-
-        const sub = await SubscriptionModel.findOneAndUpdate(
-            { orgId },
-            {
-                userId,
-                plan,
-                status: 'active',
-                billingCycle,
-                gatewaySubscriptionId: gatewayPaymentId || gatewayOrderId || `sub_${Date.now()}`,
-                currentPeriodStart,
-                currentPeriodEnd,
-                expiresAt: currentPeriodEnd,
-                cancelAtPeriodEnd: false
-            },
-            { upsert: true, new: true }
-        )
-
-        // ── Generate Invoice ──────────────────────────────────────────────────
-        const invoiceCount = await InvoiceModel.countDocuments()
-        const invoiceNumber = `INV-${new Date().getFullYear()}-${(invoiceCount + 1001).toString()}`
-
-        const invoice = await InvoiceModel.create({
-            invoiceNumber,
-            orgId,
-            userId,
-            plan,
-            amount,
-            currency: 'INR',
-            status: 'paid',
+        // One payment activates one plan, however many times it is confirmed (browser, webhook)
+        const ref = gatewayPaymentId || gatewayOrderId || `mock_${Date.now()}`
+        return activatePayment({
+            paymentId: ref,
+            orderId: gatewayOrderId || ref,
+            order: { orgId, userId, plan, billingCycle, amount },
+            gateway: gateway as 'razorpay' | 'stripe' | 'mock',
             paymentMethod,
-            gatewayPaymentId: gatewayPaymentId || gatewayOrderId || `pay_${Date.now()}`,
-            paidAt: new Date(),
-            items: [
-                {
-                    description: `GEO Platform - ${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan (${billingCycle})`,
-                    amount
-                }
-            ]
+            source: 'browser'
         })
-
-        logger.info(`[PaymentService] Subscription activated for Org ${orgId}. Invoice: ${invoiceNumber}`)
-
-        return { subscription: sub, invoice }
     },
 
     /**

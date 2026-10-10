@@ -9,6 +9,7 @@ import { memoryStore, KEYS } from '../service/freeCheck/store'
 import { hashIp } from '../service/freeCheck/helpers'
 import { leadUnsubscribeUrl } from '../service/freeCheck/emails'
 import { setSetting } from '../model/appSettingModel'
+import adminController from '../controller/adminController'
 
 type Body = { data?: Record<string, unknown>; message?: string }
 type Res = { code: number; body: Body }
@@ -173,6 +174,21 @@ const run = async () => {
     assert.equal((await leadModel.findOne({ email: 'owner@hasanoud.com' }).lean())!.marketingConsent, true)
     await call(freeCheckController.unsubscribe as Handler, {}, {}, '1.1.1.1', { e: 'owner@hasanoud.com', t: u.searchParams.get('t') })
     assert.equal((await leadModel.findOne({ email: 'owner@hasanoud.com' }).lean())!.marketingConsent, false)
+
+    // Admin: today's use, limit change (0–5000), leads and the 7-day funnel
+    Object.assign(adminController.freeCheckDeps, { store })
+    const adm = await call(adminController.getFreeCheck as Handler)
+    assert.equal(adm.code, 200)
+    assert.equal((adm.body.data!.today as { limit: number }).limit, 0)
+    assert.ok((adm.body.data!.leads as unknown[]).length >= 2)
+    assert.equal((adm.body.data!.funnel as { verified: number }).verified, 2)
+    assert.equal((await call(adminController.setFreeCheckLimit as Handler, { limit: -1 })).code, 400)
+    assert.equal((await call(adminController.setFreeCheckLimit as Handler, { limit: 'x' })).code, 400)
+    assert.equal((await call(adminController.setFreeCheckLimit as Handler, { limit: 300 })).code, 200)
+    assert.equal(((await call(adminController.getFreeCheck as Handler)).body.data!.today as { limit: number }).limit, 300)
+    const csv = await call(adminController.getFreeCheckLeadsCsv as Handler)
+    assert.ok(csv.body.message!.startsWith('email,site,brand'))
+    assert.ok(csv.body.message!.includes('owner@hasanoud.com'))
 
     await mongoose.connection.dropDatabase()
     await mongoose.disconnect()

@@ -134,6 +134,11 @@ router.route('/admin/categories/:id').delete(authentication, adminOnly, category
 
 // Admin Cost Logs & API Usage
 router.route('/admin/cost-logs').get(authentication, adminOnly, adminController.getCostLogs)
+router
+    .route('/admin/free-check')
+    .get(authentication, adminOnly, adminController.getFreeCheck)
+    .put(authentication, adminOnly, adminController.setFreeCheckLimit)
+router.route('/admin/free-check/leads.csv').get(authentication, adminOnly, adminController.getFreeCheckLeadsCsv)
 
 // Admin Encrypted API Keys Management
 router.route('/admin/api-keys').get(authentication, adminOnly, adminController.getApiKeys)

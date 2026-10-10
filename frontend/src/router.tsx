@@ -26,6 +26,7 @@ import AdminUsers from './pages/admin/AdminUsers';
 import AdminModels from './pages/admin/AdminModels';
 import AdminCategories from './pages/admin/AdminCategories';
 import AdminCostLogs from './pages/admin/AdminCostLogs';
+import AdminFreeChecker from './pages/admin/AdminFreeChecker';
 import AdminApiKeys from './pages/admin/AdminApiKeys';
 import AdminBilling from './pages/admin/AdminBilling';
 
@@ -121,6 +122,10 @@ export const router = createBrowserRouter([
               {
                 path: 'cost-logs',
                 element: <AdminCostLogs />,
+              },
+              {
+                path: 'free-checker',
+                element: <AdminFreeChecker />,
               },
             ],
           },

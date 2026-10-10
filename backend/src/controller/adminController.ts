@@ -5,8 +5,13 @@ import httpResponse from '../util/httpResponse'
 import httpError from '../util/httpError'
 import responceseMessage from '../constent/responceseMessage'
 import { EUserRole } from '../constent/userConstent'
+import freeCheckModel from '../model/freeCheckModel'
+import leadModel from '../model/leadModel'
+import { getSetting, setSetting } from '../model/appSettingModel'
+import { KEYS, redisStore, type IFreeCheckStore } from '../service/freeCheck/store'
+import { istDay } from '../service/freeCheck/helpers'
 
-export default {
+const adminController = {
     getStats: async (req: Request, res: Response, next: NextFunction) => {
         try {
             const stats = await databseService.getAdminSystemStats()
@@ -144,6 +149,75 @@ export default {
         }
     },
 
+    // Free checker: today's use against the limit, leads, 7-day funnel
+    freeCheckDeps: { store: null as IFreeCheckStore | null },
+
+    getFreeCheck: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const store = adminController.freeCheckDeps.store ?? redisStore()
+            const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            const [limit, used, checks, verified, signups, leads] = await Promise.all([
+                getSetting('freeCheckDailyLimit', 150),
+                store.get(KEYS.global + istDay()).catch(() => '0'),
+                freeCheckModel.countDocuments({ createdAt: { $gte: since } }),
+                freeCheckModel.countDocuments({ createdAt: { $gte: since }, verifiedAt: { $ne: null } }),
+                leadModel.countDocuments({ signedUpAt: { $gte: since } }),
+                leadModel.find().sort({ createdAt: -1 }).limit(200).lean()
+            ])
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, {
+                today: { used: Number(used || 0), limit },
+                funnel: { checks, verified, signups },
+                leads
+            })
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+
+    setFreeCheckLimit: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const raw = (req.body as { limit?: unknown }).limit
+            const limit = typeof raw === 'number' ? raw : Number.NaN
+            if (!Number.isInteger(limit) || limit < 0 || limit > 5000)
+                return httpError(next, new Error('Limit must be a whole number from 0 to 5000'), req, 400)
+            await setSetting('freeCheckDailyLimit', limit)
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, { limit })
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+
+    getFreeCheckLeadsCsv: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const leads = await leadModel.find().sort({ createdAt: -1 }).lean()
+            // Quoted cells; a leading = + - @ is neutralised so a spreadsheet never runs it as a formula
+            const cell = (v: unknown) =>
+                `"${String(v ?? '')
+                    .replace(/^([=+\-@])/, "'$1")
+                    .replace(/"/g, '""')}"`
+            const rows = leads.map((l) =>
+                [
+                    l.email,
+                    l.domain,
+                    l.brandName,
+                    l.category,
+                    l.country,
+                    l.marketingConsent,
+                    l.verifiedAt?.toISOString(),
+                    l.signedUpAt?.toISOString() ?? '',
+                    l.createdAt?.toISOString()
+                ]
+                    .map(cell)
+                    .join(',')
+            )
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+            res.setHeader('Content-Disposition', 'attachment; filename="free-check-leads.csv"')
+            res.send(['email,site,brand,category,country,consent,verified,signed_up,created', ...rows].join('\n'))
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+
     // Cost Logs
     getCostLogs: async (req: Request, res: Response, next: NextFunction) => {
         try {
@@ -260,3 +334,5 @@ export default {
         }
     }
 }
+
+export default adminController

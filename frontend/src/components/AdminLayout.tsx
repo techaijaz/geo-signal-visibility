@@ -13,6 +13,7 @@ export default function AdminLayout() {
     { path: '/admin/api-keys', label: 'API Keys (Encrypted)', icon: '🔑' },
     { path: '/admin/categories', label: 'Categories', icon: '🏷️' },
     { path: '/admin/cost-logs', label: 'API Usage & Cost Logs', icon: '⚡' },
+    { path: '/admin/free-checker', label: 'Free checker', icon: '🔎' },
   ];
 
   return (

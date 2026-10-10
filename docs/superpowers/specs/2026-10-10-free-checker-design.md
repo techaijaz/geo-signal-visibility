@@ -52,7 +52,7 @@ A free checker existed until 30 Sep 2026 (removed in `288d38e`): 3 template ques
 
 - **Queue `free-check`** in the existing worker, concurrency 2. For each question × engine it calls the scan path for ChatGPT (`gpt-4o-mini`) and Gemini (`gemini-flash-latest`), through the existing 6-hour **AI response cache** (same question → same answer for everyone, so repeat questions in a category cost nothing). Each answer is matched with the Lost-to helpers (`nameMatcher`, brand extraction, retailer filter): brand named + position, other brands named. Calls are logged in `costLog` with `purpose: 'free-check'`.
 - **Questions** come from `templateQueries(category)` minus the brand-name question, behind `freeCheckQuestions(category, market = 'IN')` so a UAE list can be added later without code changes. Part of this work: every category gets at least 4 EN questions, and weak lists (e.g. Software & SaaS: "Comparison with leading market software competitors") are rewritten as real buyer questions.
-- **`freeChecks`** collection: `checkId`, url, domain, brandName, category, market, questions, ipHash, country (from the `CF-IPCountry`/GeoIP header when present, else empty), status (`queued | running | done | failed | waiting-email | scheduled`), result, verifiedEmail, createdAt. TTL 30 days.
+- **`freeChecks`** collection: `checkId`, url, domain, brandName, category, market, questions, ipHash, country (`IN` when the browser time zone is Asia/Kolkata, else that time zone; there is no GeoIP on the server), status (`queued | running | done | failed | waiting-email | scheduled`), result, verifiedEmail, createdAt. TTL 30 days.
 - **`leads`** collection: email (unique), domain, brandName, category, market, country, checkIds[], marketingConsent + consentAt, verifiedAt, signedUpAt, createdAt. Kept.
 - **Redis:** counters per IST day — `fc:ip:<hash>` (checks 3, site lookups 10, codes 5), `fc:email:<email>` (codes 3, fresh checks 2), `fc:global` (checks; limit from the admin setting, default 150); cache `fc:cache:<ipHash>:<domain>` → `checkId`, 24 h. IPs are stored only as `sha256(salt + ip)`.
 
@@ -62,7 +62,7 @@ A free checker existed until 30 Sep 2026 (removed in `288d38e`): 3 template ques
 2. **Turnstile** token verified with Cloudflare's siteverify (single use). Keys: `TURNSTILE_SECRET_KEY` (API env) and `PUBLIC_TURNSTILE_SITE_KEY` (website build var). Missing secret outside production → check skipped; in production → refused.
 3. **Cache** `ip + domain` (24 h): same visitor, same site → the earlier result, no AI call, whatever questions are picked. Removed after email verification, so a verified visitor can run fresh questions (within the email limit).
 4. **IP limit** 3 new checks/day.
-5. **Global budget** (`INCR` before queueing, atomic): over the limit → `waiting-email` flow. At 80% an email goes to the admin address once per day.
+5. **Global budget** (`INCR` before queueing, atomic): over the limit → `waiting-email` flow. At 80% an email goes once per day to `FREE_CHECK_ALERT_EMAIL` (the user picks the address; empty = no alert).
 
 A check whose engines all fail gives the global counter back and is not cached.
 

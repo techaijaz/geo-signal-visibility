@@ -56,6 +56,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
       <p>AI recommends brands it has read about in many places: reviews, lists and comparison pages.</p>
       <a id="fc-signup" class="btn btn--marker">Track 15 questions across 5 AIs every week → Create a free account</a>
     </div>
+    <div id="fc-toast" class="toast" role="status" aria-live="polite" hidden></div>
   </section>
   {siteKey && <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>}
 </Base>
@@ -119,6 +120,23 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
     token = ''
     if (widget) turnstile()?.reset(widget)
   }
+
+  let toastTimer: ReturnType<typeof setTimeout> | undefined
+  function toast(msg: string) {
+    el('fc-toast').textContent = msg
+    show('fc-toast')
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => show('fc-toast', false), 3000)
+  }
+
+  // Only 3 questions: a 4th tick is undone with a note
+  el('fc-list').addEventListener('change', (e) => {
+    const box = e.target as HTMLInputElement
+    if (box.checked && el('fc-list').querySelectorAll('input:checked').length > 3) {
+      box.checked = false
+      toast('You can pick only 3 questions. Untick one to choose another.')
+    }
+  })
 
   input('fc-url').addEventListener('blur', () => {
     const v = input('fc-url').value.trim()
@@ -282,4 +300,5 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
   .fc :global(.blur) { filter: blur(5px); user-select: none; }
   .fc .err { color: #b3261e; }
   .fc .btn { justify-self: start; }
+  .fc .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 12px 18px; border-radius: 10px; background: var(--ink); color: var(--porcelain); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2); z-index: 50; }
 </style>

@@ -1,8 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../utils/axios';
 import { useAuth } from '../context/AuthContext';
 import { usePlanLimits } from '../hooks/usePlanLimits';
 import { loadStripe } from '@stripe/stripe-js';
+
+// Stripe is loaded once, and only when a publishable key is configured
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
 interface Plan {
@@ -227,10 +231,33 @@ export default function Billing() {
     gateway: 'razorpay' | 'stripe' | 'mock';
   } | null>(null);
 
-  // Stripe promise (initialized once)
-  const stripePromise = useRef(
-    loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '')
-  );
+
+  // Up to 60 s: the plan shows active once the browser confirm or the webhook has run
+  const waitForPlan = async (plan: string) => {
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      try {
+        const res = await api.get('/subscription');
+        if (res.data?.data?.currentPlan === plan) return true;
+      } catch {
+        /* keep waiting */
+      }
+    }
+    return false;
+  };
+
+  const downloadPdf = async (inv: Invoice) => {
+    try {
+      const res = await api.get(`/subscription/invoices/${inv._id}/pdf`, { responseType: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(res.data);
+      a.download = `Invoice-${inv.invoiceNumber.replace(/\//g, '-')}.pdf`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      setMessage({ text: 'The invoice PDF is not available right now. Try again in a minute.', type: 'error' });
+    }
+  };
 
   useEffect(() => {
     fetchBillingData();
@@ -257,7 +284,7 @@ export default function Billing() {
   };
 
   const handleSelectPlan = async (targetPlanId: string) => {
-    if (targetPlanId === currentPlan) return;
+    if (processingPlan || targetPlanId === currentPlan) return;
     if (targetPlanId === 'agency') {
       setMessage({ text: 'Our Enterprise team will contact you shortly at ' + (user?.email || 'your email'), type: 'success' });
       return;
@@ -340,16 +367,16 @@ export default function Billing() {
           order_id: session.orderId,
           amount: session.amount * 100, // paise
           currency: 'INR',
-          name: 'GEO Platform',
+          name: 'Signal AI',
           description: session.description,
-          image: 'https://avatars.githubusercontent.com/u/1',
           theme: { color: '#f59e0b' },
           handler: async (response: {
             razorpay_payment_id: string;
             razorpay_order_id: string;
             razorpay_signature: string;
           }) => {
-            // Payment successful — verify on backend
+            const planName = session.plan.charAt(0).toUpperCase() + session.plan.slice(1);
+            setMessage({ text: 'Confirming your payment…', type: 'success' });
             try {
               await api.post('/subscription/confirm', {
                 plan: session.plan,
@@ -357,17 +384,25 @@ export default function Billing() {
                 gateway: 'razorpay',
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                amount: session.amount
+                razorpay_signature: response.razorpay_signature
               });
               setCurrentPlan(session.plan);
-              setMessage({ text: `🎉 Payment successful! ${session.plan.toUpperCase()} plan activated via Razorpay.`, type: 'success' });
-              fetchBillingData();
-              resolve();
+              setMessage({ text: `Your ${planName} plan is active. Your invoice is on its way by email.`, type: 'success' });
             } catch {
-              setMessage({ text: 'Razorpay payment received but verification failed. Contact support.', type: 'error' });
-              reject();
+              // The webhook activates paid plans too: wait for it before showing anything alarming
+              const active = await waitForPlan(session.plan);
+              if (active) setCurrentPlan(session.plan);
+              setMessage(
+                active
+                  ? { text: `Your ${planName} plan is active. Your invoice is on its way by email.`, type: 'success' }
+                  : {
+                      text: `Payment received (ID ${response.razorpay_payment_id}). We're activating your plan; this can take a few minutes and we'll email your invoice.`,
+                      type: 'success'
+                    }
+              );
             }
+            fetchBillingData();
+            resolve();
           },
           modal: {
             ondismiss: () => { resolve(); }
@@ -623,7 +658,7 @@ export default function Billing() {
               </div>
 
               <button
-                disabled={isCurrent || processingPlan === p.id}
+                disabled={isCurrent || !!processingPlan}
                 onClick={() => handleSelectPlan(p.id)}
                 style={{
                   width: '100%',
@@ -643,7 +678,7 @@ export default function Billing() {
                   opacity: processingPlan === p.id ? 0.7 : 1
                 }}
               >
-                {processingPlan === p.id ? 'Processing...' : btnText}
+                {processingPlan === p.id ? 'Opening payment…' : btnText}
               </button>
             </div>
           );
@@ -726,8 +761,8 @@ export default function Billing() {
               <div style={{ fontSize: '24px', fontWeight: 800, color: '#f59e0b', marginTop: '8px' }}>₹{activeCheckout.amount.toLocaleString()}</div>
             </div>
 
-            {activeCheckout.gateway === 'stripe' && activeCheckout.clientSecret ? (
-              <Elements stripe={stripePromise.current} options={{ clientSecret: activeCheckout.clientSecret, appearance: { theme: 'night' } }}>
+            {activeCheckout.gateway === 'stripe' && activeCheckout.clientSecret && stripePromise ? (
+              <Elements stripe={stripePromise} options={{ clientSecret: activeCheckout.clientSecret, appearance: { theme: 'night' } }}>
                 <StripeCheckoutForm
                   clientSecret={activeCheckout.clientSecret}
                   plan={activeCheckout.plan}
@@ -821,7 +856,7 @@ export default function Billing() {
             </div>
 
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => window.print()} style={{ flex: 1, padding: '10px', borderRadius: '8px', background: '#4f46e5', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Print / Save PDF</button>
+              <button onClick={() => downloadPdf(selectedInvoice)} style={{ flex: 1, padding: '10px', borderRadius: '8px', background: '#4f46e5', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Download PDF</button>
               <button onClick={() => setSelectedInvoice(null)} style={{ padding: '10px 20px', borderRadius: '8px', background: '#e2e8f0', color: '#334155', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Close</button>
             </div>
           </div>

@@ -54,6 +54,9 @@ const VERTICAL_RULES: [Vertical, RegExp][] = [
     ['retail', /e-?commerce|retail|\bd2c\b|\bother\b|\bgeneral\b/i]
 ]
 
+// Same rules on free text (a homepage title/description), for the free checker's category guess
+export const verticalOfText = (text: string): Vertical | null => VERTICAL_RULES.find(([, re]) => re.test(text || ''))?.[0] ?? null
+
 export const detectVertical = (category: string): Vertical => {
     const c = (category || '').trim()
     if (!c) return 'retail'

@@ -62,6 +62,7 @@
         "countries-and-timezones": "^3.7.2",
         "cross-env": "^7.0.3",
         "dayjs": "^1.11.13",
+        "disposable-email-domains": "1.0.62",
         "dotenv-flow": "^4.1.0",
         "express": "^4.21.1",
         "helmet": "^8.0.0",

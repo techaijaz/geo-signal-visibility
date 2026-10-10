@@ -68,6 +68,7 @@ jobs:
               website)
                 echo "SITE_URL=https://${DOMAIN}"
                 echo "PUBLIC_APP_URL=https://app.${DOMAIN}"
+                echo "PUBLIC_TURNSTILE_SITE_KEY=${{ vars[matrix.env == 'staging' && 'STAGING_TURNSTILE_SITE_KEY' || 'TURNSTILE_SITE_KEY'] }}"
                 ;;
             esac
             echo 'EOF'

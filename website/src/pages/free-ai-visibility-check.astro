@@ -1,0 +1,265 @@
+---
+import Base from '../layouts/Base.astro'
+import { APP_URL } from '../config/site'
+const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
+---
+<Base
+  title="Free AI visibility check"
+  description="Enter your store, pick 3 buyer questions, and see which brands ChatGPT and Gemini recommend instead of you. Free, for Indian D2C brands."
+>
+  <section class="fc wrap" data-api={`${APP_URL}/api/v1/public`} data-app={APP_URL} data-sitekey={siteKey}>
+    <h1>Is AI recommending your brand, or someone else?</h1>
+    <p class="lede">For Indian D2C brands. 3 buyer questions, asked to ChatGPT and Gemini. Free.</p>
+
+    <form id="fc-site" class="card">
+      <label>Your website <input id="fc-url" type="text" inputmode="url" placeholder="https://hasanoud.com" required /></label>
+      <button class="btn btn--marker">Check karo</button>
+      <p class="err" id="fc-site-err" hidden></p>
+    </form>
+
+    <form id="fc-questions" class="card" hidden>
+      <label>Brand name <input id="fc-brand" required minlength="2" maxlength="80" /></label>
+      <label>Category <input id="fc-category" list="fc-categories" required autocomplete="off" /><datalist id="fc-categories"></datalist></label>
+      <fieldset>
+        <legend>Pick 3 questions</legend>
+        <div id="fc-list"></div>
+      </fieldset>
+      <div id="fc-turnstile"></div>
+      <button class="btn btn--marker" id="fc-run">ChatGPT aur Gemini se poochho</button>
+      <p class="err" id="fc-run-err" hidden></p>
+    </form>
+
+    <div id="fc-wait" class="card" hidden><p id="fc-wait-text" aria-live="polite">ChatGPT se poochh rahe hain…</p></div>
+
+    <div id="fc-result" class="card" hidden>
+      <p class="big" id="fc-score"></p>
+      <ul id="fc-rows"></ul>
+      <p id="fc-others"></p>
+    </div>
+
+    <form id="fc-email" class="card" hidden>
+      <p id="fc-email-lead">Kaun aapki jagah aa raha hai? Email daalo: naam abhi dikhenge, report inbox me.</p>
+      <label>Email <input id="fc-mail" type="email" required /></label>
+      <label class="check"><input id="fc-consent" type="checkbox" /> Mujhe AI visibility ke tips aur updates bhejo</label>
+      <button class="btn btn--marker">Code bhejo</button>
+      <p class="err" id="fc-email-err" hidden></p>
+    </form>
+
+    <form id="fc-code" class="card" hidden>
+      <label>6-digit code (check your inbox) <input id="fc-otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required /></label>
+      <button class="btn btn--marker">Naam dikhao</button>
+      <p class="err" id="fc-code-err" hidden></p>
+    </form>
+
+    <div id="fc-full" class="card" hidden>
+      <p id="fc-instead"></p>
+      <p>AI recommends brands it has read about in many places: reviews, lists and comparison pages.</p>
+      <a id="fc-signup" class="btn btn--marker">Har hafte 15 sawaal × 5 AI pe nazar rakho → Free account banao</a>
+    </div>
+  </section>
+  {siteKey && <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>}
+</Base>
+
+<script>
+  type Engine = { engine: string; ok: boolean; named: boolean; position: number | null }
+  type Half = {
+    status: string
+    brandName: string
+    namedCount: number
+    total: number
+    otherBrandsCount: number
+    failedEngines: string[]
+    questions: Array<{ text: string; engines: Engine[] }>
+  }
+  type TurnstileApi = { render: (el: string, opts: { sitekey: string; callback: (t: string) => void }) => unknown; reset: (w?: unknown) => void }
+
+  const root = document.querySelector<HTMLElement>('.fc')!
+  const API = root.dataset.api!
+  const APP = root.dataset.app!
+  const SITEKEY = root.dataset.sitekey || ''
+  const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
+  const input = (id: string) => el<HTMLInputElement>(id)
+  const show = (id: string, on = true) => (el(id).hidden = !on)
+  const err = (id: string, msg = '') => {
+    el(id).textContent = msg
+    show(id, !!msg)
+  }
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
+  const post = async (path: string, body: object) => {
+    const r = await fetch(`${API}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(
+      () => {
+        throw new Error('Server se baat nahi ho payi. Internet check karke dobara koshish karo.')
+      }
+    )
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error(j.message || 'Kuch gadbad hui. Dobara koshish karo.')
+    return j.data
+  }
+
+  let checkId = ''
+  let token = ''
+  let widget: unknown = null
+  const turnstile = () => (window as unknown as { turnstile?: TurnstileApi }).turnstile
+
+  input('fc-url').addEventListener('blur', () => {
+    const v = input('fc-url').value.trim()
+    if (v && !/^https?:\/\//i.test(v)) input('fc-url').value = `https://${v}`
+  })
+
+  function renderQuestions(qs: Array<{ text: string; lang: string }>) {
+    el('fc-list').innerHTML = qs
+      .map(
+        (q, i) =>
+          `<label class="q"><input type="checkbox" value="${esc(q.text)}" ${i < 3 ? 'checked' : ''}/> <span class="tag">${q.lang === 'EN' ? 'EN' : 'Hinglish'}</span> ${esc(q.text)}</label>`
+      )
+      .join('')
+  }
+
+  el('fc-site').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    err('fc-site-err')
+    try {
+      const d = await post('/free-check/site', { url: input('fc-url').value })
+      input('fc-url').value = d.url
+      input('fc-brand').value = d.brandName
+      input('fc-category').value = d.category
+      el('fc-categories').innerHTML = d.categories.map((c: string) => `<option value="${esc(c)}">`).join('')
+      renderQuestions(d.questions)
+      show('fc-questions')
+      const ts = turnstile()
+      if (SITEKEY && ts && !widget) widget = ts.render('#fc-turnstile', { sitekey: SITEKEY, callback: (t) => (token = t) })
+    } catch (x) {
+      err('fc-site-err', (x as Error).message)
+    }
+  })
+
+  // A changed category gets its own questions; brand and site stay
+  input('fc-category').addEventListener('change', async () => {
+    try {
+      renderQuestions((await post('/free-check/site', { url: input('fc-url').value, category: input('fc-category').value })).questions)
+    } catch {
+      /* keep the list */
+    }
+  })
+
+  el('fc-questions').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    err('fc-run-err')
+    const questions = [...el('fc-list').querySelectorAll<HTMLInputElement>('input:checked')].map((i) => i.value)
+    if (questions.length !== 3) return err('fc-run-err', 'Theek 3 sawaal chuno.')
+    try {
+      const d = await post('/free-check', {
+        url: input('fc-url').value,
+        brandName: input('fc-brand').value,
+        category: input('fc-category').value,
+        questions,
+        turnstileToken: token,
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone
+      })
+      checkId = d.checkId
+      show('fc-questions', false)
+      if (d.status === 'waiting-email') {
+        el('fc-email-lead').textContent = 'Aaj bheed zyada hai. Email do, kal subah result bhej denge.'
+        show('fc-email')
+      } else void poll()
+    } catch (x) {
+      err('fc-run-err', (x as Error).message)
+      if (widget) turnstile()?.reset(widget) // tokens are single use
+      token = ''
+    }
+  })
+
+  const steps = ['ChatGPT se poochh rahe hain…', 'Gemini se poochh rahe hain…', 'Jawab padh rahe hain…']
+  async function poll() {
+    show('fc-wait')
+    for (let i = 0; i < 60; i++) {
+      el('fc-wait-text').textContent = steps[Math.min(2, Math.floor(i / 4))]
+      const r = await fetch(`${API}/free-check/${encodeURIComponent(checkId)}`)
+        .then((x) => x.json())
+        .catch(() => null)
+      const d = r?.data as Half | undefined
+      if (d && (d.status === 'done' || d.status === 'failed')) {
+        show('fc-wait', false)
+        if (d.status === 'failed') {
+          err('fc-run-err', 'Abhi check nahi ho paya, 5 minute baad dobara karo.')
+          return show('fc-questions')
+        }
+        return renderHalf(d)
+      }
+      await new Promise((ok) => setTimeout(ok, 2000))
+    }
+    show('fc-wait', false)
+    err('fc-run-err', 'Is baar der lag rahi hai. Thodi der baad page refresh karo.')
+    show('fc-questions')
+  }
+
+  function renderHalf(d: Half) {
+    el('fc-score').textContent = `${d.total} me se ${d.namedCount} jawabon me ${d.brandName} ka naam aaya`
+    el('fc-rows').innerHTML = d.questions
+      .map(
+        (q) =>
+          `<li><b>${esc(q.text)}</b><br/>${q.engines.map((e) => `${e.engine} ${!e.ok ? '—' : e.named ? `✓${e.position ? ` #${e.position}` : ''}` : '✗'}`).join(' · ')}</li>`
+      )
+      .join('')
+    const failed = d.failedEngines.length ? `<br/><small>${d.failedEngines.join(', ')} ne jawab nahi diya.</small>` : ''
+    el('fc-others').innerHTML = d.otherBrandsCount
+      ? `AI ne <b>${d.otherBrandsCount} aur brands</b> bataye: <span class="blur" aria-hidden="true">Brand · Brand · Brand</span>${failed}`
+      : `AI ne koi aur brand nahi bataya.${failed}`
+    show('fc-result')
+    if (d.otherBrandsCount) show('fc-email')
+  }
+
+  el('fc-email').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    err('fc-email-err')
+    try {
+      await post(`/free-check/${encodeURIComponent(checkId)}/email`, { email: input('fc-mail').value, marketingConsent: input('fc-consent').checked })
+      show('fc-email', false)
+      show('fc-code')
+    } catch (x) {
+      err('fc-email-err', (x as Error).message)
+    }
+  })
+
+  el('fc-code').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    err('fc-code-err')
+    try {
+      const d = await post(`/free-check/${encodeURIComponent(checkId)}/verify`, { code: input('fc-otp').value })
+      show('fc-code', false)
+      el<HTMLAnchorElement>('fc-signup').href = `${APP}/signup?fc=${encodeURIComponent(checkId)}`
+      const others = (d.otherBrands || []) as Array<{ name: string; count: number }>
+      el('fc-instead').innerHTML =
+        d.status === 'scheduled'
+          ? 'Ho gaya. Kal subah result aapke inbox me aayega.'
+          : others.length
+            ? `AI aapki jagah ye bata raha hai: <b>${others
+                .slice(0, 6)
+                .map((b) => `${esc(b.name)} (${b.count}/${d.total})`)
+                .join(', ')}</b>`
+            : 'AI ne koi aur brand nahi bataya.'
+      show('fc-full')
+    } catch (x) {
+      err('fc-code-err', (x as Error).message)
+    }
+  })
+</script>
+
+<style>
+  .fc { max-width: 760px; padding-block: clamp(32px, 6vw, 72px); display: grid; gap: 20px; }
+  .fc h1 { font-size: var(--t-2xl); max-width: 20ch; }
+  .fc .lede { font-size: var(--t-md, 1.1rem); color: #3c5457; }
+  .fc .card { display: grid; gap: 14px; padding: clamp(18px, 3vw, 28px); background: #fff; border: 1px solid #d9e0de; border-radius: 14px; }
+  .fc [hidden] { display: none !important; }
+  .fc label { display: grid; gap: 6px; font-weight: 600; }
+  .fc input:not([type='checkbox']) { width: 100%; padding: 11px 12px; border: 1px solid #c3ccca; border-radius: 8px; font: inherit; font-weight: 400; }
+  .fc fieldset { border: 0; padding: 0; display: grid; gap: 10px; }
+  .fc legend { font-weight: 600; margin-bottom: 6px; }
+  .fc .q, .fc .check { display: flex; gap: 8px; align-items: baseline; font-weight: 400; }
+  .fc .tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #FFC857; color: var(--ink); white-space: nowrap; }
+  .fc .big { font-size: clamp(1.4rem, 3vw, 1.9rem); font-weight: 700; }
+  .fc ul { display: grid; gap: 10px; padding-left: 18px; }
+  .fc .blur { filter: blur(5px); user-select: none; }
+  .fc .err { color: #b3261e; }
+  .fc .btn { justify-self: start; }
+</style>

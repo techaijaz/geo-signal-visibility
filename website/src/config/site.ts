@@ -139,6 +139,7 @@ export const competitorsMid: Competitor[] = [
 ]
 
 export const nav = [
+    { href: '/free-ai-visibility-check', label: 'Free check' },
     { href: '/features', label: 'Features' },
     { href: '/compare', label: 'Compare' },
     { href: '/pricing', label: 'Pricing' },

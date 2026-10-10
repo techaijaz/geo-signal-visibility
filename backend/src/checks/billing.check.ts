@@ -11,6 +11,8 @@ import { InvoiceModel, SubscriptionModel } from '../model/billingModel'
 import orgModel from '../model/orgModel'
 import userModel from '../model/userModel'
 import { PaymentError } from '../service/billing/prices'
+import crypto from 'crypto'
+import { handleRazorpayWebhook, validWebhookSignature } from '../service/billing/razorpayWebhook'
 
 const run = async () => {
     await mongoose.connect('mongodb://127.0.0.1:27017/signal_billing_check')
@@ -120,6 +122,36 @@ const run = async () => {
         PaymentError
     )
     assert.equal(await InvoiceModel.countDocuments({ gatewayPaymentId: 'pay_C' }), 0)
+
+    // Webhook: signature over the exact raw bytes
+    const secret = 'whsec_test'
+    const body = Buffer.from(
+        JSON.stringify({ event: 'payment.captured', payload: { payment: { entity: { id: 'pay_W', order_id: 'order_W', method: 'upi' } } } })
+    )
+    const sig = crypto.createHmac('sha256', secret).update(body).digest('hex')
+    assert.equal(validWebhookSignature(body, sig, secret), true)
+    assert.equal(validWebhookSignature(Buffer.from(JSON.stringify(JSON.parse(body.toString()), null, 1)), sig, secret), false) // re-serialised
+    assert.equal(validWebhookSignature(body, undefined, secret), false)
+
+    const fetchOrder = async () => ({ id: 'order_W', amount: 299900, notes })
+    const calls: string[] = []
+    const activate = (async (i: { paymentId: string; source: string }) => {
+        calls.push(i.paymentId + ':' + i.source)
+        return { subscription: null, invoice: {} }
+    }) as never
+    assert.equal((await handleRazorpayWebhook(body, sig, { secret, fetchOrder, activate })).status, 200)
+    assert.deepEqual(calls, ['pay_W:webhook'])
+    assert.equal((await handleRazorpayWebhook(body, 'bad', { secret, fetchOrder, activate })).status, 400)
+    assert.equal((await handleRazorpayWebhook(body, sig, { secret: '', fetchOrder, activate })).status, 503)
+    const other = Buffer.from(JSON.stringify({ event: 'order.paid', payload: {} }))
+    const otherSig = crypto.createHmac('sha256', secret).update(other).digest('hex')
+    assert.equal((await handleRazorpayWebhook(other, otherSig, { secret, fetchOrder, activate })).status, 200) // ignored
+    assert.equal(calls.length, 1)
+    // An activation error after a valid signature still answers 200 (Razorpay retries non-2xx; the next try finishes)
+    const failing = (async () => {
+        throw new Error('db down')
+    }) as never
+    assert.equal((await handleRazorpayWebhook(body, sig, { secret, fetchOrder, activate: failing })).status, 200)
 
     await mongoose.connection.dropDatabase()
     await mongoose.disconnect()

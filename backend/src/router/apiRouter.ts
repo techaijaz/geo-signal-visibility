@@ -12,6 +12,7 @@ import reportController from '../controller/reportController'
 import overviewController from '../controller/overviewController'
 import categoryController from '../controller/categoryController'
 import adminController from '../controller/adminController'
+import freeCheckController from '../controller/freeCheckController'
 import jobController from '../controller/jobController'
 import authentication from '../middleware/authentication'
 import adminOnly from '../middleware/adminOnly'
@@ -77,6 +78,14 @@ router.route('/brands/:id/fix-impact').get(authentication, recommendationControl
 router.route('/brands/:id/recommendations/rescan').post(authentication, recommendationController.rescanBrandRecommendations)
 
 // Reports router
+// Public: free AI visibility checker on the marketing website (limits and Turnstile in the controller)
+router.route('/public/free-check/site').post(freeCheckController.site)
+router.route('/public/free-check').post(freeCheckController.create)
+router.route('/public/free-check/:checkId').get(freeCheckController.status)
+router.route('/public/free-check/:checkId/email').post(freeCheckController.sendCode)
+router.route('/public/free-check/:checkId/verify').post(freeCheckController.verify)
+router.route('/public/leads/unsubscribe').get(freeCheckController.unsubscribe)
+
 // Public: link in the weekly report email (GET) and one-click unsubscribe from mail clients (POST)
 router
     .route('/reports/unsubscribe')

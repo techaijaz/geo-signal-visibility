@@ -13,6 +13,8 @@ export default {
 
     //frontend
     FRONTEND_URL: process.env.FRONTEND_URL || process.env.FRUNTEND_URL || 'http://localhost:5173',
+    // Marketing website origin, allowed to call the public free checker
+    WEBSITE_URL: process.env.WEBSITE_URL || '',
 
     //email service & SMTP
     // EMAIL_PROVIDER picks the sender: 'smtp' (default, e.g. Hostinger mail) or 'resend'.

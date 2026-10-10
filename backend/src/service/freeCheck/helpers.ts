@@ -25,17 +25,19 @@ export const normaliseSiteUrl = (input: string): { url: string; domain: string }
 const meta = (html: string, re: RegExp) => (html.match(re)?.[1] || '').replace(/&amp;/g, '&').trim()
 
 // Brand name and category from the homepage, without an AI call
-export const siteFacts = (html: string, categories: string[]): { brandName: string; category: string } => {
+export const siteFacts = (html: string, categories: string[], domain = ''): { brandName: string; category: string } => {
     const site = meta(html, /<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)/i)
     const title = meta(html, /<title[^>]*>([^<]*)<\/title>/i)
     const description = meta(html, /<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)/i)
     const h1 = meta(html, /<h1[^>]*>([^<]*)<\/h1>/i)
-    // "Buy Attar Online | Hasan Oud" → og:site_name, else the shortest title part
+    // "Buy Attar | Hasan Oud" → og:site_name, else the title part that matches the domain, else the shortest part
     const parts = title
         .split(/\s[|–—-]\s/)
         .map((p) => p.trim())
         .filter(Boolean)
-    const brandName = site || (parts.length ? parts.reduce((a, b) => (b.length < a.length ? b : a)) : '')
+    const host = brandKey(domain.split('.')[0] || '')
+    const onDomain = host ? parts.find((p) => brandKey(p) && (host.includes(brandKey(p)) || brandKey(p).includes(host))) : undefined
+    const brandName = site || onDomain || (parts.length ? parts.reduce((a, b) => (b.length < a.length ? b : a)) : '')
     const vertical = verticalOfText(`${title} ${description} ${h1}`)
     const category = vertical ? categories.find((c) => detectVertical(c) === vertical) || '' : ''
     return { brandName: brandName.slice(0, 80), category }

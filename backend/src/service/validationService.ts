@@ -116,3 +116,19 @@ const productJoiSchema = Joi.object({
 })
 export const validationSaveProductsBody = Joi.object({ products: Joi.array().items(productJoiSchema).max(200).required() })
 export const validationShortNamesBody = Joi.object({ titles: Joi.array().items(Joi.string().trim().max(300)).min(1).max(50).required() })
+
+// Free checker (public)
+export const validationFreeCheckSite = Joi.object({ url: Joi.string().trim().max(300).required(), category: Joi.string().trim().max(80) })
+export const validationFreeCheckCreate = Joi.object({
+    url: Joi.string().trim().max(300).required(),
+    brandName: Joi.string().trim().min(2).max(80).required(),
+    category: Joi.string().trim().max(80).required(),
+    questions: Joi.array().items(Joi.string().trim().max(200)).length(3).unique().required(),
+    turnstileToken: Joi.string().allow('').max(2048),
+    tz: Joi.string().allow('').max(64)
+})
+export const validationFreeCheckEmail = Joi.object({
+    email: Joi.string().trim().max(254).required(),
+    marketingConsent: Joi.boolean().default(false)
+})
+export const validationFreeCheckVerify = Joi.object({ code: Joi.string().trim().length(6).required() })

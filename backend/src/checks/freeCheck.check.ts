@@ -94,6 +94,10 @@ const run = async () => {
     assert.deepEqual(siteFacts('<title>Glowleaf – Natural skin care</title>', cats), { brandName: 'Glowleaf', category: 'Skincare & Personal Care' })
     assert.deepEqual(siteFacts('<div id="root"></div>', cats), { brandName: '', category: '' }) // JS shell
     assert.deepEqual(siteFacts('', cats), { brandName: '', category: '' })
+    // The title part that matches the domain is the name, whatever its length
+    assert.equal(siteFacts('<title>Buy Attar | Hasan Oud</title>', cats, 'hasanoud.com').brandName, 'Hasan Oud')
+    assert.equal(siteFacts('<title>Hasan Oud – Buy Pure Attar Online</title>', cats, 'hasanoud.com').brandName, 'Hasan Oud')
+    assert.equal(siteFacts('<title>Buy Attar | Hasan Oud</title>', cats, 'shop.example.com').brandName, 'Buy Attar') // no match: shortest part
     assert.deepEqual(siteFacts('<title>Acme Tools</title>', cats), { brandName: 'Acme Tools', category: '' }) // no rule matches
 
     // IST day and next morning

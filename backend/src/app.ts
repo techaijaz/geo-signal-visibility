@@ -25,6 +25,9 @@ app.get('/readyz', async (_req, res) => {
 app.use(helmet())
 app.use(cookieParser())
 const allowedOrigins = [config.FRONTEND_URL, 'http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'].filter(Boolean) as string[]
+// The marketing website calls the public free checker from its own origin; nothing else is opened
+const websiteOrigins = [config.WEBSITE_URL, config.WEBSITE_URL.replace('://', '://www.')].filter(Boolean)
+app.use('/api/v1/public', cors({ origin: websiteOrigins.length ? websiteOrigins : true, methods: ['GET', 'POST', 'OPTIONS'], credentials: false }))
 app.use(
     cors({
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],

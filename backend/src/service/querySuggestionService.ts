@@ -77,7 +77,8 @@ const TEMPLATES: Record<Exclude<Vertical, 'generic'>, ISuggestedQuery[]> = {
         q('Gift ke liye accha perfume set 2000 ke andar', 'HI-EN', 'Occasion'),
         q('Garmi me lagane ke liye fresh perfume kaunsa hai', 'HI-EN', 'Occasion'),
         q('Indian attar brands vs imported perfumes, kaunsa better hai', 'HI-EN', 'Comparison'),
-        q('Original attar online kahan se kharidein', 'HI-EN', 'Direct')
+        q('Original attar online kahan se kharidein', 'HI-EN', 'Direct'),
+        q('Best attar brands in India for long lasting fragrance', 'EN', 'Best-of')
     ],
     skincare: [
         q('500 ke andar sabse accha face wash oily skin ke liye', 'HI-EN', 'Price'),
@@ -89,7 +90,8 @@ const TEMPLATES: Record<Exclude<Vertical, 'generic'>, ISuggestedQuery[]> = {
         q('Best vitamin C serum in India under ₹800', 'EN', 'Price'),
         q('Pimples aur dark spots ke liye kaunsa serum accha hai', 'HI-EN', 'Direct'),
         q('Winter me dry skin ke liye best cream', 'HI-EN', 'Occasion'),
-        q('Ayurvedic vs chemical skincare, kaunsa better hai', 'HI-EN', 'Comparison')
+        q('Ayurvedic vs chemical skincare, kaunsa better hai', 'HI-EN', 'Comparison'),
+        q('Best natural skincare brands in India for sensitive skin', 'EN', 'Best-of')
     ],
     beauty: [
         q('300 ke andar sabse accha lipstick long lasting', 'HI-EN', 'Price'),
@@ -100,7 +102,8 @@ const TEMPLATES: Record<Exclude<Vertical, 'generic'>, ISuggestedQuery[]> = {
         q('Garmi me pasine me na bahne wala kajal', 'HI-EN', 'Occasion'),
         q('Cruelty free makeup brands in India', 'EN', 'Best-of'),
         q('Gift ke liye accha makeup hamper 1500 ke andar', 'HI-EN', 'Occasion'),
-        q('Indian makeup brands vs international brands, kaunsa better hai', 'HI-EN', 'Comparison')
+        q('Indian makeup brands vs international brands, kaunsa better hai', 'HI-EN', 'Comparison'),
+        q('Best affordable makeup brands in India for beginners', 'EN', 'Best-of')
     ],
     fashion: [
         q('1000 ke andar sabse accha kurta online', 'HI-EN', 'Price'),
@@ -112,7 +115,8 @@ const TEMPLATES: Record<Exclude<Vertical, 'generic'>, ISuggestedQuery[]> = {
         q('Garmi ke liye comfortable kapdon ka best brand', 'HI-EN', 'Occasion'),
         q('Best sneakers in India under ₹3000', 'EN', 'Price'),
         q('Online kapde size sahi aate hain kis brand ke', 'HI-EN', 'Direct'),
-        q('Indian D2C fashion brands vs Zara and H&M, kaunsa better hai', 'HI-EN', 'Comparison')
+        q('Indian D2C fashion brands vs Zara and H&M, kaunsa better hai', 'HI-EN', 'Comparison'),
+        q('Best ethnic wear brands in India for weddings', 'EN', 'Occasion')
     ],
     jewellery: [
         q('5000 ke andar sabse accha gold plated jewellery set', 'HI-EN', 'Price'),
@@ -123,7 +127,9 @@ const TEMPLATES: Record<Exclude<Vertical, 'generic'>, ISuggestedQuery[]> = {
         q('Daily wear ke liye anti tarnish jewellery', 'HI-EN', 'Occasion'),
         q('Hallmarked jewellery online kahan se kharidein', 'HI-EN', 'Direct'),
         q('Raksha Bandhan pe behen ke liye best gift jewellery', 'HI-EN', 'Occasion'),
-        q('Lab grown diamond vs real diamond, kaunsa lein', 'HI-EN', 'Comparison')
+        q('Lab grown diamond vs real diamond, kaunsa lein', 'HI-EN', 'Comparison'),
+        q('Best silver jewellery brands in India online', 'EN', 'Best-of'),
+        q('Best watch brands under ₹5000 in India', 'EN', 'Price')
     ],
     food: [
         q('200 ke andar sabse healthy snacks online', 'HI-EN', 'Price'),
@@ -135,7 +141,9 @@ const TEMPLATES: Record<Exclude<Vertical, 'generic'>, ISuggestedQuery[]> = {
         q('Weight loss ke liye best breakfast cereal', 'HI-EN', 'Direct'),
         q('Ramzan me iftar ke liye best dates kaunse hain', 'HI-EN', 'Occasion'),
         q('Homemade jaisa achaar online kahan milega', 'HI-EN', 'Direct'),
-        q('Organic vs regular food brands, paisa vasool kaunsa hai', 'HI-EN', 'Comparison')
+        q('Organic vs regular food brands, paisa vasool kaunsa hai', 'HI-EN', 'Comparison'),
+        q('Best Indian food brands to order online', 'EN', 'Best-of'),
+        q('Best gift hampers to order online in India under ₹1500', 'EN', 'Price')
     ],
     wellness: [
         q('2000 ke andar sabse accha whey protein', 'HI-EN', 'Price'),
@@ -147,7 +155,8 @@ const TEMPLATES: Record<Exclude<Vertical, 'generic'>, ISuggestedQuery[]> = {
         q('Weight loss ke liye ayurvedic product jo kaam kare', 'HI-EN', 'Direct'),
         q('Yoga mat under ₹1000 best quality', 'EN', 'Price'),
         q('Running ke liye best energy drink ya electrolyte', 'HI-EN', 'Occasion'),
-        q('Ayurvedic vs allopathic supplements, kaunsa safe hai', 'HI-EN', 'Comparison')
+        q('Ayurvedic vs allopathic supplements, kaunsa safe hai', 'HI-EN', 'Comparison'),
+        q('Best ayurvedic wellness brands in India', 'EN', 'Best-of')
     ],
     baby: [
         q('500 ke andar sabse accha baby lotion', 'HI-EN', 'Price'),
@@ -158,7 +167,9 @@ const TEMPLATES: Record<Exclude<Vertical, 'generic'>, ISuggestedQuery[]> = {
         q('Pregnancy me stretch marks ke liye kaunsi cream safe hai', 'HI-EN', 'Direct'),
         q('Bachon ke liye chemical free shampoo kaunsa hai', 'HI-EN', 'Direct'),
         q('Travel ke liye baby essentials kit', 'HI-EN', 'Occasion'),
-        q('Ayurvedic baby products vs regular, kaunsa better hai', 'HI-EN', 'Comparison')
+        q('Ayurvedic baby products vs regular, kaunsa better hai', 'HI-EN', 'Comparison'),
+        q('Best baby skincare brands in India', 'EN', 'Best-of'),
+        q('Best organic baby clothes brands in India', 'EN', 'Best-of')
     ],
     home: [
         q('2000 ke andar sabse accha bedsheet set', 'HI-EN', 'Price'),
@@ -169,7 +180,9 @@ const TEMPLATES: Record<Exclude<Vertical, 'generic'>, ISuggestedQuery[]> = {
         q('Chhote flat ke liye space saving furniture kahan milega', 'HI-EN', 'Direct'),
         q('Garmi me cotton bedsheet kaunsi best hai', 'HI-EN', 'Occasion'),
         q('Online furniture lena safe hai ya nahi, kis brand se lein', 'HI-EN', 'Direct'),
-        q('Steel vs non-stick cookware, sehat ke liye kaunsa better', 'HI-EN', 'Comparison')
+        q('Steel vs non-stick cookware, sehat ke liye kaunsa better', 'HI-EN', 'Comparison'),
+        q('Best furniture brands in India for small homes', 'EN', 'Best-of'),
+        q('Best cookware brands in India under ₹3000', 'EN', 'Price')
     ],
     electronics: [
         q('2000 ke andar sabse accha bluetooth earbuds', 'HI-EN', 'Price'),
@@ -180,7 +193,9 @@ const TEMPLATES: Record<Exclude<Vertical, 'generic'>, ISuggestedQuery[]> = {
         q('Travel ke liye best power bank kaunsa hai', 'HI-EN', 'Occasion'),
         q('Kis brand ki after sales service India me acchi hai', 'HI-EN', 'Direct'),
         q('Rakhi pe bhai ke liye gadget gift 1500 ke andar', 'HI-EN', 'Occasion'),
-        q('Indian brands like boAt vs Sony, paisa vasool kaunsa', 'HI-EN', 'Comparison')
+        q('Indian brands like boAt vs Sony, paisa vasool kaunsa', 'HI-EN', 'Comparison'),
+        q('Best Indian earbuds brand for bass and battery life', 'EN', 'Best-of'),
+        q('Best budget power bank brands in India', 'EN', 'Price')
     ],
     pet: [
         q('1000 ke andar sabse accha dog food', 'HI-EN', 'Price'),
@@ -191,7 +206,9 @@ const TEMPLATES: Record<Exclude<Vertical, 'generic'>, ISuggestedQuery[]> = {
         q('Dog ke liye tick aur flea ka best shampoo', 'HI-EN', 'Direct'),
         q('Indian street dog ke liye kaunsa food accha hai', 'HI-EN', 'Direct'),
         q('Travel me pet ke liye carrier kahan milega', 'HI-EN', 'Occasion'),
-        q('Homemade vs packaged pet food, kaunsa better hai', 'HI-EN', 'Comparison')
+        q('Homemade vs packaged pet food, kaunsa better hai', 'HI-EN', 'Comparison'),
+        q('Best dog food brands in India', 'EN', 'Best-of'),
+        q('Best pet grooming products online in India', 'EN', 'Direct')
     ],
     retail: [
         q('500 ke andar best online shopping deals kahan milte hain', 'HI-EN', 'Price'),
@@ -202,7 +219,9 @@ const TEMPLATES: Record<Exclude<Vertical, 'generic'>, ISuggestedQuery[]> = {
         q('Cash on delivery aur easy return wale online stores', 'HI-EN', 'Direct'),
         q('Fast delivery wale Indian online brands kaunse hain', 'HI-EN', 'Best-of'),
         q('Original products online kaise pehchane, fake se kaise bachein', 'HI-EN', 'How-to'),
-        q('Brand ki website vs Amazon Flipkart, kahan se lena better hai', 'HI-EN', 'Comparison')
+        q('Brand ki website vs Amazon Flipkart, kahan se lena better hai', 'HI-EN', 'Comparison'),
+        q('Best online stores in India for genuine products', 'EN', 'Best-of'),
+        q('Best Indian D2C brands to buy from online', 'EN', 'Best-of')
     ],
     // Not D2C, kept from the earlier presets
     saas: [
@@ -211,39 +230,44 @@ const TEMPLATES: Record<Exclude<Vertical, 'generic'>, ISuggestedQuery[]> = {
         q('Top recommended cloud software solutions', 'EN', 'Best-of'),
         q('Which software tool is best for daily business management', 'EN', 'Direct'),
         q('Chhote business ke liye best software 1000 rupaye mahine ke andar', 'HI-EN', 'Price'),
-        q('Comparison with leading market software competitors', 'EN', 'Comparison')
+        q('Best alternatives to Zoho for small businesses in India', 'EN', 'Comparison'),
+        q('Chhote business ke liye GST billing software kaunsa accha hai', 'HI-EN', 'Direct')
     ],
     fintech: [
         q('Best FinTech app for payments and investments in India', 'EN', 'Best-of'),
         q('Sabse bharosemand banking aur investment app kaunsa hai', 'HI-EN', 'Best-of'),
         q('Top safe and secure financial services 2026', 'EN', 'Best-of'),
         q('Which digital payment app offers best cashback and rewards', 'EN', 'Direct'),
-        q('Hidden charges, user reviews and security features', 'EN', 'Direct'),
-        q('FinTech comparison with top traditional banks', 'EN', 'Comparison')
+        q('Which investment app in India has the lowest charges', 'EN', 'Price'),
+        q('FinTech comparison with top traditional banks', 'EN', 'Comparison'),
+        q('Chhote business ke liye sabse accha payment gateway kaunsa hai', 'HI-EN', 'Direct')
     ],
     edtech: [
         q('Best online learning platform for courses in India', 'EN', 'Best-of'),
         q('Sabse accha aur sasta online learning platform kaunsa hai', 'HI-EN', 'Price'),
         q('Top recommended EdTech apps for skill development 2026', 'EN', 'Best-of'),
         q('Which learning app is best for competitive exam preparation', 'EN', 'Direct'),
-        q('Course quality, teacher reviews and certification validity', 'EN', 'Direct'),
-        q('EdTech comparison with traditional coaching institutes', 'EN', 'Comparison')
+        q('Best online course platforms in India with valid certificates', 'EN', 'Best-of'),
+        q('EdTech comparison with traditional coaching institutes', 'EN', 'Comparison'),
+        q('Ghar baithe coding seekhne ke liye best platform kaunsa hai', 'HI-EN', 'Direct')
     ],
     healthtech: [
         q('Best HealthTech app for doctor consultation in India', 'EN', 'Best-of'),
         q('Ghar baithe doctor consultation ke liye best app kaunsa hai', 'HI-EN', 'Best-of'),
         q('Top recommended healthcare platforms 2026', 'EN', 'Best-of'),
         q('Which healthcare service offers fast medicine delivery', 'EN', 'Direct'),
-        q('Medicine delivery speed, lab test accuracy and ratings', 'EN', 'Direct'),
-        q('HealthTech app comparison for lab tests and consultations', 'EN', 'Comparison')
+        q('Best online pharmacy in India for fast medicine delivery', 'EN', 'Best-of'),
+        q('HealthTech app comparison for lab tests and consultations', 'EN', 'Comparison'),
+        q('Sasta full body checkup ghar pe kaun karta hai', 'HI-EN', 'Price')
     ],
     ai: [
         q('Best AI and Machine Learning tools for businesses 2026', 'EN', 'Best-of'),
         q('Sabse powerful aur sasta AI tool kaunsa hai', 'HI-EN', 'Price'),
         q('Top recommended AI automation solutions in India', 'EN', 'Best-of'),
         q('Which AI platform is best for productivity and content', 'EN', 'Direct'),
-        q('API performance, accuracy and pricing breakdown', 'EN', 'Direct'),
-        q('AI platform comparison with ChatGPT and Claude', 'EN', 'Comparison')
+        q('Best AI tools for small businesses in India', 'EN', 'Best-of'),
+        q('AI platform comparison with ChatGPT and Claude', 'EN', 'Comparison'),
+        q('Hindi me kaam karne wala best AI tool kaunsa hai', 'HI-EN', 'Direct')
     ]
 }
 
@@ -258,7 +282,8 @@ const genericTemplates = (category: string): ISuggestedQuery[] => {
         q(`Best ${noun} for small businesses in India`, 'EN', 'Direct'),
         q(`${noun} provider kaise chunein, kya dekhna chahiye`, 'HI-EN', 'How-to'),
         q(`Top rated ${noun} services 2026`, 'EN', 'Best-of'),
-        q(`Indian vs international ${noun} companies, kaunsa better hai`, 'HI-EN', 'Comparison')
+        q(`Indian vs international ${noun} companies, kaunsa better hai`, 'HI-EN', 'Comparison'),
+        q(`Most trusted ${noun} brands in India`, 'EN', 'Best-of')
     ]
 }
 
@@ -269,6 +294,13 @@ export const templateQueries = (category: string, brandName?: string): ISuggeste
     // One branded question, last, so small plans keep the unbranded discovery questions
     if (brand) list.push(q(`${brand} reviews: original aur value for money hai ya nahi?`, 'HI-EN', 'Direct'))
     return list
+}
+
+// Free checker: the category's questions without the branded one; one market for now ('IN'),
+// so a UAE list can be added without touching the checker
+export const freeCheckQuestions = (category: string, market: 'IN' = 'IN'): ISuggestedQuery[] => {
+    void market
+    return templateQueries(category)
 }
 
 // ---------- AI suggestions ----------

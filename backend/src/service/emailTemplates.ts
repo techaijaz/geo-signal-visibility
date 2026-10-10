@@ -22,12 +22,16 @@ interface ILayout {
     // Shown under the button, for when the button doesn't work
     linkNote?: string
     steps?: { title: string; body: string }[]
+    // Already-escaped table rows shown between the intro and the button (reports)
+    extraHtml?: string
+    // Heading above the steps; "What happens next" by default
+    stepsTitle?: string
     note?: string
 }
 
-const layout = (l: ILayout) => {
+export const layout = (l: ILayout) => {
     const steps = l.steps?.length
-        ? `<tr><td style="padding:26px 0 6px;font-size:13px;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;color:#52676A">What happens next</td></tr>
+        ? `<tr><td style="padding:26px 0 6px;font-size:13px;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;color:#52676A">${esc(l.stepsTitle || 'What happens next')}</td></tr>
   ${l.steps
       .map(
           (s, i) => `<tr><td style="padding:8px 0"><table role="presentation" cellpadding="0" cellspacing="0"><tr>
@@ -58,6 +62,7 @@ const layout = (l: ILayout) => {
   <tr><td style="padding:30px 32px 32px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">
   <tr><td style="font-size:24px;font-weight:bold;line-height:1.25;color:#0F2629">${esc(l.title)}</td></tr>
   <tr><td style="padding-top:12px;font-size:15px;line-height:1.6;color:#33484B">${l.intro}</td></tr>
+  ${l.extraHtml || ''}
   ${button}
   ${steps}
   ${l.note ? `<tr><td style="padding-top:24px;font-size:13px;line-height:1.5;color:#52676A;border-top:1px solid #E4E9E7">${l.note}</td></tr>` : ''}

@@ -103,6 +103,13 @@ const run = async () => {
     // IST day and next morning
     assert.equal(istDay(new Date('2026-10-10T20:00:00Z')), '2026-10-11') // 01:30 IST
     assert.equal(nextMorningIst(new Date('2026-10-10T10:00:00Z')).toISOString(), '2026-10-11T00:30:00.000Z')
+    // Before 06:00 IST the next morning is today's 06:00
+    assert.equal(nextMorningIst(new Date('2026-10-09T18:40:00Z')).toISOString(), '2026-10-10T00:30:00.000Z') // 00:10 IST
+
+    // A crafted homepage can't stall the server (regex backtracking)
+    const t0 = Date.now()
+    siteFacts('<meta '.repeat(500_000), cats, 'x.com')
+    assert.ok(Date.now() - t0 < 500, 'a crafted homepage is read quickly')
 
     // Ids, OTP, email
     assert.match(newCheckId(), /^[A-Za-z0-9_-]{32}$/)

@@ -6,7 +6,7 @@ import freeCheckController from '../controller/freeCheckController'
 import freeCheckModel from '../model/freeCheckModel'
 import leadModel from '../model/leadModel'
 import { memoryStore, KEYS } from '../service/freeCheck/store'
-import { hashIp } from '../service/freeCheck/helpers'
+import { hashIp, istDay } from '../service/freeCheck/helpers'
 import { leadUnsubscribeUrl } from '../service/freeCheck/emails'
 import { setSetting } from '../model/appSettingModel'
 import adminController from '../controller/adminController'
@@ -190,6 +190,31 @@ const run = async () => {
     const csv = await call(adminController.getFreeCheckLeadsCsv as Handler)
     assert.ok(csv.body.message!.startsWith('email,site,brand'))
     assert.ok(csv.body.message!.includes('owner@hasanoud.com'))
+
+    // A failed check is not served from the cache: the visitor can try again
+    const f1 = (await call(freeCheckController.create as Handler, { ...body, url: 'https://f1.com' }, {}, '5.5.5.5')).body.data!.checkId as string
+    await freeCheckModel.updateOne({ checkId: f1 }, { $set: { status: 'failed' } })
+    const f2 = await call(freeCheckController.create as Handler, { ...body, url: 'https://f1.com' }, {}, '5.5.5.5')
+    assert.notEqual(f2.body.data!.checkId, f1)
+
+    // The queue is down: 503, no stuck check, budget and cache given back
+    const enqueueOk = freeCheckController.deps.enqueue
+    freeCheckController.deps.enqueue = async () => null
+    const gBefore = await store.get(KEYS.global + istDay())
+    const down = await call(freeCheckController.create as Handler, { ...body, url: 'https://q1.com' }, {}, '4.4.4.4')
+    assert.equal(down.code, 503)
+    assert.equal(await store.get(KEYS.global + istDay()), gBefore)
+    assert.equal(await store.get(KEYS.cache(hashIp('4.4.4.4'), 'q1.com')), null)
+    freeCheckController.deps.enqueue = enqueueOk
+
+    // Parallel wrong codes can't get more than 5 tries
+    const p1 = (await call(freeCheckController.create as Handler, { ...body, url: 'https://p1.com' }, {}, '3.3.3.3')).body.data!.checkId as string
+    await call(freeCheckController.sendCode as Handler, { email: 'p@p1.com' }, { checkId: p1 }, '3.3.3.3')
+    const pcode = codeIn(sent.at(-1)!.text)
+    const wrong = pcode === '000000' ? '111111' : '000000'
+    await Promise.all(Array.from({ length: 12 }, () => call(freeCheckController.verify as Handler, { code: wrong }, { checkId: p1 })))
+    assert.ok((await freeCheckModel.findOne({ checkId: p1 }).lean())!.otpAttempts <= 5)
+    assert.equal((await call(freeCheckController.verify as Handler, { code: pcode }, { checkId: p1 })).code, 429)
 
     // A lead that signs up is marked; an unknown email creates nothing
     await markLeadSignedUp('OWNER@hasanoud.com')

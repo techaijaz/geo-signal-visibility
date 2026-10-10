@@ -25,11 +25,13 @@ export const normaliseSiteUrl = (input: string): { url: string; domain: string }
 const meta = (html: string, re: RegExp) => (html.match(re)?.[1] || '').replace(/&amp;/g, '&').trim()
 
 // Brand name and category from the homepage, without an AI call
-export const siteFacts = (html: string, categories: string[], domain = ''): { brandName: string; category: string } => {
-    const site = meta(html, /<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)/i)
-    const title = meta(html, /<title[^>]*>([^<]*)<\/title>/i)
-    const description = meta(html, /<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)/i)
-    const h1 = meta(html, /<h1[^>]*>([^<]*)<\/h1>/i)
+export const siteFacts = (page: string, categories: string[], domain = ''): { brandName: string; category: string } => {
+    // Only the top of the page, and bounded patterns: a crafted page can't stall the server
+    const html = page.slice(0, 200_000)
+    const site = meta(html, /<meta[^<>]{0,300}property=["']og:site_name["'][^<>]{0,300}content=["']([^"']{1,200})/i)
+    const title = meta(html, /<title[^<>]{0,100}>([^<]{0,300})<\/title>/i)
+    const description = meta(html, /<meta[^<>]{0,300}name=["']description["'][^<>]{0,300}content=["']([^"']{1,500})/i)
+    const h1 = meta(html, /<h1[^<>]{0,300}>([^<]{0,300})<\/h1>/i)
     // "Buy Attar | Hasan Oud" → og:site_name, else the title part that matches the domain, else the shortest part
     const parts = title
         .split(/\s[|–—-]\s/)
@@ -45,9 +47,11 @@ export const siteFacts = (html: string, categories: string[], domain = ''): { br
 
 const IST_OFFSET_MS = 330 * 60 * 1000
 export const istDay = (now = new Date()) => new Date(now.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10)
+// 06:00 IST today while it is still ahead, else tomorrow's
 export const nextMorningIst = (now = new Date()) => {
-    const day = istDay(new Date(now.getTime() + 24 * 60 * 60 * 1000))
-    return new Date(new Date(`${day}T06:00:00.000Z`).getTime() - IST_OFFSET_MS)
+    const at = (day: string) => new Date(new Date(`${day}T06:00:00.000Z`).getTime() - IST_OFFSET_MS)
+    const today = at(istDay(now))
+    return today > now ? today : at(istDay(new Date(now.getTime() + 24 * 60 * 60 * 1000)))
 }
 
 const salt = () => process.env.FREE_CHECK_SALT || config.ACCESS_TOKEN.SECRET || 'dev'

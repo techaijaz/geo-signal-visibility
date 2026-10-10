@@ -11,7 +11,7 @@ import { freeCheckQuestions } from '../service/querySuggestionService'
 import { enqueueFreeCheckJob } from '../service/queueService'
 import { verifyTurnstile } from '../service/freeCheck/turnstile'
 import { otpEmail, reportEmail, verifyLeadUnsubscribe } from '../service/freeCheck/emails'
-import { KEYS, consume, redisStore, type IFreeCheckStore } from '../service/freeCheck/store'
+import { KEYS, consume, redisStore, refund, type IFreeCheckStore } from '../service/freeCheck/store'
 import {
     countryFromTz,
     fullResult,
@@ -107,7 +107,8 @@ export default {
             const ip = ipOf(req)
             const cached = await store().get(KEYS.cache(ip, site.domain))
             const earlier = cached ? await freeCheckModel.findOne({ checkId: cached }).select('status').lean() : null
-            if (earlier) return httpResponse(req, res, 200, 'OK', { checkId: cached, status: earlier.status })
+            // A failed check is never served again: the visitor may retry
+            if (earlier && earlier.status !== 'failed') return httpResponse(req, res, 200, 'OK', { checkId: cached, status: earlier.status })
 
             const day = istDay(deps.now())
             if (!(await consume(store(), KEYS.ipChecks(ip), LIMITS.ipChecks, day))) {
@@ -127,11 +128,19 @@ export default {
                 questions: value.questions.map((text) => ({ text, answers: [] })),
                 ipHash: ip,
                 country: countryFromTz(value.tz || ''),
-                status
+                status,
+                budgetDay: withinBudget ? day : null
             })
             await store().set(KEYS.cache(ip, site.domain), checkId, CACHE_TTL)
             if (withinBudget) {
-                await deps.enqueue(checkId)
+                // Queue down: no stuck check, the visitor's place and budget given back
+                if (!(await deps.enqueue(checkId))) {
+                    await freeCheckModel.updateOne({ checkId }, { $set: { status: 'failed' } })
+                    await refund(store(), KEYS.global, day)
+                    await refund(store(), KEYS.ipChecks(ip), day)
+                    await store().del(KEYS.cache(ip, site.domain))
+                    return fail(next, req, 503, 'Abhi check shuru nahi ho paya. 5 minute baad dobara karo.')
+                }
                 const used = Number((await store().get(KEYS.global + day)) || 0)
                 alertIfBusy(used, limit).catch((e) => logger.warn('[freeCheck] alert failed', { meta: e }))
             }
@@ -191,23 +200,25 @@ export default {
     verify: async (req: Request, res: Response, next: NextFunction) => {
         try {
             const { error, value } = validateJoiSchema<{ code: string }>(validationFreeCheckVerify, req.body)
-            const check = await freeCheckModel.findOne({ checkId: String(req.params.checkId) })
-            if (!check || !check.email) return fail(next, req, 404, 'Check not found')
-            if (check.otpAttempts >= 5) return fail(next, req, 429, 'Too many tries. Ask for a new code.')
+            const checkId = String(req.params.checkId)
+            if (!(await freeCheckModel.exists({ checkId, email: { $ne: null } }))) return fail(next, req, 404, 'Check not found')
+            // Each try is counted before the code is compared, so parallel requests can't get extra tries
+            const check = await freeCheckModel.findOneAndUpdate({ checkId, otpAttempts: { $lt: 5 } }, { $inc: { otpAttempts: 1 } }, { new: true })
+            if (!check || !check.email) return fail(next, req, 429, 'Too many tries. Ask for a new code.')
             const now = deps.now()
             const valid =
                 !error && check.otpHash && check.otpExpiresAt && check.otpExpiresAt > now && check.otpHash === hashOtp(value.code, check.checkId)
-            if (!valid) {
-                await freeCheckModel.updateOne({ checkId: check.checkId }, { $inc: { otpAttempts: 1 } })
-                return fail(next, req, 400, 'Wrong or expired code. Ask for a new one.')
-            }
+            if (!valid) return fail(next, req, 400, 'Wrong or expired code. Ask for a new one.')
             // One email unlocks at most 2 checks a day, whichever way they ran
             if (!(await consume(store(), KEYS.emailChecks(check.email), LIMITS.emailChecks, istDay(now)))) {
                 return fail(next, req, 429, 'This email has used its free checks today.')
             }
             const consent = Boolean(check.consentRequested)
             const scheduled = check.status === 'waiting-email'
-            if (scheduled) await deps.enqueue(check.checkId, nextMorningIst(now))
+            if (scheduled && !(await deps.enqueue(check.checkId, nextMorningIst(now)))) {
+                await refund(store(), KEYS.emailChecks(check.email), istDay(now))
+                return fail(next, req, 503, 'Abhi check line me nahi lag paya. Thodi der baad code dobara daalo.')
+            }
             await freeCheckModel.updateOne(
                 { checkId: check.checkId },
                 { $set: { verifiedAt: now, otpHash: null, otpExpiresAt: null, ...(scheduled ? { status: 'scheduled' } : {}) } }

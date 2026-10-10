@@ -224,7 +224,10 @@ export default {
 export const enqueueFreeCheckJob = async (checkId: string, runAt?: Date): Promise<Job<{ checkId: string }> | null> => {
     try {
         const delay = runAt ? Math.max(0, runAt.getTime() - Date.now()) : 0
-        return await enqueueWithTimeout(freeCheckQueue.add('free-check-job', { checkId }, { jobId: `free-check-${checkId}`, delay }), 1500)
+        return await enqueueWithTimeout(
+            freeCheckQueue.add('free-check-job', { checkId }, { jobId: `free-check-${checkId}-${runAt ? runAt.getTime() : 'now'}`, delay }),
+            1500
+        )
     } catch (err) {
         logger.error(`[BullMQ Queue Error] Failed to enqueue free check ${checkId}:`, { meta: err })
         return null

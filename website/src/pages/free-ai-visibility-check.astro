@@ -71,7 +71,10 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
     failedEngines: string[]
     questions: Array<{ text: string; engines: Engine[] }>
   }
-  type TurnstileApi = { render: (el: string, opts: { sitekey: string; callback: (t: string) => void }) => unknown; reset: (w?: unknown) => void }
+  type TurnstileApi = {
+    render: (el: string, opts: { sitekey: string; callback: (t: string) => void; 'expired-callback': () => void }) => unknown
+    reset: (w?: unknown) => void
+  }
 
   const root = document.querySelector<HTMLElement>('.fc')!
   const API = root.dataset.api!
@@ -101,6 +104,22 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
   let widget: unknown = null
   const turnstile = () => (window as unknown as { turnstile?: TurnstileApi }).turnstile
 
+  // The script loads async: render once it is there; an expired token is dropped
+  function showTurnstile(tries = 0) {
+    if (!SITEKEY || widget) return
+    const ts = turnstile()
+    if (!ts) {
+      if (tries < 40) setTimeout(() => showTurnstile(tries + 1), 250)
+      return
+    }
+    widget = ts.render('#fc-turnstile', { sitekey: SITEKEY, callback: (t) => (token = t), 'expired-callback': () => (token = '') })
+  }
+  // Tokens are single use: every new try needs a fresh one
+  function freshToken() {
+    token = ''
+    if (widget) turnstile()?.reset(widget)
+  }
+
   input('fc-url').addEventListener('blur', () => {
     const v = input('fc-url').value.trim()
     if (v && !/^https?:\/\//i.test(v)) input('fc-url').value = `https://${v}`
@@ -126,8 +145,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
       el('fc-categories').innerHTML = d.categories.map((c: string) => `<option value="${esc(c)}">`).join('')
       renderQuestions(d.questions)
       show('fc-questions')
-      const ts = turnstile()
-      if (SITEKEY && ts && !widget) widget = ts.render('#fc-turnstile', { sitekey: SITEKEY, callback: (t) => (token = t) })
+      showTurnstile()
     } catch (x) {
       err('fc-site-err', (x as Error).message)
     }
@@ -164,8 +182,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
       } else void poll()
     } catch (x) {
       err('fc-run-err', (x as Error).message)
-      if (widget) turnstile()?.reset(widget) // tokens are single use
-      token = ''
+      freshToken()
     }
   })
 
@@ -182,6 +199,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
         show('fc-wait', false)
         if (d.status === 'failed') {
           err('fc-run-err', 'Abhi check nahi ho paya, 5 minute baad dobara karo.')
+          freshToken()
           return show('fc-questions')
         }
         return renderHalf(d)
@@ -190,6 +208,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || ''
     }
     show('fc-wait', false)
     err('fc-run-err', 'Is baar der lag rahi hai. Thodi der baad page refresh karo.')
+    freshToken()
     show('fc-questions')
   }
 

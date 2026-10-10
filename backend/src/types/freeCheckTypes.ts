@@ -31,5 +31,6 @@ export interface IFreeCheck {
     otpExpiresAt: Date | null
     otpAttempts: number
     consentRequested?: boolean
+    budgetDay?: string | null // the IST day whose budget this check used
     createdAt?: Date
 }

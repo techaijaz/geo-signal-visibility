@@ -49,7 +49,7 @@ const run = async () => {
     const store = memoryStore()
     const day = istDay()
     await store.incr(KEYS.global + day, 60)
-    await freeCheckModel.create(base('fail1'))
+    await freeCheckModel.create({ ...base('fail1'), budgetDay: day }) // queued from the API: budget already taken
     assert.equal(await runFreeCheck('fail1', { ask: async () => null, extract: extract as never, store, send }), 'failed')
     assert.equal(await store.get(KEYS.global + day), '0')
     assert.equal((await freeCheckModel.findOne({ checkId: 'fail1' }).lean())!.status, 'failed')
@@ -68,6 +68,36 @@ const run = async () => {
     await freeCheckModel.create(base('plain1'))
     await runFreeCheck('plain1', { ask, extract: extract as never, store: memoryStore(), send: sendTo })
     assert.deepEqual(mails, ['o@hasanoud.com'])
+
+    // A next-morning run takes its place in that day's budget; over it, it moves to the next morning again
+    const day2 = istDay()
+    const bstore = memoryStore()
+    const later: Date[] = []
+    const reschedule = async (_id: string, runAt?: Date) => {
+        later.push(runAt!)
+        return {}
+    }
+    await freeCheckModel.create({ ...base('sched2'), status: 'scheduled', email: 'p@hasanoud.com', verifiedAt: new Date() })
+    assert.equal(await runFreeCheck('sched2', { ask, extract: extract as never, store: bstore, send, limit: 1, enqueue: reschedule }), 'done')
+    assert.equal(await bstore.get(KEYS.global + day2), '1')
+    await freeCheckModel.create({ ...base('sched3'), status: 'scheduled', email: 'q@hasanoud.com', verifiedAt: new Date() })
+    assert.equal(await runFreeCheck('sched3', { ask, extract: extract as never, store: bstore, send, limit: 1, enqueue: reschedule }), 'scheduled')
+    assert.equal(later.length, 1)
+    assert.equal((await freeCheckModel.findOne({ checkId: 'sched3' }).lean())!.status, 'scheduled')
+    // a failed next-morning run gives back only what it took
+    await freeCheckModel.create({ ...base('sched4'), status: 'scheduled', email: 'r@hasanoud.com', verifiedAt: new Date() })
+    assert.equal(
+        await runFreeCheck('sched4', { ask: async () => null, extract: extract as never, store: bstore, send, limit: 5, enqueue: reschedule }),
+        'failed'
+    )
+    assert.equal(await bstore.get(KEYS.global + day2), '1')
+
+    // Verified while it was still queued: the report goes out when the run finishes
+    const early: string[] = []
+    await freeCheckModel.create(base('early1'))
+    await freeCheckModel.updateOne({ checkId: 'early1' }, { $set: { email: 'e@hasanoud.com', verifiedAt: new Date() } })
+    await runFreeCheck('early1', { ask, extract: extract as never, store: memoryStore(), send: async (to: string[]) => void early.push(to[0]) })
+    assert.deepEqual(early, ['e@hasanoud.com'])
 
     await mongoose.connection.dropDatabase()
     await mongoose.disconnect()

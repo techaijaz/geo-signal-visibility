@@ -32,7 +32,8 @@ const freeCheckSchema = new mongoose.Schema<IFreeCheck>(
         otpHash: { type: String, default: null },
         otpExpiresAt: { type: Date, default: null },
         otpAttempts: { type: Number, default: 0 },
-        consentRequested: { type: Boolean, default: false }
+        consentRequested: { type: Boolean, default: false },
+        budgetDay: { type: String, default: null }
     },
     { timestamps: true }
 )

@@ -14,6 +14,8 @@ import { PaymentError } from '../service/billing/prices'
 import crypto from 'crypto'
 import { handleRazorpayWebhook, validWebhookSignature } from '../service/billing/razorpayWebhook'
 import { reuseOrCreateOrder } from '../service/paymentService'
+import { renderInvoiceHtml, invoiceFileName, sendInvoiceEmail } from '../service/billing/invoiceDoc'
+import subscriptionController from '../controller/subscriptionController'
 
 const run = async () => {
     await mongoose.connect('mongodb://127.0.0.1:27017/signal_billing_check')
@@ -168,6 +170,57 @@ const run = async () => {
     assert.notEqual(await reuseOrCreateOrder(co, create, new Date(t0.getTime() + 16 * 60 * 1000)), o1)
     await paymentModel.create({ ...co, paymentId: 'pay_R', orderId: o1, gateway: 'razorpay', status: 'done', source: 'browser' })
     assert.notEqual(await reuseOrCreateOrder(co, create, t0), o1)
+
+    // Invoice document
+    const html = renderInvoiceHtml(inv, DEFAULT_SELLER)
+    assert.ok(html.includes('INVOICE') && !html.includes('Tax Invoice'))
+    assert.ok(html.includes(inv.invoiceNumber) && html.includes('Aijaz Ahmad, trading as GeoSignal AI') && html.includes('Bahraich'))
+    assert.ok(html.includes('Owner One') && html.includes('Shop One') && html.includes('2,999'))
+    assert.ok(html.includes('GST not charged: supplier is not registered under GST.'))
+    assert.ok(html.includes('pay_A'))
+    const evilInv = { ...inv, buyer: { ...inv.buyer, orgName: '<script>x</script>' } } as typeof inv
+    assert.ok(!renderInvoiceHtml(evilInv, DEFAULT_SELLER).includes('<script>x'))
+    assert.equal(invoiceFileName(inv), 'Invoice-' + inv.invoiceNumber.replace(/\//g, '-') + '.pdf')
+    // An old invoice without a snapshot uses the current seller, marked as such
+    const old = { ...inv, seller: undefined } as unknown as typeof inv
+    assert.ok(renderInvoiceHtml(old, DEFAULT_SELLER).includes('details at download time'))
+
+    // Invoice email: the PDF attached, to the buyer
+    const mails: Array<{ to: string[]; subject: string; files: string[] }> = []
+    await sendInvoiceEmail(String(inv._id), {
+        pdf: async () => Buffer.from('%PDF-1.4'),
+        send: (async (to: string[], subject: string, _t: string, o: { attachments?: Array<{ filename: string }> }) => {
+            mails.push({ to, subject, files: (o.attachments || []).map((a) => a.filename) })
+        }) as never
+    })
+    assert.deepEqual(mails[0].to, ['owner@shop.in'])
+    assert.ok(mails[0].subject.includes(inv.invoiceNumber))
+    assert.deepEqual(mails[0].files, [invoiceFileName(inv)])
+
+    // PDF route: another org's member gets 404, the owner gets the file
+    const otherId = new mongoose.Types.ObjectId()
+    await userModel.collection.insertOne({ _id: otherId, name: 'Other', email: 'other@x.in' })
+    Object.assign(subscriptionController.invoiceDeps, { pdf: async () => Buffer.from('%PDF-1.4') })
+    const pdfCall = (uid: unknown, name: string) =>
+        new Promise<number>((resolve) => {
+            let code = 200
+            const res = {
+                setHeader() {},
+                status(c: number) {
+                    code = c
+                    return res
+                },
+                send: () => resolve(code),
+                json: () => resolve(code)
+            }
+            void subscriptionController.getInvoicePdf(
+                { params: { id: String(inv._id) }, authenticatedUser: { _id: uid, name } } as never,
+                res as never,
+                ((e: { statusCode?: number }) => resolve(e?.statusCode ?? 500)) as never
+            )
+        })
+    assert.equal(await pdfCall(otherId, 'Other'), 404)
+    assert.equal(await pdfCall(userId, 'Owner One'), 200)
 
     await mongoose.connection.dropDatabase()
     await mongoose.disconnect()

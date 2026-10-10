@@ -103,6 +103,7 @@ router.route('/subscription/change').post(authentication, subscriptionController
 router.route('/subscription/checkout').post(authentication, subscriptionController.createCheckoutSession)
 router.route('/subscription/confirm').post(authentication, subscriptionController.confirmPayment)
 router.route('/subscription/invoices').get(authentication, subscriptionController.getInvoices)
+router.route('/subscription/invoices/:id/pdf').get(authentication, subscriptionController.getInvoicePdf)
 router.route('/subscription/limits').get(authentication, subscriptionController.getPlanLimits)
 
 // Category router (Public)

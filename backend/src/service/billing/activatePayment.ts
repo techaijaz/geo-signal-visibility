@@ -143,6 +143,7 @@ export const activatePayment = async (input: IActivateInput, deps: IActivateDeps
     logger.info(
         `[billing] Payment ${input.paymentId} activated ${order.plan} for org ${order.orgId} (${input.source}); invoice ${invoice.invoiceNumber}`
     )
-    if (deps.sendInvoice) await deps.sendInvoice(String(invoice._id)).catch((e) => logger.warn('[billing] invoice email failed', { meta: e }))
+    // The PDF (Chrome) and mail take seconds: they run after the answer, never holding up the customer
+    if (deps.sendInvoice) void deps.sendInvoice(String(invoice._id)).catch((e) => logger.warn('[billing] invoice email failed', { meta: e }))
     return resultOf(invoice._id, order.orgId)
 }

@@ -9,6 +9,7 @@ import config from '../config/config'
 import { PaymentError, PLAN_PRICES } from './billing/prices'
 import { activatePayment, orderInfoFromRazorpay } from './billing/activatePayment'
 import checkoutOrderModel from '../model/checkoutOrderModel'
+import { sendInvoiceEmail } from './billing/invoiceDoc'
 import paymentModel from '../model/paymentModel'
 
 // ─── SDK instances (lazy-init so missing keys don't crash on startup) ─────────
@@ -276,14 +277,17 @@ export const paymentService = {
 
         // One payment activates one plan, however many times it is confirmed (browser, webhook)
         const ref = gatewayPaymentId || gatewayOrderId || `mock_${Date.now()}`
-        return activatePayment({
-            paymentId: ref,
-            orderId: gatewayOrderId || ref,
-            order: { orgId, userId, plan, billingCycle, amount },
-            gateway: gateway as 'razorpay' | 'stripe' | 'mock',
-            paymentMethod,
-            source: 'browser'
-        })
+        return activatePayment(
+            {
+                paymentId: ref,
+                orderId: gatewayOrderId || ref,
+                order: { orgId, userId, plan, billingCycle, amount },
+                gateway: gateway as 'razorpay' | 'stripe' | 'mock',
+                paymentMethod,
+                source: 'browser'
+            },
+            { sendInvoice: sendInvoiceEmail }
+        )
     },
 
     /**

@@ -8,7 +8,9 @@ import responceseMessage from '../constent/responceseMessage'
 import { EUserRole } from '../constent/userConstent'
 import { getPlanLimits, type PlanName } from '../config/planLimits'
 import { SubscriptionPlan } from '../types/billingTypes'
-import { SubscriptionModel } from '../model/billingModel'
+import { InvoiceModel, SubscriptionModel } from '../model/billingModel'
+import { invoiceFileName, invoicePdf } from '../service/billing/invoiceDoc'
+import type { IInvoice } from '../types/billingTypes'
 
 const ensureUserOrg = async (userId: string, userName: string) => {
     let org = await databseService.findOrgByOwnerId(userId)
@@ -86,7 +88,27 @@ const PLANS_DATA = [
     }
 ]
 
-export default {
+const subscriptionController = {
+    // Replaceable in checks (no Chrome there)
+    invoiceDeps: { pdf: invoicePdf as (inv: IInvoice) => Promise<Buffer> },
+
+    // The invoice PDF, for members of the org it belongs to
+    getInvoicePdf: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { authenticatedUser } = req as IAuthenticatedRequest
+            const org = await ensureUserOrg(authenticatedUser._id.toString(), authenticatedUser.name)
+            const inv = (await InvoiceModel.findOne({ _id: req.params.id, orgId: org._id }).lean()) as unknown as IInvoice | null
+            if (!inv) return httpError(next, new Error('Invoice not found'), req, 404)
+            const pdf = await subscriptionController.invoiceDeps.pdf(inv).catch(() => null)
+            if (!pdf) return httpError(next, new Error('Invoice PDF is not available right now'), req, 503)
+            res.setHeader('Content-Type', 'application/pdf')
+            res.setHeader('Content-Disposition', `attachment; filename="${invoiceFileName(inv)}"`)
+            res.send(pdf)
+        } catch (error) {
+            httpError(next, error, req, 500)
+        }
+    },
+
     getSubscription: async (req: Request, res: Response, next: NextFunction) => {
         try {
             const { authenticatedUser } = req as IAuthenticatedRequest
@@ -243,3 +265,5 @@ export default {
         }
     }
 }
+
+export default subscriptionController

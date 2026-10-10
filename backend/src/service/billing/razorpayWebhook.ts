@@ -4,6 +4,7 @@ import config from '../../config/config'
 import { activatePayment, orderInfoFromRazorpay } from './activatePayment'
 import { getRazorpay } from '../paymentService'
 import logger from '../../util/loger'
+import { sendInvoiceEmail } from './invoiceDoc'
 
 // Razorpay signs the exact bytes it sends
 export const validWebhookSignature = (raw: Buffer, signature: string | undefined, secret: string) => {
@@ -40,14 +41,17 @@ export const handleRazorpayWebhook = async (raw: Buffer, signature: string | und
         const fetchOrder =
             deps.fetchOrder ?? ((id: string) => getRazorpay().orders.fetch(id) as unknown as ReturnType<NonNullable<IWebhookDeps['fetchOrder']>>)
         const order = orderInfoFromRazorpay(await fetchOrder(payment.order_id))
-        await (deps.activate ?? activatePayment)({
-            paymentId: payment.id,
-            orderId: payment.order_id,
-            order,
-            gateway: 'razorpay',
-            paymentMethod: payment.method === 'upi' ? 'UPI (Razorpay)' : 'Card (Razorpay)',
-            source: 'webhook'
-        })
+        await (deps.activate ?? activatePayment)(
+            {
+                paymentId: payment.id,
+                orderId: payment.order_id,
+                order,
+                gateway: 'razorpay',
+                paymentMethod: payment.method === 'upi' ? 'UPI (Razorpay)' : 'Card (Razorpay)',
+                source: 'webhook'
+            },
+            { sendInvoice: sendInvoiceEmail }
+        )
     } catch (err) {
         // Answer 200 anyway: a retry or the browser confirm finishes the claim
         logger.error(`[billing] Webhook activation for ${payment.id} failed`, { meta: err })

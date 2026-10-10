@@ -32,8 +32,8 @@ const perMonth = (p: (typeof plans)[number], cycle: 'monthly' | 'yearly') =>
               </>
             )}
           </p>
-          <p class="billed" data-billed-monthly={m ? 'Billed monthly, GST included' : m === 0 ? 'Free forever' : 'Priced for your client list'} data-billed-yearly={p.yearly ? `${inr(p.yearly)} billed yearly, GST included` : m === 0 ? 'Free forever' : 'Priced for your client list'}>
-            {m ? 'Billed monthly, GST included' : m === 0 ? 'Free forever' : 'Priced for your client list'}
+          <p class="billed" data-billed-monthly={m ? 'Billed monthly in ₹' : m === 0 ? 'Free forever' : 'Priced for your client list'} data-billed-yearly={p.yearly ? `${inr(p.yearly)} billed yearly` : m === 0 ? 'Free forever' : 'Priced for your client list'}>
+            {m ? 'Billed monthly in ₹' : m === 0 ? 'Free forever' : 'Priced for your client list'}
           </p>
           <a class:list={['btn', p.featured ? 'btn--marker' : 'btn--ghost']} href={p.id === 'agency' ? `mailto:${company.salesEmail}?subject=Signal%20AI%20Agency%20plan` : links.signup}>{p.cta}</a>
           <ul class="facts">

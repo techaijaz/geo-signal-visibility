@@ -11,9 +11,8 @@ export const links = {
 // Fill these in before going live — they appear in the footer and legal pages
 export const company = {
     brand: 'Signal AI',
-    legalName: '[Registered company name]',
-    address: '[Registered office address, City, State, PIN]',
-    gstin: '[GSTIN]',
+    legalName: 'Aijaz Ahmad, trading as GeoSignal AI',
+    address: '422, Madhavpur, Fakharpur, Bahraich 271902, Uttar Pradesh, India',
     email: 'hello@geosignalai.com',
     salesEmail: 'sales@geosignalai.com',
     supportEmail: 'support@geosignalai.com',

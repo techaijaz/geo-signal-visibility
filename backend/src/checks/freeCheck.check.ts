@@ -16,6 +16,7 @@ import {
     fullResult
 } from '../service/freeCheck/helpers'
 import type { IFreeCheck } from '../types/freeCheckTypes'
+import { memoryStore, consume, refund, KEYS } from '../service/freeCheck/store'
 
 // Every seeded category (script/seed categories)
 const CATEGORIES = [
@@ -143,6 +144,24 @@ const run = async () => {
         { name: 'Al Haramain', count: 1 },
         { name: 'Rasasi', count: 1 }
     ])
+
+    // Limits: counted per day key; over the limit is refused and not counted; refund gives one back
+    const s = memoryStore()
+    const day = '2026-10-10'
+    assert.equal(await consume(s, KEYS.ipChecks('h'), 3, day), true)
+    assert.equal(await consume(s, KEYS.ipChecks('h'), 3, day), true)
+    assert.equal(await consume(s, KEYS.ipChecks('h'), 3, day), true)
+    assert.equal(await consume(s, KEYS.ipChecks('h'), 3, day), false)
+    await refund(s, KEYS.ipChecks('h'), day)
+    assert.equal(await consume(s, KEYS.ipChecks('h'), 3, day), true)
+    assert.equal(await consume(s, KEYS.ipChecks('h'), 3, '2026-10-11'), true) // new day
+    assert.equal(await consume(s, KEYS.global, 0, day), false) // a 0 limit allows nothing
+    await s.set(KEYS.cache('h', 'hasanoud.com'), 'c1', 60)
+    assert.equal(await s.get(KEYS.cache('h', 'hasanoud.com')), 'c1')
+    await s.del(KEYS.cache('h', 'hasanoud.com'))
+    assert.equal(await s.get(KEYS.cache('h', 'hasanoud.com')), null)
+    assert.equal(await s.setOnce(KEYS.alert + day, 60), true)
+    assert.equal(await s.setOnce(KEYS.alert + day, 60), false)
 
     console.log('freeCheck checks passed')
 }

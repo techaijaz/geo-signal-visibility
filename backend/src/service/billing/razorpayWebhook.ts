@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { Request, Response } from 'express'
 import config from '../../config/config'
 import { activatePayment, orderInfoFromRazorpay } from './activatePayment'
+import { PaymentError } from './prices'
 import { getRazorpay } from '../paymentService'
 import logger from '../../util/loger'
 import { sendInvoiceEmail } from './invoiceDoc'
@@ -50,11 +51,15 @@ export const handleRazorpayWebhook = async (raw: Buffer, signature: string | und
                 paymentMethod: payment.method === 'upi' ? 'UPI (Razorpay)' : 'Card (Razorpay)',
                 source: 'webhook'
             },
-            { sendInvoice: sendInvoiceEmail }
+            // Razorpay waits ~5 s; a claim still running elsewhere answers 500 and is retried
+            { sendInvoice: sendInvoiceEmail, waitMs: 3000 }
         )
     } catch (err) {
-        // Answer 200 anyway: a retry or the browser confirm finishes the claim
+        // A bad order never gets better: acknowledge it. Anything else (DB, network, a claim still
+        // in progress): 500, so Razorpay retries for ~24 h and a later try finishes or takes over
         logger.error(`[billing] Webhook activation for ${payment.id} failed`, { meta: err })
+        if (err instanceof PaymentError) return { status: 200, body: 'refused' }
+        return { status: 500, body: 'retry' }
     }
     return { status: 200, body: 'ok' }
 }

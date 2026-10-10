@@ -7,6 +7,10 @@ import { nextInvoiceNumber } from './invoiceNumber'
 import { getSeller } from './seller'
 import type { SubscriptionPlan, IInvoice } from '../../types/billingTypes'
 import logger from '../../util/loger'
+import lockModel from '../../model/lockModel'
+
+// Not finished yet (another caller is on it): try again shortly, unlike a PaymentError
+export class ActivationPendingError extends Error {}
 
 export interface IOrderInfo {
     orgId: string
@@ -52,30 +56,62 @@ const resultOf = async (invoiceId: unknown, orgId: string) => ({
     invoice: (await InvoiceModel.findById(invoiceId).lean()) as unknown as IInvoice
 })
 
-// Extends the plan and issues the invoice; only the claimer gets here
+// One activation at a time per org, so two different payments can't both read the same expiry
+const withOrgLock = async <T>(orgId: string, fn: () => Promise<T>): Promise<T> => {
+    const _id = `sub:${orgId}`
+    const deadline = Date.now() + 15_000
+    for (;;) {
+        try {
+            await lockModel.create({ _id, at: new Date() })
+            break
+        } catch (err) {
+            if ((err as { code?: number }).code !== 11000) throw err
+            // A holder that died leaves a lock older than a minute: clear it
+            await lockModel.deleteOne({ _id, at: { $lt: new Date(Date.now() - 60_000) } })
+            if (Date.now() > deadline) throw new ActivationPendingError('Another payment for this workspace is being activated')
+            await sleep(100)
+        }
+    }
+    try {
+        return await fn()
+    } finally {
+        await lockModel.deleteOne({ _id }).catch(() => undefined)
+    }
+}
+
+// Extends the plan and issues the invoice; only the claimer gets here. Safe to run again for the
+// same payment after a crash: an extension or invoice already made for it is reused, never repeated
 const fulfil = async (input: IActivateInput, now: Date) => {
     const { order } = input
-    await orgModel.findByIdAndUpdate(order.orgId, { plan: order.plan })
-    const existing = await SubscriptionModel.findOne({ orgId: order.orgId }).lean()
-    // Renewing the same plan before it lapses extends it from the current expiry, so no paid days are lost
-    const start =
-        existing?.plan === order.plan && existing.status === 'active' && existing.expiresAt && existing.expiresAt > now ? existing.expiresAt : now
-    const end = new Date(start.getTime() + (order.billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000)
-    await SubscriptionModel.findOneAndUpdate(
-        { orgId: order.orgId },
-        {
-            userId: order.userId,
-            plan: order.plan,
-            status: 'active',
-            billingCycle: order.billingCycle,
-            gatewaySubscriptionId: input.paymentId,
-            currentPeriodStart: start,
-            currentPeriodEnd: end,
-            expiresAt: end,
-            cancelAtPeriodEnd: false
-        },
-        { upsert: true, new: true }
-    )
+    const prior = await InvoiceModel.findOne({ gatewayPaymentId: input.paymentId })
+    if (prior) return prior
+    const { start, end } = await withOrgLock(order.orgId, async () => {
+        const existing = await SubscriptionModel.findOne({ orgId: order.orgId }).lean()
+        if (existing?.gatewaySubscriptionId === input.paymentId && existing.currentPeriodStart && existing.currentPeriodEnd) {
+            return { start: existing.currentPeriodStart, end: existing.currentPeriodEnd }
+        }
+        // Renewing the same plan before it lapses extends it from the current expiry, so no paid days are lost
+        const from =
+            existing?.plan === order.plan && existing.status === 'active' && existing.expiresAt && existing.expiresAt > now ? existing.expiresAt : now
+        const to = new Date(from.getTime() + (order.billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000)
+        await orgModel.findByIdAndUpdate(order.orgId, { plan: order.plan })
+        await SubscriptionModel.findOneAndUpdate(
+            { orgId: order.orgId },
+            {
+                userId: order.userId,
+                plan: order.plan,
+                status: 'active',
+                billingCycle: order.billingCycle,
+                gatewaySubscriptionId: input.paymentId,
+                currentPeriodStart: from,
+                currentPeriodEnd: to,
+                expiresAt: to,
+                cancelAtPeriodEnd: false
+            },
+            { upsert: true, new: true }
+        )
+        return { start: from, end: to }
+    })
     const [seller, user, org] = await Promise.all([getSeller(), userModel.findById(order.userId).lean(), orgModel.findById(order.orgId).lean()])
     const planName = order.plan.charAt(0).toUpperCase() + order.plan.slice(1)
     return InvoiceModel.create({
@@ -133,7 +169,7 @@ export const activatePayment = async (input: IActivateInput, deps: IActivateDeps
                 { new: true }
             )
             if (took) break
-            if (Date.now() > deadline) throw new PaymentError('This payment is still being activated. Please refresh in a minute.')
+            if (Date.now() > deadline) throw new ActivationPendingError('This payment is still being activated. Please refresh in a minute.')
             await sleep(150)
         }
     }

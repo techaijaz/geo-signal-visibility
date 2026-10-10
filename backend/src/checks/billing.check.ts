@@ -5,7 +5,7 @@ import mongoose from 'mongoose'
 import { financialYear, nextInvoiceNumber } from '../service/billing/invoiceNumber'
 import { DEFAULT_SELLER, getSeller, saveSeller } from '../service/billing/seller'
 import { validateJoiSchema, validationBillingSeller } from '../service/validationService'
-import { activatePayment, orderInfoFromRazorpay } from '../service/billing/activatePayment'
+import { ActivationPendingError, activatePayment, orderInfoFromRazorpay } from '../service/billing/activatePayment'
 import paymentModel from '../model/paymentModel'
 import { InvoiceModel, SubscriptionModel } from '../model/billingModel'
 import orgModel from '../model/orgModel'
@@ -16,6 +16,7 @@ import { handleRazorpayWebhook, validWebhookSignature } from '../service/billing
 import { reuseOrCreateOrder } from '../service/paymentService'
 import { renderInvoiceHtml, invoiceFileName, sendInvoiceEmail } from '../service/billing/invoiceDoc'
 import subscriptionController from '../controller/subscriptionController'
+import { paymentService } from '../service/paymentService'
 
 const run = async () => {
     await mongoose.connect('mongodb://127.0.0.1:27017/signal_billing_check')
@@ -115,14 +116,14 @@ const run = async () => {
     assert.ok(taken.invoice.invoiceNumber)
     assert.equal((await paymentModel.findOne({ paymentId: 'pay_B' }).lean())!.status, 'done')
 
-    // A fresh claim that doesn't finish in time: the waiting caller gets a PaymentError, no second invoice
+    // A fresh claim that doesn't finish in time: the waiting caller gets ActivationPendingError (retry), no second invoice
     await paymentModel.create({ ...base, paymentId: 'pay_C', orderId: 'order_8', status: 'processing', claimedAt: new Date() })
     await assert.rejects(
         activatePayment(
             { paymentId: 'pay_C', orderId: 'order_8', order, gateway: 'razorpay', paymentMethod: 'x', source: 'webhook' },
             { ...deps, waitMs: 300 }
         ),
-        PaymentError
+        ActivationPendingError
     )
     assert.equal(await InvoiceModel.countDocuments({ gatewayPaymentId: 'pay_C' }), 0)
 
@@ -150,11 +151,6 @@ const run = async () => {
     const otherSig = crypto.createHmac('sha256', secret).update(other).digest('hex')
     assert.equal((await handleRazorpayWebhook(other, otherSig, { secret, fetchOrder, activate })).status, 200) // ignored
     assert.equal(calls.length, 1)
-    // An activation error after a valid signature still answers 200 (Razorpay retries non-2xx; the next try finishes)
-    const failing = (async () => {
-        throw new Error('db down')
-    }) as never
-    assert.equal((await handleRazorpayWebhook(body, sig, { secret, fetchOrder, activate: failing })).status, 200)
 
     // Checkout: same org/plan/cycle within 15 min reuses the unpaid order; paid or older → a new one
     let created = 0
@@ -221,6 +217,95 @@ const run = async () => {
         })
     assert.equal(await pdfCall(otherId, 'Other'), 404)
     assert.equal(await pdfCall(userId, 'Owner One'), 200)
+
+    // Review C1: the webhook answers 500 on a passing failure (Razorpay retries), 200 only on a permanent one
+    const boom = (async () => {
+        throw new Error('mongo blip')
+    }) as never
+    assert.equal((await handleRazorpayWebhook(body, sig, { secret, fetchOrder, activate: boom })).status, 500)
+    const permanent = (async () => {
+        throw new PaymentError('amount mismatch')
+    }) as never
+    assert.equal((await handleRazorpayWebhook(body, sig, { secret, fetchOrder, activate: permanent })).status, 200)
+
+    // Review I1: a takeover after a half-finished activation neither extends twice nor gets stuck
+    const org2 = new mongoose.Types.ObjectId()
+    await orgModel.collection.insertOne({ _id: org2, name: 'Shop Two', ownerId: userId, plan: 'starter' })
+    const order2 = { ...order, orgId: String(org2) }
+    const end2 = new Date(Date.now() + 30 * 86400000)
+    await SubscriptionModel.collection.insertOne({
+        orgId: org2,
+        userId,
+        plan: 'starter',
+        status: 'active',
+        billingCycle: 'monthly',
+        gatewaySubscriptionId: 'pay_D',
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: end2,
+        expiresAt: end2
+    })
+    await paymentModel.create({
+        ...order2,
+        gateway: 'razorpay',
+        source: 'browser',
+        paymentId: 'pay_D',
+        orderId: 'order_D',
+        status: 'processing',
+        claimedAt: new Date(Date.now() - 3 * 60 * 1000)
+    })
+    await activatePayment(
+        { paymentId: 'pay_D', orderId: 'order_D', order: order2, gateway: 'razorpay', paymentMethod: 'x', source: 'webhook' },
+        { waitMs: 300 }
+    )
+    assert.equal((await SubscriptionModel.findOne({ orgId: org2 }).lean())!.expiresAt!.getTime(), end2.getTime()) // not extended again
+    assert.equal(await InvoiceModel.countDocuments({ gatewayPaymentId: 'pay_D' }), 1)
+    // the invoice was already written but the claim never reached done
+    const prior = await InvoiceModel.findOne({ gatewayPaymentId: 'pay_D' }).lean()
+    await paymentModel.updateOne({ paymentId: 'pay_D' }, { $set: { status: 'processing', claimedAt: new Date(Date.now() - 3 * 60 * 1000) } })
+    const again = await activatePayment(
+        { paymentId: 'pay_D', orderId: 'order_D', order: order2, gateway: 'razorpay', paymentMethod: 'x', source: 'browser' },
+        { waitMs: 300 }
+    )
+    assert.equal(String(again.invoice._id), String(prior!._id))
+    assert.equal((await paymentModel.findOne({ paymentId: 'pay_D' }).lean())!.status, 'done')
+
+    // Review I3: two different payments for one org at once both count (30 + 365 days)
+    const org3 = new mongoose.Types.ObjectId()
+    await orgModel.collection.insertOne({ _id: org3, name: 'Shop Three', ownerId: userId, plan: 'free' })
+    const m = { ...order, orgId: String(org3) }
+    const y = { ...m, billingCycle: 'yearly' as const, amount: 29990 }
+    await Promise.all([
+        activatePayment({ paymentId: 'pay_M', orderId: 'order_M', order: m, gateway: 'razorpay', paymentMethod: 'x', source: 'browser' }),
+        activatePayment({ paymentId: 'pay_Y', orderId: 'order_Y', order: y, gateway: 'razorpay', paymentMethod: 'x', source: 'browser' })
+    ])
+    const s3 = await SubscriptionModel.find({ orgId: org3 }).lean()
+    assert.equal(s3.length, 1)
+    assert.equal(Math.round((s3[0].expiresAt!.getTime() - Date.now()) / 86400000), 395)
+
+    // Review I2: Stripe is not offered, so the backend refuses it
+    await assert.rejects(
+        paymentService.confirmPayment({
+            userId: order.userId,
+            orgId: order.orgId,
+            plan: 'starter',
+            billingCycle: 'monthly',
+            gateway: 'stripe',
+            gatewayOrderId: 'pi_1',
+            gatewayPaymentId: 'x'
+        }),
+        PaymentError
+    )
+
+    await assert.rejects(
+        paymentService.createCheckoutSession({
+            userId: order.userId,
+            orgId: order.orgId,
+            plan: 'starter',
+            billingCycle: 'monthly',
+            gateway: 'stripe'
+        }),
+        PaymentError
+    )
 
     await mongoose.connection.dropDatabase()
     await mongoose.disconnect()

@@ -1,5 +1,4 @@
 import Razorpay from 'razorpay'
-import Stripe from 'stripe'
 import crypto from 'crypto'
 import { InvoiceModel, SubscriptionModel } from '../model/billingModel'
 import orgModel from '../model/orgModel'
@@ -22,15 +21,6 @@ export const getRazorpay = (): Razorpay => {
     if (!keyId || !keySecret) throw new Error('Razorpay keys not configured in environment')
     _razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret })
     return _razorpay
-}
-
-let _stripe: Stripe | null = null
-const getStripe = (): Stripe => {
-    if (_stripe) return _stripe
-    const secretKey = config.PAYMENT.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY || ''
-    if (!secretKey) throw new Error('Stripe secret key not configured in environment')
-    _stripe = new Stripe(secretKey, { apiVersion: '2026-08-26.dahlia' })
-    return _stripe
 }
 
 // PaymentError and the price list live in billing/prices so billing/* can use them without a cycle
@@ -88,7 +78,7 @@ export const paymentService = {
     /**
      * Creates a real payment session:
      *  - Razorpay: calls razorpay.orders.create → returns orderId + key_id
-     *  - Stripe:   calls stripe.paymentIntents.create → returns clientSecret + publishable key
+     *  - Stripe:   not offered (India-first billing); refused
      *  - Free plan: immediately activates, no gateway needed
      */
     createCheckoutSession: async (params: {
@@ -99,6 +89,7 @@ export const paymentService = {
         gateway?: 'razorpay' | 'stripe' | 'mock'
     }) => {
         const { userId, orgId, plan, billingCycle = 'monthly', gateway } = params
+        if (gateway === 'stripe') throw new PaymentError('Card payments by Stripe are not available. Please pay with Razorpay.')
 
         const priceObj = PLAN_PRICES[plan] || PLAN_PRICES.starter
         const amount = billingCycle === 'yearly' ? priceObj.yearly : priceObj.monthly
@@ -155,33 +146,6 @@ export const paymentService = {
             }
         }
 
-        // ── Stripe ────────────────────────────────────────────────────────────
-        if (gateway === 'stripe') {
-            const stripe = getStripe()
-            // Stripe requires amount in smallest currency unit (paise for INR)
-            const paymentIntent = await stripe.paymentIntents.create({
-                amount: amount * 100,
-                currency: 'inr',
-                description,
-                metadata: { plan, billingCycle, orgId, userId }
-            })
-
-            logger.info(`[PaymentService] Stripe PaymentIntent created: ${paymentIntent.id} for plan ${plan} (₹${amount})`)
-
-            return {
-                isFree: false,
-                gateway: 'stripe',
-                orderId: paymentIntent.id, // used as reference on confirm
-                clientSecret: paymentIntent.client_secret, // sent to frontend for stripe.confirmCardPayment()
-                amount,
-                currency: 'INR',
-                plan,
-                billingCycle,
-                description,
-                publishableKey: config.PAYMENT.STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || ''
-            }
-        }
-
         // ── Mock / Sandbox (development only) ─────────────────────────────────
         if (gateway !== 'mock' || !config.ALLOW_MOCK_PAYMENTS) {
             throw new PaymentError(`Unsupported payment gateway: ${gateway}`)
@@ -205,7 +169,7 @@ export const paymentService = {
     /**
      * Verifies payment and activates subscription:
      *  - Razorpay: verifies HMAC-SHA256 signature
-     *  - Stripe:   retrieves PaymentIntent from Stripe API and checks status
+     *  - Stripe:   not offered; refused
      *  - Mock:     development only (ALLOW_MOCK_PAYMENTS)
      */
     confirmPayment: async (params: {
@@ -219,17 +183,12 @@ export const paymentService = {
         gatewaySignature?: string // Razorpay: razorpay_signature (HMAC)
     }) => {
         const { userId, orgId, plan, billingCycle = 'monthly', gateway, gatewayOrderId, gatewayPaymentId, gatewaySignature } = params
+        // Stripe isn't offered (India-first billing); refusing it closes replays of one PaymentIntent
+        if (gateway === 'stripe') throw new PaymentError('Card payments by Stripe are not available. Please pay with Razorpay.')
 
         let paymentMethod = 'Unknown'
         // Charged amount comes from the gateway (or the price list for sandbox), never from the client
         let amount = 0
-        // The plan/cycle/org must be the ones the order was created for, otherwise a cheap
-        // payment could be replayed to activate a pricier plan
-        const assertOrderMatches = (notes: Record<string, unknown> | null | undefined) => {
-            if (notes?.plan !== plan || notes?.billingCycle !== billingCycle || notes?.orgId !== orgId) {
-                throw new PaymentError('Payment does not match the selected plan')
-            }
-        }
 
         // ── Razorpay signature verification ───────────────────────────────────
         if (gateway === 'razorpay') {
@@ -249,23 +208,6 @@ export const paymentService = {
             paymentMethod = 'UPI / Card (Razorpay)'
             logger.info(`[PaymentService] Razorpay payment verified: ${gatewayPaymentId}`)
         }
-
-        // ── Stripe PaymentIntent verification ─────────────────────────────────
-        else if (gateway === 'stripe') {
-            if (!gatewayOrderId) {
-                throw new Error('Stripe: paymentIntent.id is required for verification')
-            }
-            const stripe = getStripe()
-            const intent = await stripe.paymentIntents.retrieve(gatewayOrderId)
-            if (intent.status !== 'succeeded') {
-                throw new PaymentError(`Stripe payment not succeeded (status: ${intent.status})`)
-            }
-            assertOrderMatches(intent.metadata)
-            amount = intent.amount / 100
-            paymentMethod = 'Stripe Card'
-            logger.info(`[PaymentService] Stripe PaymentIntent verified: ${gatewayOrderId}`)
-        }
-
         // ── Mock (development only) ───────────────────────────────────────────
         else if (gateway === 'mock' && config.ALLOW_MOCK_PAYMENTS) {
             amount = billingCycle === 'yearly' ? PLAN_PRICES[plan].yearly : PLAN_PRICES[plan].monthly

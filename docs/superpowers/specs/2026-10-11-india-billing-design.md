@@ -67,7 +67,7 @@ The existing `InvoiceModel.exists` check is removed (the claim replaces it). A u
 - Mounted in `app.ts` with `express.raw({ type: 'application/json' })` before `express.json()` and before the API router (so neither the JSON parser nor the per-IP rate limiter touches it); the signature is computed on the exact bytes.
 - Verifies `X-Razorpay-Signature` = HMAC-SHA256(rawBody, `RAZORPAY_WEBHOOK_SECRET`) with `timingSafeEqual`; bad or missing → 400, nothing done.
 - `payment.captured` → `activatePayment(payment.id, payment.order_id, 'webhook')`; other events → 200 ignored.
-- Always answers 200 quickly once the signature is valid (Razorpay retries non-2xx); work errors are logged and the next retry or browser confirm finishes the claim.
+- Answers 200 once activation is done, or when the order is permanently wrong (amount/notes mismatch). Any passing failure (DB, network, another caller still activating) answers **500**, so Razorpay retries for about 24 hours and a later try finishes or takes over the claim. A claim still running elsewhere is waited for at most 3 s (Razorpay times out at about 5 s).
 - No `RAZORPAY_WEBHOOK_SECRET` → the route answers 503 and logs a warning (staging/prod must set it).
 
 **Checkout reuse** (`POST /subscription/checkout`): if the org has a Razorpay order created in the last 15 minutes for the same plan and cycle and not yet paid, return that order instead of creating a new one. Orders are kept in a small `checkoutOrders` collection `{ orgId, plan, billingCycle, orderId, amount, createdAt }` (TTL 1 day); a paid order (its id in `payments`) is never reused. Two tabs or a double click give one order.

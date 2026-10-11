@@ -156,7 +156,7 @@ export default function AdminBilling() {
         userId: modalUserId,
         plan: modalPlan,
         amount: Number(modalAmount) || 0,
-        description: modalDesc || `GEO Platform - ${modalPlan.toUpperCase()} Subscription`,
+        description: modalDesc || `Signal AI ${modalPlan.charAt(0).toUpperCase() + modalPlan.slice(1)} plan`,
         paymentMethod: modalPaymentMethod,
         status: modalStatus
       });
@@ -619,7 +619,7 @@ export default function AdminBilling() {
                 <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-dim)', marginBottom: '4px' }}>Description / Line Item:</label>
                 <input
                   type="text"
-                  placeholder="GEO Platform Subscription Fee"
+                  placeholder="Signal AI subscription"
                   value={modalDesc}
                   onChange={(e) => setModalDesc(e.target.value)}
                   style={{

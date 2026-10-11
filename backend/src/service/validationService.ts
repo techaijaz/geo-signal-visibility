@@ -142,10 +142,12 @@ export const validationBillingSeller = Joi.object({
         .trim()
         .uppercase()
         .allow('')
-        .pattern(/^[A-Z]{5}[0-9]{4}[A-Z]$/),
+        .pattern(/^[A-Z]{5}[0-9]{4}[A-Z]$/)
+        .messages({ 'string.pattern.base': 'PAN must look like ABCDE1234F (5 letters, 4 digits, 1 letter)' }),
     gstin: Joi.string()
         .trim()
         .uppercase()
         .allow('')
         .pattern(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/)
+        .messages({ 'string.pattern.base': 'GSTIN must be 15 characters, like 09ABCDE1234F1Z5' })
 })

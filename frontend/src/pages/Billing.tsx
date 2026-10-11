@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../utils/axios';
 import { useAuth } from '../context/AuthContext';
 import { usePlanLimits } from '../hooks/usePlanLimits';
@@ -211,6 +211,10 @@ export default function Billing() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [renewsOn, setRenewsOn] = useState<string | null>(null);
+  // A paid plan's end; smaller plans unlock after it (admin-granted plans have none)
+  const [paidUntil, setPaidUntil] = useState<string | null>(null);
+  // Synchronous guard: two clicks in the same tick can't both start a checkout
+  const checkoutBusy = useRef(false);
   const [queriesUsed, setQueriesUsed] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
@@ -271,6 +275,7 @@ export default function Billing() {
         if (response.data.data.currentPlan) setCurrentPlan(response.data.data.currentPlan);
         if (response.data.data.invoices) setInvoices(response.data.data.invoices);
         setRenewsOn(response.data.data.subscription?.currentPeriodEnd || null);
+        setPaidUntil(response.data.data.subscription?.expiresAt || null);
       }
       // Query limits are per brand, so show the brand picked in the sidebar
       const brands: Array<{ _id: string; queries?: unknown[] }> = brandsRes?.data?.data?.brands || [];
@@ -284,7 +289,8 @@ export default function Billing() {
   };
 
   const handleSelectPlan = async (targetPlanId: string) => {
-    if (processingPlan || targetPlanId === currentPlan) return;
+    if (checkoutBusy.current || processingPlan || targetPlanId === currentPlan || lockedUntil(targetPlanId)) return;
+    checkoutBusy.current = true;
     if (targetPlanId === 'agency') {
       setMessage({ text: 'Our Enterprise team will contact you shortly at ' + (user?.email || 'your email'), type: 'success' });
       return;
@@ -334,6 +340,7 @@ export default function Billing() {
     } catch (err: any) {
       setMessage({ text: err.response?.data?.message || err.message || 'Failed to initialize payment', type: 'error' });
     } finally {
+      checkoutBusy.current = false;
       setProcessingPlan(null);
     }
   };
@@ -436,8 +443,17 @@ export default function Billing() {
     }
   };
 
+  // Smaller plans wait until the paid one ends, so no paid days are lost
+  const lockedUntil = (planId: string) => {
+    const order = ['free', 'starter', 'growth', 'agency'];
+    if (!paidUntil || new Date(paidUntil) <= new Date() || order.indexOf(planId) >= order.indexOf(currentPlan)) return null;
+    return new Date(paidUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
   const getButtonText = (plan: Plan) => {
     if (plan.id === currentPlan) return 'Current Plan';
+    const until = lockedUntil(plan.id);
+    if (until) return `Available after ${until}`;
     if (plan.id === 'agency') return 'Talk to Sales';
     const planOrder = ['free', 'starter', 'growth', 'agency'];
     const currentIndex = planOrder.indexOf(currentPlan);
@@ -658,7 +674,7 @@ export default function Billing() {
               </div>
 
               <button
-                disabled={isCurrent || !!processingPlan}
+                disabled={isCurrent || !!processingPlan || !!lockedUntil(p.id)}
                 onClick={() => handleSelectPlan(p.id)}
                 style={{
                   width: '100%',

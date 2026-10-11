@@ -16,8 +16,8 @@ export const company = {
     email: 'hello@geosignalai.com',
     salesEmail: 'sales@geosignalai.com',
     supportEmail: 'support@geosignalai.com',
-    grievanceOfficer: '[Grievance officer name]',
-    jurisdiction: '[City], India'
+    grievanceOfficer: 'Aijaz Ahmad',
+    jurisdiction: 'Bahraich, Uttar Pradesh, India'
 }
 
 export type AiEngine = { id: string; name: string; color: string }

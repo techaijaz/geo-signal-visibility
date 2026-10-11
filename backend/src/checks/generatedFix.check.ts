@@ -7,6 +7,7 @@ import generatedFixModel from '../model/generatedFixModel'
 import { istMonthStart, nextResetLabel, countFixUsage } from '../service/fix/usage'
 import { kindsOf, pickOwnUrls, wonQueries, OTHER_KIND } from '../service/fix/pickPages'
 import { pageText, readPages, homepageLinks } from '../service/fix/readPages'
+import { buildFixPrompt, parseFixResponse } from '../service/fix/prompt'
 
 const p = (title: string, url: string) => ({
     shopifyId: null,
@@ -89,6 +90,50 @@ const run = async () => {
         'https://s.in/products/silk-oud',
         'https://s.in/products/musk'
     ])
+
+    // Prompt and parsing
+    const prompt = buildFixPrompt({
+        type: 'faq',
+        brandName: 'Hasan Oud',
+        kind: 'attar',
+        language: 'hi-en',
+        questions: ['500 ke andar accha attar'],
+        pages: [pt]
+    })
+    assert.ok(prompt.includes('ONLY the page text') && prompt.includes('[confirm:') && prompt.includes('Hinglish'))
+    assert.ok(prompt.includes('https://s.in/a1') && prompt.includes('500 ke andar accha attar'))
+    const cmp = buildFixPrompt({
+        type: 'comparison',
+        brandName: 'Hasan Oud',
+        competitor: 'Ajmal',
+        language: 'en',
+        questions: [],
+        pages: [pt],
+        aiSaid: ['Ajmal is known for...']
+    })
+    assert.ok(cmp.includes('Never say anything negative about Ajmal'))
+
+    const allowed = ['https://s.in/a1']
+    const raw =
+        'Here you go:\n```json\n{"title":"Attar FAQ","items":[' +
+        '{"question":"Is it alcohol-free?","answer":"Yes.","source":"https://s.in/a1"},' +
+        '{"question":"Delivery time?","answer":"2 days","source":"https://evil.com/x"},' +
+        '{"question":"","answer":"x","source":"https://s.in/a1"}]}\n```'
+    const parsed = parseFixResponse(raw, 'faq', allowed)!
+    assert.equal(parsed.title, 'Attar FAQ')
+    assert.equal(parsed.items.length, 2) // the empty question is dropped
+    assert.equal(parsed.items[0].source, 'https://s.in/a1')
+    assert.equal(parsed.items[1].answer, '[confirm: source not found] 2 days')
+    assert.equal(parsed.items[1].source, undefined)
+    assert.equal(parseFixResponse('not json at all', 'faq', allowed), null)
+    assert.equal(parseFixResponse('{"title":"x","items":[]}', 'faq', allowed), null) // nothing usable
+    const cmpParsed = parseFixResponse(
+        '{"title":"Hasan Oud vs Ajmal","items":[{"heading":"Price","body":"..","source":"https://s.in/a1"},{"heading":"Differences","rows":[{"label":"Price","brand":"₹799","competitor":"[confirm: price]"}]}]}',
+        'comparison',
+        allowed
+    )!
+    assert.equal(cmpParsed.items.length, 2)
+    assert.equal(cmpParsed.items[1].rows![0].brand, '₹799')
 
     await mongoose.connect('mongodb://127.0.0.1:27017/signal_fix_check')
     await mongoose.connection.dropDatabase()

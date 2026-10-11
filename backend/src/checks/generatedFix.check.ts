@@ -8,6 +8,7 @@ import { istMonthStart, nextResetLabel, countFixUsage } from '../service/fix/usa
 import { kindsOf, pickOwnUrls, wonQueries, OTHER_KIND } from '../service/fix/pickPages'
 import { pageText, readPages, homepageLinks } from '../service/fix/readPages'
 import { buildFixPrompt, parseFixResponse } from '../service/fix/prompt'
+import { fixOutputs } from '../service/fix/output'
 
 const p = (title: string, url: string) => ({
     shopifyId: null,
@@ -134,6 +135,29 @@ const run = async () => {
     )!
     assert.equal(cmpParsed.items.length, 2)
     assert.equal(cmpParsed.items[1].rows![0].brand, '₹799')
+
+    // Outputs: text, HTML, FAQ schema
+    const faqOut = fixOutputs({
+        type: 'faq',
+        title: 'Attar FAQ',
+        items: [
+            { question: 'Is it alcohol-free?', answer: 'Yes <b>100%</b>.', source: 'https://s.in/a1' },
+            { question: 'Delivery?', answer: '[confirm: delivery days]' }
+        ]
+    })
+    assert.ok(faqOut.text.startsWith('Attar FAQ') && faqOut.text.includes('Q: Is it alcohol-free?'))
+    assert.ok(faqOut.html.includes('<h3>Is it alcohol-free?</h3>') && faqOut.html.includes('Yes &lt;b&gt;100%&lt;/b&gt;.'))
+    const ld = JSON.parse(faqOut.jsonLd!.replace(/^<script type="application\/ld\+json">|<\/script>$/g, ''))
+    assert.equal(ld['@type'], 'FAQPage')
+    assert.equal(ld.mainEntity.length, 1) // the [confirm] item is left out until the owner fills it
+    assert.equal(ld.mainEntity[0].acceptedAnswer.text, 'Yes <b>100%</b>.')
+    assert.ok(!faqOut.jsonLd!.includes('<b>')) // "<" escaped so an answer can't close the script tag
+    const cmpOut = fixOutputs({
+        type: 'comparison',
+        title: 'A vs B',
+        items: [{ heading: 'Differences', rows: [{ label: 'Price', brand: '₹799', competitor: '₹999' }] }]
+    })
+    assert.ok(cmpOut.html.includes('<table>') && cmpOut.html.includes('<td>₹799</td>') && cmpOut.jsonLd === null)
 
     await mongoose.connect('mongodb://127.0.0.1:27017/signal_fix_check')
     await mongoose.connection.dropDatabase()

@@ -5,7 +5,7 @@ import { activatePayment, orderInfoFromRazorpay } from './activatePayment'
 import { PaymentError } from './prices'
 import { getRazorpay } from '../paymentService'
 import logger from '../../util/loger'
-import { sendInvoiceEmail } from './invoiceDoc'
+import { paymentMethodLabel, sendInvoiceEmail } from './invoiceDoc'
 
 // Razorpay signs the exact bytes it sends
 export const validWebhookSignature = (raw: Buffer, signature: string | undefined, secret: string) => {
@@ -48,7 +48,7 @@ export const handleRazorpayWebhook = async (raw: Buffer, signature: string | und
                 orderId: payment.order_id,
                 order,
                 gateway: 'razorpay',
-                paymentMethod: payment.method === 'upi' ? 'UPI (Razorpay)' : 'Card (Razorpay)',
+                paymentMethod: paymentMethodLabel(payment.method),
                 source: 'webhook'
             },
             // Razorpay waits ~5 s; a claim still running elsewhere answers 500 and is retried

@@ -6,6 +6,7 @@ import { PLAN_LIMITS } from '../config/planLimits'
 import generatedFixModel from '../model/generatedFixModel'
 import { istMonthStart, nextResetLabel, countFixUsage } from '../service/fix/usage'
 import { kindsOf, pickOwnUrls, wonQueries, OTHER_KIND } from '../service/fix/pickPages'
+import { pageText, readPages, homepageLinks } from '../service/fix/readPages'
 
 const p = (title: string, url: string) => ({
     shopifyId: null,
@@ -63,6 +64,31 @@ const run = async () => {
     assert.deepEqual(pickOwnUrls({ type: 'faq', kind: null, products: others }), ['https://s.in/g1', 'https://s.in/g2'])
     // No saved products: nothing here (the runner falls back to homepage links)
     assert.deepEqual(pickOwnUrls({ type: 'faq', kind: 'attar', products: [] }), [])
+
+    // Reading pages
+    const html = `<html><head><title>Silk Oud</title></head><body><nav>Menu Cart</nav><main><h1>Silk Oud Attar</h1>
+        <p>Alcohol-free attar. Lasts 10-12 hours.</p><p>₹799</p><p>4.6 out of 5 (120 reviews)</p></main><footer>© shop</footer></body></html>`
+    const pt = pageText('https://s.in/a1', html)
+    assert.equal(pt.title, 'Silk Oud Attar')
+    assert.ok(pt.text.includes('Alcohol-free attar') && !pt.text.includes('Menu Cart'))
+    assert.equal(pt.price, '₹799')
+    // Long pages are cut at ~1,500 words
+    assert.ok(pageText('u', `<main>${'word '.repeat(3000)}</main>`).text.split(' ').length <= 1500)
+    // A page that fails is reported, others still read
+    const fake = async (u: string) => (u.endsWith('bad') ? Promise.reject(new Error('timeout')) : html)
+    const r = await readPages(['https://s.in/a1', 'https://s.in/bad'], fake)
+    assert.equal(r.pages.length, 1)
+    assert.deepEqual(r.read, [
+        { url: 'https://s.in/a1', ok: true },
+        { url: 'https://s.in/bad', ok: false }
+    ])
+    // Homepage fallback: the homepage plus product links on it
+    const home = `<a href="/products/silk-oud">x</a><a href="/products/musk">y</a><a href="/about">z</a>`
+    assert.deepEqual(await homepageLinks('https://s.in', async () => home), [
+        'https://s.in',
+        'https://s.in/products/silk-oud',
+        'https://s.in/products/musk'
+    ])
 
     await mongoose.connect('mongodb://127.0.0.1:27017/signal_fix_check')
     await mongoose.connection.dropDatabase()

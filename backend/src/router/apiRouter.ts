@@ -103,6 +103,7 @@ router.route('/subscription/change').post(authentication, subscriptionController
 router.route('/subscription/checkout').post(authentication, subscriptionController.createCheckoutSession)
 router.route('/subscription/confirm').post(authentication, subscriptionController.confirmPayment)
 router.route('/subscription/invoices').get(authentication, subscriptionController.getInvoices)
+router.route('/subscription/invoices/:id/pdf').get(authentication, subscriptionController.getInvoicePdf)
 router.route('/subscription/limits').get(authentication, subscriptionController.getPlanLimits)
 
 // Category router (Public)
@@ -138,6 +139,10 @@ router
     .route('/admin/free-check')
     .get(authentication, adminOnly, adminController.getFreeCheck)
     .put(authentication, adminOnly, adminController.setFreeCheckLimit)
+router
+    .route('/admin/billing-settings')
+    .get(authentication, adminOnly, adminController.getBillingSettings)
+    .put(authentication, adminOnly, adminController.saveBillingSettings)
 router.route('/admin/free-check/leads.csv').get(authentication, adminOnly, adminController.getFreeCheckLeadsCsv)
 
 // Admin Encrypted API Keys Management

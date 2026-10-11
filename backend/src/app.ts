@@ -1,6 +1,7 @@
 import express, { Application } from 'express'
 import path from 'path'
 import router from './router/apiRouter'
+import { razorpayWebhookRoute } from './service/billing/razorpayWebhook'
 import globalErrorHandler, { notFoundError } from './middleware/globalErrorHandler'
 import helmet from 'helmet'
 import cors from 'cors'
@@ -42,6 +43,8 @@ app.use(
         credentials: true
     })
 )
+// Razorpay signs the exact bytes it sends: this route reads the raw body and sits outside the API router
+app.post('/api/v1/payments/razorpay/webhook', express.raw({ type: 'application/json', limit: '1mb' }), razorpayWebhookRoute)
 app.use(express.json())
 app.use(express.static(path.join(__dirname, '../', 'public')))
 

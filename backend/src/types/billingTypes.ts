@@ -1,4 +1,5 @@
 import { Document, Types } from 'mongoose'
+import type { ISeller } from '../service/billing/seller'
 
 export type SubscriptionPlan = 'free' | 'starter' | 'growth' | 'agency'
 export type SubscriptionStatus = 'active' | 'past_due' | 'canceled' | 'trialing' | 'expired'
@@ -37,6 +38,11 @@ export interface IInvoice extends Document {
     gatewayPaymentId?: string
     paidAt?: Date
     pdfUrl?: string
+    seller: ISeller
+    buyer: { name: string; email: string; orgName: string }
+    period?: { start: Date; end: Date }
+    gatewayOrderId?: string
+    taxNote: string
     items: Array<{
         description: string
         amount: number

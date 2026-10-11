@@ -18,7 +18,7 @@ const rows: { label: string; get: (p: (typeof plans)[number]) => string }[] = [
 ]
 
 const faqs = [
-  { q: 'Are prices inclusive of GST?', a: 'Yes. The price you see is the price you pay, and your invoice shows the GST included in it.' },
+  { q: 'Do you charge GST?', a: 'Not at the moment: we are not GST-registered yet, so the price you see is the price you pay.' },
   { q: 'How do I pay?', a: 'Through Razorpay with UPI, debit or credit cards and netbanking, or by card through Stripe. Payments are processed by the payment provider; we never see your full card details.' },
   { q: 'Is this an auto-debit subscription?', a: 'No. You pay for a month or a year up front. When the period ends, renew from Billing to keep your plan; if you don’t, your account moves to the Free plan and your history is kept. See the cancellation and refund policy for details.' },
   { q: 'What counts as a question?', a: 'One question is one thing a shopper might ask, such as “best sunscreen for oily skin under ₹500”. Each scan asks every AI on your plan that question.' },
@@ -26,12 +26,12 @@ const faqs = [
   { q: 'Do you offer an agency plan?', a: 'Yes. Agency covers up to 25 brands with 100 questions each, all six AIs including Perplexity and scans twice a day. Pricing depends on your client list, so write to our sales team.' }
 ]
 ---
-<Base title="Pricing" description="Signal AI pricing in INR, GST included: Free, Starter ₹2,999/month and Growth ₹9,999/month. Track your brand in ChatGPT, Gemini, Claude, Grok and DeepSeek answers.">
+<Base title="Pricing" description="Signal AI pricing in INR: Free, Starter ₹2,999/month and Growth ₹9,999/month. Track your brand in ChatGPT, Gemini, Claude, Grok and DeepSeek answers.">
   <section class="band intro">
     <div class="wrap">
       <div class="section-head">
         <h1>Simple plans, billed in rupees</h1>
-        <p>Start free. Pay for a month or a year up front, with no auto-debit. All prices include GST.</p>
+        <p>Start free. Pay for a month or a year up front, with no auto-debit. No GST is charged: we are not GST-registered yet.</p>
       </div>
       <PricingPlans />
     </div>

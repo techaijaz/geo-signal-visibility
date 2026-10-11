@@ -126,6 +126,12 @@ const invoiceSchema = new mongoose.Schema<IInvoice>(
             type: String,
             default: null
         },
+        // Snapshots taken when the invoice is issued; later setting changes don't alter it
+        seller: { type: Object, default: null },
+        buyer: { type: Object, default: null },
+        period: { start: Date, end: Date },
+        gatewayOrderId: { type: String, default: '' },
+        taxNote: { type: String, default: '' },
         items: [
             {
                 description: { type: String, required: true },
@@ -137,4 +143,7 @@ const invoiceSchema = new mongoose.Schema<IInvoice>(
 )
 
 export const SubscriptionModel = mongoose.model<ISubscription>('Subscription', subscriptionSchema)
+// A payment can back one invoice only (second guard behind the payments claim)
+invoiceSchema.index({ gatewayPaymentId: 1 }, { unique: true, partialFilterExpression: { gatewayPaymentId: { $type: 'string' } } })
+
 export const InvoiceModel = mongoose.model<IInvoice>('Invoice', invoiceSchema)

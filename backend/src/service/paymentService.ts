@@ -1,16 +1,20 @@
 import Razorpay from 'razorpay'
-import Stripe from 'stripe'
 import crypto from 'crypto'
 import { InvoiceModel, SubscriptionModel } from '../model/billingModel'
 import orgModel from '../model/orgModel'
 import { SubscriptionPlan } from '../types/billingTypes'
 import logger from '../util/loger'
 import config from '../config/config'
+import { PaymentError, PLAN_PRICES } from './billing/prices'
+import { activatePayment, orderInfoFromRazorpay } from './billing/activatePayment'
+import checkoutOrderModel from '../model/checkoutOrderModel'
+import { sendInvoiceEmail } from './billing/invoiceDoc'
+import paymentModel from '../model/paymentModel'
 
 // ─── SDK instances (lazy-init so missing keys don't crash on startup) ─────────
 
 let _razorpay: Razorpay | null = null
-const getRazorpay = (): Razorpay => {
+export const getRazorpay = (): Razorpay => {
     if (_razorpay) return _razorpay
     const keyId = config.PAYMENT.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || ''
     const keySecret = config.PAYMENT.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET || ''
@@ -19,25 +23,53 @@ const getRazorpay = (): Razorpay => {
     return _razorpay
 }
 
-let _stripe: Stripe | null = null
-const getStripe = (): Stripe => {
-    if (_stripe) return _stripe
-    const secretKey = config.PAYMENT.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY || ''
-    if (!secretKey) throw new Error('Stripe secret key not configured in environment')
-    _stripe = new Stripe(secretKey, { apiVersion: '2026-08-26.dahlia' })
-    return _stripe
-}
+// PaymentError and the price list live in billing/prices so billing/* can use them without a cycle
+export { PaymentError, PLAN_PRICES }
 
-// Payment verification failures: the client's fault (400), not a server error
-export class PaymentError extends Error {}
+// ─── Checkout orders ──────────────────────────────────────────────────────────
 
-// ─── Plan pricing ─────────────────────────────────────────────────────────────
+const REUSE_MS = 15 * 60 * 1000
+const opening = new Map<string, Promise<string>>()
 
-const PLAN_PRICES: Record<SubscriptionPlan, { monthly: number; yearly: number }> = {
-    free: { monthly: 0, yearly: 0 },
-    starter: { monthly: 2999, yearly: 29990 },
-    growth: { monthly: 9999, yearly: 99990 },
-    agency: { monthly: 19999, yearly: 199990 }
+// Two tabs or a double click within 15 min get the same unpaid Razorpay order
+export const reuseOrCreateOrder = async (
+    input: { orgId: string; userId: string; plan: SubscriptionPlan; billingCycle: 'monthly' | 'yearly'; amount: number },
+    create: () => Promise<{ id: string }>,
+    now = new Date()
+): Promise<string> => {
+    const key = `${input.orgId}:${input.plan}:${input.billingCycle}`
+    // Parallel requests in this process share one creation
+    const inflight = opening.get(key)
+    if (inflight) return inflight
+    const work = (async () => {
+        const recent = await checkoutOrderModel
+            .find({
+                orgId: input.orgId,
+                plan: input.plan,
+                billingCycle: input.billingCycle,
+                amount: input.amount,
+                createdAt: { $gt: new Date(now.getTime() - REUSE_MS), $lte: now }
+            })
+            .sort({ createdAt: -1 })
+            .lean()
+        for (const r of recent) if (!(await paymentModel.exists({ orderId: r.orderId }))) return r.orderId
+        const o = await create()
+        await checkoutOrderModel.create({
+            orgId: input.orgId,
+            plan: input.plan,
+            billingCycle: input.billingCycle,
+            amount: input.amount,
+            orderId: o.id,
+            createdAt: now
+        })
+        return o.id
+    })()
+    opening.set(key, work)
+    try {
+        return await work
+    } finally {
+        opening.delete(key)
+    }
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -46,7 +78,7 @@ export const paymentService = {
     /**
      * Creates a real payment session:
      *  - Razorpay: calls razorpay.orders.create → returns orderId + key_id
-     *  - Stripe:   calls stripe.paymentIntents.create → returns clientSecret + publishable key
+     *  - Stripe:   not offered (India-first billing); refused
      *  - Free plan: immediately activates, no gateway needed
      */
     createCheckoutSession: async (params: {
@@ -57,6 +89,7 @@ export const paymentService = {
         gateway?: 'razorpay' | 'stripe' | 'mock'
     }) => {
         const { userId, orgId, plan, billingCycle = 'monthly', gateway } = params
+        if (gateway === 'stripe') throw new PaymentError('Card payments by Stripe are not available. Please pay with Razorpay.')
 
         const priceObj = PLAN_PRICES[plan] || PLAN_PRICES.starter
         const amount = billingCycle === 'yearly' ? priceObj.yearly : priceObj.monthly
@@ -86,19 +119,23 @@ export const paymentService = {
         if (gateway === 'razorpay') {
             const rzp = getRazorpay()
             // Razorpay requires amount in paise (INR × 100)
-            const order = await rzp.orders.create({
-                amount: amount * 100,
-                currency: 'INR',
-                receipt: `rcpt_${orgId}_${Date.now()}`,
-                notes: { plan, billingCycle, orgId, userId }
-            })
+            const orderId = await reuseOrCreateOrder(
+                { orgId, userId, plan, billingCycle, amount },
+                () =>
+                    rzp.orders.create({
+                        amount: amount * 100,
+                        currency: 'INR',
+                        receipt: `rcpt_${orgId}_${Date.now()}`,
+                        notes: { plan, billingCycle, orgId, userId }
+                    }) as unknown as Promise<{ id: string }>
+            )
 
-            logger.info(`[PaymentService] Razorpay order created: ${order.id} for plan ${plan} (₹${amount})`)
+            logger.info(`[PaymentService] Razorpay order ${orderId} for plan ${plan} (₹${amount})`)
 
             return {
                 isFree: false,
                 gateway: 'razorpay',
-                orderId: order.id,
+                orderId,
                 amount,
                 currency: 'INR',
                 plan,
@@ -106,33 +143,6 @@ export const paymentService = {
                 description,
                 // key_id is the publishable-equivalent for Razorpay — safe to send to frontend
                 keyId: config.PAYMENT.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || ''
-            }
-        }
-
-        // ── Stripe ────────────────────────────────────────────────────────────
-        if (gateway === 'stripe') {
-            const stripe = getStripe()
-            // Stripe requires amount in smallest currency unit (paise for INR)
-            const paymentIntent = await stripe.paymentIntents.create({
-                amount: amount * 100,
-                currency: 'inr',
-                description,
-                metadata: { plan, billingCycle, orgId, userId }
-            })
-
-            logger.info(`[PaymentService] Stripe PaymentIntent created: ${paymentIntent.id} for plan ${plan} (₹${amount})`)
-
-            return {
-                isFree: false,
-                gateway: 'stripe',
-                orderId: paymentIntent.id, // used as reference on confirm
-                clientSecret: paymentIntent.client_secret, // sent to frontend for stripe.confirmCardPayment()
-                amount,
-                currency: 'INR',
-                plan,
-                billingCycle,
-                description,
-                publishableKey: config.PAYMENT.STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || ''
             }
         }
 
@@ -159,7 +169,7 @@ export const paymentService = {
     /**
      * Verifies payment and activates subscription:
      *  - Razorpay: verifies HMAC-SHA256 signature
-     *  - Stripe:   retrieves PaymentIntent from Stripe API and checks status
+     *  - Stripe:   not offered; refused
      *  - Mock:     development only (ALLOW_MOCK_PAYMENTS)
      */
     confirmPayment: async (params: {
@@ -173,17 +183,12 @@ export const paymentService = {
         gatewaySignature?: string // Razorpay: razorpay_signature (HMAC)
     }) => {
         const { userId, orgId, plan, billingCycle = 'monthly', gateway, gatewayOrderId, gatewayPaymentId, gatewaySignature } = params
+        // Stripe isn't offered (India-first billing); refusing it closes replays of one PaymentIntent
+        if (gateway === 'stripe') throw new PaymentError('Card payments by Stripe are not available. Please pay with Razorpay.')
 
         let paymentMethod = 'Unknown'
         // Charged amount comes from the gateway (or the price list for sandbox), never from the client
         let amount = 0
-        // The plan/cycle/org must be the ones the order was created for, otherwise a cheap
-        // payment could be replayed to activate a pricier plan
-        const assertOrderMatches = (notes: Record<string, unknown> | null | undefined) => {
-            if (notes?.plan !== plan || notes?.billingCycle !== billingCycle || notes?.orgId !== orgId) {
-                throw new PaymentError('Payment does not match the selected plan')
-            }
-        }
 
         // ── Razorpay signature verification ───────────────────────────────────
         if (gateway === 'razorpay') {
@@ -196,29 +201,13 @@ export const paymentService = {
             if (expectedSignature !== gatewaySignature) {
                 throw new PaymentError('Razorpay payment signature verification failed — possible fraud attempt')
             }
-            const order = await getRazorpay().orders.fetch(gatewayOrderId)
-            assertOrderMatches(order.notes as Record<string, unknown>)
-            amount = Number(order.amount) / 100
-            paymentMethod = 'Razorpay'
+            const info = orderInfoFromRazorpay(await getRazorpay().orders.fetch(gatewayOrderId))
+            if (info.plan !== plan || info.billingCycle !== billingCycle || info.orgId !== orgId)
+                throw new PaymentError('Payment does not match the selected plan')
+            amount = info.amount
+            paymentMethod = 'UPI / Card (Razorpay)'
             logger.info(`[PaymentService] Razorpay payment verified: ${gatewayPaymentId}`)
         }
-
-        // ── Stripe PaymentIntent verification ─────────────────────────────────
-        else if (gateway === 'stripe') {
-            if (!gatewayOrderId) {
-                throw new Error('Stripe: paymentIntent.id is required for verification')
-            }
-            const stripe = getStripe()
-            const intent = await stripe.paymentIntents.retrieve(gatewayOrderId)
-            if (intent.status !== 'succeeded') {
-                throw new PaymentError(`Stripe payment not succeeded (status: ${intent.status})`)
-            }
-            assertOrderMatches(intent.metadata)
-            amount = intent.amount / 100
-            paymentMethod = 'Stripe Card'
-            logger.info(`[PaymentService] Stripe PaymentIntent verified: ${gatewayOrderId}`)
-        }
-
         // ── Mock (development only) ───────────────────────────────────────────
         else if (gateway === 'mock' && config.ALLOW_MOCK_PAYMENTS) {
             amount = billingCycle === 'yearly' ? PLAN_PRICES[plan].yearly : PLAN_PRICES[plan].monthly
@@ -228,65 +217,19 @@ export const paymentService = {
             throw new PaymentError(`Unsupported payment gateway: ${gateway}`)
         }
 
-        // A verified payment can only activate a plan once
-        const paymentRef = gatewayPaymentId || gatewayOrderId
-        if (paymentRef && (await InvoiceModel.exists({ gatewayPaymentId: paymentRef }))) {
-            throw new PaymentError('This payment has already been used')
-        }
-
-        // ── Activate subscription ─────────────────────────────────────────────
-        await orgModel.findByIdAndUpdate(orgId, { plan })
-
-        // Renewing the same plan before it lapses extends it from the current expiry, so no paid days are lost
-        const periodDays = billingCycle === 'yearly' ? 365 : 30
-        const existing = await SubscriptionModel.findOne({ orgId }).lean()
-        const now = new Date()
-        const currentPeriodStart =
-            existing?.plan === plan && existing.status === 'active' && existing.expiresAt && existing.expiresAt > now ? existing.expiresAt : now
-        const currentPeriodEnd = new Date(currentPeriodStart.getTime() + periodDays * 24 * 60 * 60 * 1000)
-
-        const sub = await SubscriptionModel.findOneAndUpdate(
-            { orgId },
+        // One payment activates one plan, however many times it is confirmed (browser, webhook)
+        const ref = gatewayPaymentId || gatewayOrderId || `mock_${Date.now()}`
+        return activatePayment(
             {
-                userId,
-                plan,
-                status: 'active',
-                billingCycle,
-                gatewaySubscriptionId: gatewayPaymentId || gatewayOrderId || `sub_${Date.now()}`,
-                currentPeriodStart,
-                currentPeriodEnd,
-                expiresAt: currentPeriodEnd,
-                cancelAtPeriodEnd: false
+                paymentId: ref,
+                orderId: gatewayOrderId || ref,
+                order: { orgId, userId, plan, billingCycle, amount },
+                gateway: gateway as 'razorpay' | 'stripe' | 'mock',
+                paymentMethod,
+                source: 'browser'
             },
-            { upsert: true, new: true }
+            { sendInvoice: sendInvoiceEmail }
         )
-
-        // ── Generate Invoice ──────────────────────────────────────────────────
-        const invoiceCount = await InvoiceModel.countDocuments()
-        const invoiceNumber = `INV-${new Date().getFullYear()}-${(invoiceCount + 1001).toString()}`
-
-        const invoice = await InvoiceModel.create({
-            invoiceNumber,
-            orgId,
-            userId,
-            plan,
-            amount,
-            currency: 'INR',
-            status: 'paid',
-            paymentMethod,
-            gatewayPaymentId: gatewayPaymentId || gatewayOrderId || `pay_${Date.now()}`,
-            paidAt: new Date(),
-            items: [
-                {
-                    description: `GEO Platform - ${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan (${billingCycle})`,
-                    amount
-                }
-            ]
-        })
-
-        logger.info(`[PaymentService] Subscription activated for Org ${orgId}. Invoice: ${invoiceNumber}`)
-
-        return { subscription: sub, invoice }
     },
 
     /**

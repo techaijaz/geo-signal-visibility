@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../utils/axios';
+import SellerDetailsPanel from '../../components/SellerDetailsPanel';
 
 interface BillingStats {
   totalRevenue: number;
@@ -273,6 +274,8 @@ export default function AdminBilling() {
           </div>
         </div>
       </div>
+
+      <SellerDetailsPanel />
 
       {/* Plan Distribution & Subscription Tiers */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '12px', padding: '24px', marginBottom: '32px' }}>

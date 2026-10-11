@@ -26,6 +26,8 @@ export const getRazorpay = (): Razorpay => {
 // PaymentError and the price list live in billing/prices so billing/* can use them without a cycle
 export { PaymentError, PLAN_PRICES }
 
+const PLAN_RANK: Record<SubscriptionPlan, number> = { free: 0, starter: 1, growth: 2, agency: 3 }
+
 // ─── Checkout orders ──────────────────────────────────────────────────────────
 
 const REUSE_MS = 15 * 60 * 1000
@@ -91,6 +93,19 @@ export const paymentService = {
         const { userId, orgId, plan, billingCycle = 'monthly', gateway } = params
         if (gateway === 'stripe') throw new PaymentError('Card payments by Stripe are not available. Please pay with Razorpay.')
 
+        // A paid plan that is still running can't be swapped for a smaller one: its paid days would be lost.
+        // Upgrades start at once; the smaller plan becomes available when the current one ends
+        const running = await SubscriptionModel.findOne({ orgId }).lean()
+        if (
+            running?.status === 'active' &&
+            running.expiresAt &&
+            running.expiresAt > new Date() &&
+            PLAN_RANK[plan] < PLAN_RANK[running.plan as SubscriptionPlan]
+        ) {
+            const until = running.expiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })
+            throw new PaymentError(`Your ${running.plan} plan is paid until ${until}. You can move to ${plan} after it ends.`)
+        }
+
         const priceObj = PLAN_PRICES[plan] || PLAN_PRICES.starter
         const amount = billingCycle === 'yearly' ? priceObj.yearly : priceObj.monthly
 
@@ -113,7 +128,7 @@ export const paymentService = {
             return { isFree: true, message: 'Downgraded to Free tier successfully' }
         }
 
-        const description = `GEO Platform ${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan (${billingCycle})`
+        const description = `Signal AI ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan (${billingCycle})`
 
         // ── Razorpay ──────────────────────────────────────────────────────────
         if (gateway === 'razorpay') {

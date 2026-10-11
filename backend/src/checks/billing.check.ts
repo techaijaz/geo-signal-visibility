@@ -327,6 +327,45 @@ const run = async () => {
     assert.ok(designed.includes('GST') && designed.includes('Not applicable'))
     assert.ok(!/tax invoice/i.test(designed))
 
+    // A paid plan that is still running can't be swapped for a smaller one (its paid days would be lost)
+    await assert.rejects(
+        paymentService.createCheckoutSession({
+            userId: order.userId,
+            orgId: order.orgId,
+            plan: 'free',
+            billingCycle: 'monthly',
+            gateway: 'razorpay'
+        }),
+        PaymentError
+    )
+    await SubscriptionModel.updateOne({ orgId }, { $set: { plan: 'growth' } })
+    await assert.rejects(
+        paymentService.createCheckoutSession({
+            userId: order.userId,
+            orgId: order.orgId,
+            plan: 'starter',
+            billingCycle: 'monthly',
+            gateway: 'razorpay'
+        }),
+        PaymentError
+    )
+    // once it has lapsed, moving down is allowed again (free activates at once)
+    await SubscriptionModel.updateOne({ orgId }, { $set: { expiresAt: new Date(Date.now() - 1000) } })
+    const down = await paymentService.createCheckoutSession({
+        userId: order.userId,
+        orgId: order.orgId,
+        plan: 'free',
+        billingCycle: 'monthly',
+        gateway: 'razorpay'
+    })
+    assert.equal((down as { isFree?: boolean }).isFree, true)
+
+    // Seller form errors read as plain language, not a regex
+    assert.equal(
+        validateJoiSchema(validationBillingSeller, { ...DEFAULT_SELLER, pan: 'bad' }).error,
+        'PAN must look like ABCDE1234F (5 letters, 4 digits, 1 letter)'
+    )
+
     await mongoose.connection.dropDatabase()
     await mongoose.disconnect()
     console.log('billing checks passed')

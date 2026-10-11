@@ -1323,7 +1323,7 @@ const databseService = {
             paidAt: new Date(),
             items: [
                 {
-                    description: data.description || `GEO Platform - ${data.plan.toUpperCase()} Plan Subscription`,
+                    description: data.description || `Signal AI ${data.plan.charAt(0).toUpperCase() + data.plan.slice(1)} plan`,
                     amount: data.amount
                 }
             ]

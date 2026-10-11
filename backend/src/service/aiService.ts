@@ -131,7 +131,13 @@ const aiService = {
     /**
      * Call any OpenAI-compatible chat completions API (OpenAI, DeepSeek, Perplexity, xAI Grok, OpenRouter, OmniRoute)
      */
-    callOpenAiCompatible: async (provider: string, prompt: string, modelOverride?: string, maxTokens = 400): Promise<string | null> => {
+    callOpenAiCompatible: async (
+        provider: string,
+        prompt: string,
+        modelOverride?: string,
+        maxTokens = 400,
+        httpOpts?: { timeoutMs?: number; retries?: number }
+    ): Promise<string | null> => {
         const spec = OPENAI_COMPATIBLE_PROVIDERS[provider]
         if (!spec) return null
         const apiKey = await databseService.getDecryptedApiKey(spec.keyName)
@@ -139,23 +145,28 @@ const aiService = {
         const model = modelOverride || spec.defaultModel()
         try {
             const startedAt = Date.now()
-            const response = await aiFetch(spec.keyName, spec.url(), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${apiKey}`,
-                    ...spec.extraHeaders?.()
+            const response = await aiFetch(
+                spec.keyName,
+                spec.url(),
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${apiKey}`,
+                        ...spec.extraHeaders?.()
+                    },
+                    body: JSON.stringify({
+                        model,
+                        messages: [
+                            { role: 'system', content: SYSTEM_PROMPT },
+                            { role: 'user', content: prompt }
+                        ],
+                        max_tokens: maxTokens,
+                        ...spec.extraBody
+                    })
                 },
-                body: JSON.stringify({
-                    model,
-                    messages: [
-                        { role: 'system', content: SYSTEM_PROMPT },
-                        { role: 'user', content: prompt }
-                    ],
-                    max_tokens: maxTokens,
-                    ...spec.extraBody
-                })
-            })
+                httpOpts
+            )
             if (!response.ok) {
                 await logProviderFailure(provider, model, response)
                 if (spec.fallbackModel && model !== spec.fallbackModel) {
@@ -289,25 +300,35 @@ const aiService = {
     /**
      * Call Anthropic Claude API
      */
-    callClaude: async (prompt: string, maxTokensOverride?: number, modelOverride?: string): Promise<string | null> => {
+    callClaude: async (
+        prompt: string,
+        maxTokensOverride?: number,
+        modelOverride?: string,
+        httpOpts?: { timeoutMs?: number; retries?: number }
+    ): Promise<string | null> => {
         const apiKey = await databseService.getDecryptedApiKey('ANTHROPIC')
         if (!apiKey) return null
         const modelName = modelOverride || config.AI_MODELS.CLAUDE || 'claude-haiku-4-5-20251001'
         try {
             const startedAt = Date.now()
-            const response = await aiFetch('ANTHROPIC', 'https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': apiKey,
-                    'anthropic-version': '2023-06-01'
+            const response = await aiFetch(
+                'ANTHROPIC',
+                'https://api.anthropic.com/v1/messages',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': apiKey,
+                        'anthropic-version': '2023-06-01'
+                    },
+                    body: JSON.stringify({
+                        model: modelName,
+                        max_tokens: maxTokensOverride || 400,
+                        messages: [{ role: 'user', content: prompt }]
+                    })
                 },
-                body: JSON.stringify({
-                    model: modelName,
-                    max_tokens: maxTokensOverride || 400,
-                    messages: [{ role: 'user', content: prompt }]
-                })
-            })
+                httpOpts
+            )
             if (!response.ok) {
                 await logProviderFailure('Claude', modelName, response)
                 return null

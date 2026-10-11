@@ -48,7 +48,7 @@ Rules:
 - Facts about ${input.competitor} only from ITS pages or the AI answers below. Never say anything negative about ${input.competitor}; describe differences neutrally.
 - Sections: a short intro, a difference table, "When to choose ${input.brandName}", and 3 to 5 FAQ items as sections.
 
-JSON shape: {"title": string, "items": [{"heading": string, "body": string, "source": string} | {"heading": "Differences", "rows": [{"label": string, "brand": string, "competitor": string}]}]}
+JSON shape: {"title": string, "items": [{"heading": string, "body": string, "source": string} | {"heading": "Differences", "rows": [{"label": string, "brand": string, "competitor": string, "source": string}]}]}
 
 ${input.brandName.toUpperCase()} PAGES:
 ${own}
@@ -78,18 +78,25 @@ export const parseFixResponse = (raw: string, type: FixType, allowedUrls: string
     if (!data || !Array.isArray(data.items)) return null
     const allowed = new Set(allowedUrls)
     const items: IFixItem[] = []
+    const confirmed = (text: string) => text.startsWith('[confirm')
     for (const it of data.items as Array<Record<string, unknown>>) {
         const source = str(it?.source)
-        const ok = !source || allowed.has(source)
-        const mark = (text: string) => (ok || text.startsWith('[confirm') ? text : `[confirm: source not found] ${text}`)
+        const ok = allowed.has(source)
+        // Text without a source we read is something the owner must check before it goes live
+        const mark = (text: string) => (ok || confirmed(text) ? text : `${source ? '[confirm: source not found]' : '[confirm: no source]'} ${text}`)
         if (type === 'faq') {
             const question = str(it?.question)
             const answer = str(it?.answer)
             if (!question || !answer) continue
             items.push({ question, answer: mark(answer), ...(ok && source ? { source } : {}) })
         } else if (Array.isArray(it?.rows)) {
+            // Each row needs its own source; values in an unsourced row are marked, never passed as fact
+            const cell = (text: string, sourced: boolean) => (sourced || !text || confirmed(text) ? text : `[confirm] ${text}`)
             const rows = (it.rows as Array<Record<string, unknown>>)
-                .map((r) => ({ label: str(r?.label), brand: str(r?.brand), competitor: str(r?.competitor) }))
+                .map((r) => {
+                    const sourced = allowed.has(str(r?.source))
+                    return { label: str(r?.label), brand: cell(str(r?.brand), sourced), competitor: cell(str(r?.competitor), sourced) }
+                })
                 .filter((r) => r.label)
             if (rows.length) items.push({ heading: str(it.heading) || 'Differences', rows })
         } else {

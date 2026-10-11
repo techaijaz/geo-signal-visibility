@@ -4,12 +4,12 @@ import assert from 'assert'
 import mongoose from 'mongoose'
 import { PLAN_LIMITS } from '../config/planLimits'
 import generatedFixModel from '../model/generatedFixModel'
-import { istMonthStart, nextResetLabel, countFixUsage } from '../service/fix/usage'
-import { kindsOf, pickOwnUrls, wonQueries, OTHER_KIND } from '../service/fix/pickPages'
+import { istMonthStart, nextResetLabel, countFixUsage, expireStaleFixes } from '../service/fix/usage'
+import { kindsOf, pickOwnUrls, wonQueries, rankCompetitors, OTHER_KIND } from '../service/fix/pickPages'
 import { pageText, readPages, homepageLinks } from '../service/fix/readPages'
 import { buildFixPrompt, parseFixResponse } from '../service/fix/prompt'
 import { fixOutputs } from '../service/fix/output'
-import { runFix } from '../service/fix/runFix'
+import { runFix, fixAi } from '../service/fix/runFix'
 import { createFix } from '../service/fix/createFix'
 import brandModel from '../model/brandModel'
 
@@ -66,7 +66,20 @@ const run = async () => {
     const others = [p('Gift Box', 'https://s.in/g1'), p('Combo Pack', 'https://s.in/g2'), p('Travel Set', 'https://s.in/g3')]
     assert.deepEqual(kindsOf(others), [{ kind: OTHER_KIND, count: 3 }])
     assert.deepEqual(pickOwnUrls({ type: 'faq', kind: OTHER_KIND, products: others }), ['https://s.in/g1', 'https://s.in/g2', 'https://s.in/g3'])
-    assert.deepEqual(pickOwnUrls({ type: 'faq', kind: null, products: others }), ['https://s.in/g1', 'https://s.in/g2'])
+    // ...and with no kinds at all, whole brand reads up to 8 of them, not just 2
+    assert.deepEqual(pickOwnUrls({ type: 'faq', kind: null, products: others }), ['https://s.in/g1', 'https://s.in/g2', 'https://s.in/g3'])
+    // Competitor picker: who won most often first, then tracked ones the AI never named
+    assert.deepEqual(
+        rankCompetitors(
+            [
+                { name: 'Fogg', answers: 2 },
+                { name: 'Ajmal', answers: 7 },
+                { name: 'ajmal', answers: 1 }
+            ],
+            ['Adil Qadri', 'Ajmal']
+        ),
+        ['Ajmal', 'Fogg', 'Adil Qadri']
+    )
     // No saved products: nothing here (the runner falls back to homepage links)
     assert.deepEqual(pickOwnUrls({ type: 'faq', kind: 'attar', products: [] }), [])
 
@@ -132,12 +145,26 @@ const run = async () => {
     assert.equal(parseFixResponse('not json at all', 'faq', allowed), null)
     assert.equal(parseFixResponse('{"title":"x","items":[]}', 'faq', allowed), null) // nothing usable
     const cmpParsed = parseFixResponse(
-        '{"title":"Hasan Oud vs Ajmal","items":[{"heading":"Price","body":"..","source":"https://s.in/a1"},{"heading":"Differences","rows":[{"label":"Price","brand":"₹799","competitor":"[confirm: price]"}]}]}',
+        '{"title":"Hasan Oud vs Ajmal","items":[{"heading":"Price","body":"..","source":"https://s.in/a1"},{"heading":"Differences","rows":[' +
+            '{"label":"Price","brand":"₹799","competitor":"[confirm: price]","source":"https://s.in/a1"},' +
+            '{"label":"Longevity","brand":"10 hours","competitor":"6 hours"},' +
+            '{"label":"Size","brand":"12 ml","competitor":"10 ml","source":"https://evil.com/x"}]}]}',
         'comparison',
         allowed
     )!
     assert.equal(cmpParsed.items.length, 2)
-    assert.equal(cmpParsed.items[1].rows![0].brand, '₹799')
+    const rows = cmpParsed.items[1].rows!
+    assert.deepEqual(rows[0], { label: 'Price', brand: '₹799', competitor: '[confirm: price]' })
+    // A table row with no source, or one we didn't read, can't pass an invented value as fact
+    assert.deepEqual(rows[1], { label: 'Longevity', brand: '[confirm] 10 hours', competitor: '[confirm] 6 hours' })
+    assert.deepEqual(rows[2], { label: 'Size', brand: '[confirm] 12 ml', competitor: '[confirm] 10 ml' })
+    // An answer with no source at all is marked too, so it stays out of the FAQ schema
+    const noSource = parseFixResponse('{"title":"t","items":[{"question":"Q?","answer":"Made in India."}]}', 'faq', allowed)!
+    assert.equal(noSource.items[0].answer, '[confirm: no source] Made in India.')
+    assert.equal(
+        parseFixResponse('{"title":"t","items":[{"question":"Q?","answer":"[confirm: origin]"}]}', 'faq', allowed)!.items[0].answer,
+        '[confirm: origin]'
+    )
 
     // Outputs: text, HTML, FAQ schema
     const faqOut = fixOutputs({
@@ -190,7 +217,7 @@ const run = async () => {
         { ...base, status: 'done', createdAt: new Date('2026-10-02T00:00:00Z') },
         { ...base, status: 'failed', createdAt: new Date('2026-10-03T00:00:00Z') },
         { ...base, status: 'pending', createdAt: new Date(now.getTime() - 60_000) },
-        { ...base, status: 'pending', createdAt: new Date(now.getTime() - 10 * 60_000) },
+        { ...base, status: 'pending', createdAt: new Date(now.getTime() - 20 * 60_000) },
         { ...base, status: 'done', createdAt: new Date('2026-09-30T18:29:00Z') } // 23:59 IST 30 Sep
     ])
     assert.equal(await countFixUsage(String(orgId), now), 2)
@@ -290,6 +317,61 @@ const run = async () => {
         byQuestion: noLost,
         aiSaid: noSaid
     })
+
+    // A job picked up after the stale window (queue backlog) fails instead of running, so it can't
+    // finish "done" after the slot was already given back
+    const stale = await mk({ type: 'faq', kind: 'attar', createdAt: new Date(Date.now() - 20 * 60_000) })
+    await runFix(String(stale._id), {
+        fetch: fetchOk,
+        ai: async () => {
+            throw new Error('should not run')
+        },
+        byQuestion: noLost,
+        aiSaid: noSaid
+    })
+    const ds = (await generatedFixModel.findById(stale._id).lean())!
+    assert.equal(ds.status, 'failed')
+    assert.equal(ds.error, 'Took too long to start, try again')
+    // The same job delivered twice runs once
+    let runs = 0
+    const twice = await mk({ type: 'faq', kind: 'attar' })
+    const once = { fetch: fetchOk, ai: async () => (runs++, okAi()), byQuestion: noLost, aiSaid: noSaid }
+    await Promise.all([runFix(String(twice._id), once), runFix(String(twice._id), once)])
+    assert.equal(runs, 1)
+    // A job lost by a worker restart shows as failed, not "Writing…" forever
+    const lost = await mk({ type: 'faq', kind: 'attar', createdAt: new Date(Date.now() - 20 * 60_000) })
+    await expireStaleFixes(String(brand._id))
+    assert.equal((await generatedFixModel.findById(lost._id).lean())!.status, 'failed')
+
+    // Whole brand also reads the homepage
+    const wholeSeen: string[] = []
+    const whole = await mk({ type: 'faq', kind: null })
+    await runFix(String(whole._id), {
+        fetch: async (u) => (wholeSeen.push(u), html),
+        ai: okAi,
+        byQuestion: noLost,
+        aiSaid: noSaid
+    })
+    assert.equal(wholeSeen[0], 'https://s.in')
+
+    // The fix writer: a long, slow answer gets 2 minutes and no paid retries, with room for 12 Hindi answers
+    const keyOwner = (await import('../service/databseService')).default as unknown as { getDecryptedApiKey: (k: string) => Promise<string> }
+    const realKey = keyOwner.getDecryptedApiKey
+    const realFetch = globalThis.fetch
+    const bodies: Array<{ max_tokens?: number }> = []
+    keyOwner.getDecryptedApiKey = async () => 'test-key'
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+        bodies.push(JSON.parse(String(init.body)))
+        return new Response('busy', { status: 503 })
+    }) as typeof fetch
+    try {
+        assert.equal(await fixAi('prompt'), null)
+    } finally {
+        globalThis.fetch = realFetch
+        keyOwner.getDecryptedApiKey = realKey
+    }
+    assert.equal(bodies.length, 2) // Claude once, OpenAI once: a 503 isn't retried
+    assert.ok(bodies.every((b) => b.max_tokens === 8000))
 
     // Creating: free plan has 1; a second request the same month is refused with the reset date
     const org2 = String(new mongoose.Types.ObjectId())

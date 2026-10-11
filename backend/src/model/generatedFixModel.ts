@@ -29,6 +29,8 @@ const generatedFixSchema = new mongoose.Schema(
         pagesRead: [{ _id: false, url: String, ok: Boolean }],
         items: { type: [itemSchema], default: [] },
         createdAt: { type: Date, default: Date.now },
+        // Set once when a worker claims the job, so a job delivered twice runs once
+        startedAt: { type: Date, default: null },
         finishedAt: { type: Date, default: null }
     },
     { versionKey: false }

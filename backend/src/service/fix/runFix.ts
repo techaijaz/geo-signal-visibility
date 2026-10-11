@@ -6,7 +6,7 @@ import aiService from '../aiService'
 import logger from '../../util/loger'
 import { auditService } from '../auditService'
 import { withAiCallContext } from '../costLogService'
-import { computeLostTo, loadScanPair, nameMatcher, type ILostTo } from '../competitorService'
+import { brandKey, computeLostTo, loadScanPair, nameMatcher, type ILostTo } from '../competitorService'
 import { pickOwnUrls, wonQueries } from './pickPages'
 import { homepageLinks, readPages } from './readPages'
 import { buildFixPrompt, parseFixResponse } from './prompt'
@@ -21,12 +21,18 @@ export interface IFixDeps {
     aiSaid: (brandId: string, competitor: string) => Promise<string[]>
 }
 
-const MAX_TOKENS = 4000
+// Room for 12 answers in Hindi; a long answer takes over a minute, and a retry would pay for it again
+const MAX_TOKENS = 8000
+const HTTP = { timeoutMs: 120000, retries: 0 }
+// A job not picked up within this long (queue backlog) fails, so every run ends inside the usage window
+const START_WINDOW_MS = 5 * 60 * 1000
+
+export const fixAi = async (prompt: string) =>
+    (await aiService.callClaude(prompt, MAX_TOKENS, config.FIX_MODEL_CLAUDE, HTTP)) ??
+    (await aiService.callOpenAiCompatible('OpenAI', prompt, config.FIX_MODEL_OPENAI, MAX_TOKENS, HTTP))
 
 const defaultDeps: IFixDeps = {
-    ai: async (prompt) =>
-        (await aiService.callClaude(prompt, MAX_TOKENS, config.FIX_MODEL_CLAUDE)) ??
-        (await aiService.callOpenAiCompatible('OpenAI', prompt, config.FIX_MODEL_OPENAI, MAX_TOKENS)),
+    ai: fixAi,
     byQuestion: async (brandId, brandName, competitors) => {
         const brand = await brandModel.findById(brandId).select('lastScanId').lean()
         const { current } = await loadScanPair(brandId, (brand as { lastScanId?: string } | null)?.lastScanId)
@@ -47,8 +53,21 @@ const finish = (id: string, update: object) => generatedFixModel.updateOne({ _id
 
 export const runFix = async (fixId: string, deps: Partial<IFixDeps> = {}) => {
     const d = { ...defaultDeps, ...deps }
-    const fix = await generatedFixModel.findById(fixId).lean()
-    if (!fix || fix.status !== 'pending') return
+    // Claim the job once: a duplicate delivery finds it already started, a late one fails
+    const fix = await generatedFixModel
+        .findOneAndUpdate(
+            { _id: fixId, status: 'pending', startedAt: null, createdAt: { $gte: new Date(Date.now() - START_WINDOW_MS) } },
+            { startedAt: new Date() },
+            { new: true }
+        )
+        .lean()
+    if (!fix) {
+        await generatedFixModel.updateOne(
+            { _id: fixId, status: 'pending', startedAt: null },
+            { status: 'failed', error: 'Took too long to start, try again', finishedAt: new Date() }
+        )
+        return
+    }
     try {
         const brand = await brandModel.findById(fix.brandId).lean()
         if (!brand) return void (await finish(fixId, { status: 'failed', error: 'Brand not found' }))
@@ -66,12 +85,14 @@ export const runFix = async (fixId: string, deps: Partial<IFixDeps> = {}) => {
 
         let ownUrls = pickOwnUrls({ type: fix.type, kind: fix.kind, competitor: fix.competitor, products, byQuestion })
         if (!ownUrls.length) ownUrls = await homepageLinks(home, d.fetch)
+        // A whole-brand FAQ also reads the homepage (shipping, returns, what the brand stands for)
+        else if (fix.type === 'faq' && !fix.kind && home && !ownUrls.includes(home)) ownUrls = [home, ...ownUrls]
         const own = await readPages(ownUrls, d.fetch)
 
         let theirs: Awaited<ReturnType<typeof readPages>> = { pages: [], read: [] }
         let aiSaid: string[] = []
         if (fix.type === 'comparison' && fix.competitor) {
-            const site = competitors.find((c) => c.name === fix.competitor)?.website
+            const site = competitors.find((c) => brandKey(c.name) === brandKey(fix.competitor ?? ''))?.website
             if (site) theirs = await readPages(await homepageLinks(auditService.cleanUrl(site), d.fetch, 3), d.fetch)
             aiSaid = await d.aiSaid(String(fix.brandId), fix.competitor)
         }

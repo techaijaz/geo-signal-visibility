@@ -22,13 +22,16 @@ export const kindsOf = (products: IBrandProduct[]) => {
         .sort((a, b) => (a.kind === OTHER_KIND ? 1 : b.kind === OTHER_KIND ? -1 : b.count - a.count))
 }
 
+// 2 per kind, or more when there are few kinds (a store with one kind still fills the page budget)
 const wholeBrand = (products: IBrandProduct[], max: number) => {
+    const kinds = kindsOf(products)
+    const perKind = Math.max(WHOLE_PER_KIND, Math.floor(max / Math.max(kinds.length, 1)))
     const urls: string[] = []
-    for (const { kind } of kindsOf(products)) {
+    for (const { kind } of kinds) {
         urls.push(
             ...withUrl(products)
                 .filter((p) => kindOf(p) === kind)
-                .slice(0, WHOLE_PER_KIND)
+                .slice(0, perKind)
                 .map((p) => p.url)
         )
     }
@@ -64,4 +67,23 @@ export const pickOwnUrls = (input: {
         .filter((p) => kindOf(p) === input.kind)
         .slice(0, PER_KIND)
         .map((p) => p.url)
+}
+
+// Competitors to offer for a comparison: the brands the AI named most often first (spellings merged),
+// then tracked competitors it never named
+export const rankCompetitors = (named: Array<{ name: string; answers: number }>, tracked: string[]) => {
+    const byKey = new Map<string, { name: string; answers: number; best: number }>()
+    for (const b of named) {
+        const key = brandKey(b.name)
+        if (!key) continue
+        const seen = byKey.get(key)
+        if (!seen) byKey.set(key, { name: b.name, answers: b.answers, best: b.answers })
+        else {
+            seen.answers += b.answers
+            if (b.answers > seen.best) Object.assign(seen, { name: b.name, best: b.answers })
+        }
+    }
+    const ranked = [...byKey.values()].sort((a, b) => b.answers - a.answers).map((b) => b.name)
+    const keys = new Set([...byKey.keys()])
+    return [...ranked, ...tracked.filter((t) => !keys.has(brandKey(t)))]
 }

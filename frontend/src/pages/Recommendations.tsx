@@ -399,7 +399,7 @@ const Recommendations: React.FC = () => {
                     <span className={`rec-tag ${getImpactClass(rec.impact)}`}>{rec.impact}</span>
                   </div>
 
-                  {/faq|comparison|vs|versus/i.test(rec.text) && (
+                  {/faq|comparison|\bvs\b|versus/i.test(rec.text) && (
                     <div className="rec-actions">
                       <button
                         className="btn"

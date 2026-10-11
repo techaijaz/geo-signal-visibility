@@ -28,5 +28,6 @@ export interface IGeneratedFix {
     pagesRead: Array<{ url: string; ok: boolean }>
     items: IFixItem[]
     createdAt: Date
+    startedAt?: Date | null
     finishedAt?: Date | null
 }

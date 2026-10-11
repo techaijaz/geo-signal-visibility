@@ -11,12 +11,14 @@ import { PLAN_LIMITS, type PlanName } from '../config/planLimits'
 import generatedFixModel from '../model/generatedFixModel'
 import { createFix } from '../service/fix/createFix'
 import { runFix } from '../service/fix/runFix'
-import { countFixUsage, nextResetLabel } from '../service/fix/usage'
-import { kindsOf } from '../service/fix/pickPages'
+import { countFixUsage, expireStaleFixes, nextResetLabel } from '../service/fix/usage'
+import { kindsOf, rankCompetitors } from '../service/fix/pickPages'
+import { computeLostTo, loadScanPair } from '../service/competitorService'
 import { fixOutputs } from '../service/fix/output'
 import { enqueueFixJob } from '../service/queueService'
 import type { IGeneratedFix, IFixItem } from '../types/fixTypes'
 import type { IBrandProduct } from '../types/brandTypes'
+import type { IMention } from '../types/mentionTypes'
 
 const TYPES = ['faq', 'comparison']
 const LANGUAGES = ['en', 'hi-en', 'hi']
@@ -74,6 +76,11 @@ export default {
             const found = await loadBrand(req, next)
             if (!found) return
             const { org, brand, plan } = found
+            await expireStaleFixes(String(brand._id))
+            const tracked = (brand.competitors || []).map((c: { name: string }) => c.name)
+            // Who the AI recommends instead of the brand, most often first (spec: picked from the Lost-to list)
+            const { current } = await loadScanPair(String(brand._id), brand.lastScanId)
+            const named = computeLostTo(current as IMention[], brand.name, tracked, []).brands
             const fixes = await generatedFixModel
                 .find({ brandId: brand._id, status: { $ne: 'failed' } })
                 .sort({ createdAt: -1 })
@@ -87,7 +94,7 @@ export default {
                     resetsOn: nextResetLabel(new Date())
                 },
                 kinds: kindsOf((brand.products || []) as IBrandProduct[]),
-                competitors: (brand.competitors || []).map((c: { name: string }) => c.name)
+                competitors: rankCompetitors(named, tracked)
             })
         } catch (error) {
             httpError(next, error, req, 500)

@@ -115,7 +115,8 @@ Index `{ orgId, createdAt }` for the monthly count.
 | Some pages open | Generated from those, note "Read 3 of 5 pages" |
 | AI JSON broken twice | `failed`, "Couldn't write this one, try again", not counted |
 | No AI provider answers | `failed`, not counted |
-| Job stuck `pending` over 5 min | Treated as failed (not counted, frees the slot) |
+| Job not started within 5 min (queue backlog) | Fails without running ("Took too long to start"), not counted |
+| Job still `pending` after 15 min (lost on a worker restart) | Shown as failed, not counted. A running job counts until then; the slowest run (2 attempts × 2 AIs × 2 min) ends well inside it |
 
 ## Testing
 

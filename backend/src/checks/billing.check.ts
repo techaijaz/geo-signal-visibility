@@ -17,6 +17,7 @@ import { reuseOrCreateOrder } from '../service/paymentService'
 import { renderInvoiceHtml, invoiceFileName, sendInvoiceEmail } from '../service/billing/invoiceDoc'
 import subscriptionController from '../controller/subscriptionController'
 import { paymentService } from '../service/paymentService'
+import { amountInWords, paymentMethodLabel } from '../service/billing/invoiceDoc'
 
 const run = async () => {
     await mongoose.connect('mongodb://127.0.0.1:27017/signal_billing_check')
@@ -306,6 +307,25 @@ const run = async () => {
         }),
         PaymentError
     )
+
+    // Invoice design: words, labels, structure
+    assert.equal(amountInWords(9999), 'Rupees Nine Thousand Nine Hundred Ninety-Nine Only')
+    assert.equal(amountInWords(2999), 'Rupees Two Thousand Nine Hundred Ninety-Nine Only')
+    assert.equal(amountInWords(199990), 'Rupees One Lakh Ninety-Nine Thousand Nine Hundred Ninety Only')
+    assert.equal(amountInWords(12500000), 'Rupees One Crore Twenty-Five Lakh Only')
+    assert.equal(paymentMethodLabel('netbanking'), 'Netbanking (Razorpay)')
+    assert.equal(paymentMethodLabel('upi'), 'UPI (Razorpay)')
+    assert.equal(paymentMethodLabel('card'), 'Card (Razorpay)')
+    assert.equal(paymentMethodLabel('wallet'), 'Wallet (Razorpay)')
+    assert.equal(paymentMethodLabel('emi'), 'EMI (Razorpay)')
+    assert.equal(paymentMethodLabel(undefined), 'Razorpay')
+    const designed = renderInvoiceHtml(inv, DEFAULT_SELLER)
+    assert.ok(designed.includes('Not registered under GST'))
+    assert.ok(designed.includes('Rupees Two Thousand Nine Hundred Ninety-Nine Only'))
+    assert.ok(designed.includes('computer-generated invoice'))
+    assert.ok(designed.includes('Invoice no.') && designed.includes('Order ID') && designed.includes('Service period'))
+    assert.ok(designed.includes('GST') && designed.includes('Not applicable'))
+    assert.ok(!/tax invoice/i.test(designed))
 
     await mongoose.connection.dropDatabase()
     await mongoose.disconnect()

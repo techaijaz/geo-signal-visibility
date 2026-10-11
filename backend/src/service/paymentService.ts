@@ -8,7 +8,7 @@ import config from '../config/config'
 import { PaymentError, PLAN_PRICES } from './billing/prices'
 import { activatePayment, orderInfoFromRazorpay } from './billing/activatePayment'
 import checkoutOrderModel from '../model/checkoutOrderModel'
-import { sendInvoiceEmail } from './billing/invoiceDoc'
+import { paymentMethodLabel, sendInvoiceEmail } from './billing/invoiceDoc'
 import paymentModel from '../model/paymentModel'
 
 // ─── SDK instances (lazy-init so missing keys don't crash on startup) ─────────
@@ -205,7 +205,11 @@ export const paymentService = {
             if (info.plan !== plan || info.billingCycle !== billingCycle || info.orgId !== orgId)
                 throw new PaymentError('Payment does not match the selected plan')
             amount = info.amount
-            paymentMethod = 'UPI / Card (Razorpay)'
+            // The method (UPI, card, netbanking…) as Razorpay recorded it, for the invoice
+            paymentMethod = await getRazorpay()
+                .payments.fetch(gatewayPaymentId)
+                .then((p) => paymentMethodLabel(p.method as string))
+                .catch(() => 'Razorpay')
             logger.info(`[PaymentService] Razorpay payment verified: ${gatewayPaymentId}`)
         }
         // ── Mock (development only) ───────────────────────────────────────────

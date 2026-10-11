@@ -811,11 +811,11 @@ export default function Billing() {
           <div style={{ background: '#fff', color: '#0f172a', borderRadius: '16px', padding: '32px', maxWidth: '520px', width: '100%', boxShadow: '0 25px 60px rgba(0,0,0,0.4)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #e2e8f0', paddingBottom: '16px', marginBottom: '20px' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '20px', color: '#4f46e5', fontWeight: 800 }}>GEO Platform</h3>
-                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>Generative Engine Optimization System</p>
+                <h3 style={{ margin: 0, fontSize: '20px', color: '#0F2629', fontWeight: 800 }}>Signal AI</h3>
+                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>Not registered under GST · Download the PDF for full details</p>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: '16px', fontWeight: 700 }}>TAX INVOICE</span>
+                <span style={{ fontSize: '16px', fontWeight: 700 }}>INVOICE</span>
                 <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{selectedInvoice.invoiceNumber}</div>
               </div>
             </div>

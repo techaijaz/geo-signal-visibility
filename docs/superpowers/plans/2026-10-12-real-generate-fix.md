@@ -301,6 +301,11 @@ import { kindsOf, pickOwnUrls, wonQueries, OTHER_KIND } from '../service/fix/pic
     assert.deepEqual(pickOwnUrls({ type: 'comparison', competitor: 'Ajmal', products, byQuestion }), ['https://s.in/b1'])
     // Competitor that won nothing we can map to a kind: whole-brand pick, capped at 4
     assert.equal(pickOwnUrls({ type: 'comparison', competitor: 'Nobody', products, byQuestion }).length, 4)
+    // Only products with no detectable kind: one "Other" group, and both "Other" and whole brand pick them
+    const others = [p('Gift Box', 'https://s.in/g1'), p('Combo Pack', 'https://s.in/g2'), p('Travel Set', 'https://s.in/g3')]
+    assert.deepEqual(kindsOf(others), [{ kind: OTHER_KIND, count: 3 }])
+    assert.deepEqual(pickOwnUrls({ type: 'faq', kind: OTHER_KIND, products: others }), ['https://s.in/g1', 'https://s.in/g2', 'https://s.in/g3'])
+    assert.deepEqual(pickOwnUrls({ type: 'faq', kind: null, products: others }), ['https://s.in/g1', 'https://s.in/g2'])
     // No saved products: nothing here (the runner falls back to homepage links)
     assert.deepEqual(pickOwnUrls({ type: 'faq', kind: 'attar', products: [] }), [])
 ```
@@ -782,6 +787,21 @@ import brandModel from '../model/brandModel'
     assert.equal(d5.status, 'done')
     assert.ok(seen.includes('https://s.in/b1') && seen.includes('https://ajmal.example'))
     assert.equal(d5.items[0].source, 'https://ajmal.example')
+
+    // Competitor with no saved website: no competitor page fetched, prompt says so, still done
+    await brandModel.updateOne({ _id: brand._id }, { $push: { competitors: { name: 'Fogg' } } })
+    const fetched: string[] = []
+    let sentPrompt = ''
+    const f6 = await mk({ type: 'comparison', competitor: 'Fogg' })
+    await runFix(String(f6._id), {
+        fetch: async (u) => { fetched.push(u); return html },
+        ai: async (pr) => { sentPrompt = pr; return '{"title":"Hasan Oud vs Fogg","items":[{"heading":"About Fogg","body":"[confirm: what Fogg sells]"}]}' },
+        byQuestion: noLost,
+        aiSaid: async () => []
+    })
+    assert.equal((await generatedFixModel.findById(f6._id).lean())!.status, 'done')
+    assert.ok(fetched.every((u) => u.startsWith('https://s.in')))
+    assert.ok(sentPrompt.includes('none could be read') && sentPrompt.includes('nothing stored'))
 
     // A fix that isn't pending (already done or failed) is left alone
     await runFix(String(f1._id), { fetch: fetchOk, ai: async () => { throw new Error('should not run') }, byQuestion: noLost, aiSaid: async () => [] })

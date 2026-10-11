@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../utils/axios';
 
 interface PlanLimits {
@@ -23,23 +23,24 @@ export const usePlanLimits = () => {
   const [plan, setPlan] = useState<string>('free');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchLimits = async () => {
-      try {
-        const res = await api.get('/subscription/limits');
-        if (res.data?.data) {
-          setLimits(res.data.data.limits);
-          setPlan(res.data.data.plan);
-        }
-      } catch (err) {
-        console.error('Failed to fetch plan limits', err);
-      } finally {
-        setLoading(false);
+  // Billing calls refresh after a payment, so the new plan's limits show without a reload
+  const refresh = useCallback(async () => {
+    try {
+      const res = await api.get('/subscription/limits');
+      if (res.data?.data) {
+        setLimits(res.data.data.limits);
+        setPlan(res.data.data.plan);
       }
-    };
-
-    fetchLimits();
+    } catch (err) {
+      console.error('Failed to fetch plan limits', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return { limits, plan, loading };
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { limits, plan, loading, refresh };
 };

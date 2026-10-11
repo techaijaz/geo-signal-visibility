@@ -78,10 +78,10 @@ export const renderInvoiceHtml = (inv: IInvoice, fallbackSeller: ISeller) => {
     const item = inv.items?.[0]?.description || `Signal AI ${inv.plan} plan`
     const issued = day(inv.paidAt || inv.createdAt)
     const row = (k: string, v: string) => `<tr><td class="k">${k}</td><td>${v}</td></tr>`
-    return `<!doctype html><html><head><meta charset="utf-8"><style>
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${esc(inv.invoiceNumber)}</title><style>
 @page{size:A4;margin:0}
 *{box-sizing:border-box}
-body{font-family:Arial,Helvetica,sans-serif;color:#0F2629;font-size:12px;margin:0}
+body{font-family:Arial,Helvetica,'Liberation Sans','DejaVu Sans',sans-serif;color:#0F2629;font-size:12px;margin:0}
 .page{min-height:297mm;display:flex;flex-direction:column}
 .band{background:#0F2629;color:#F2F4F1;padding:26px 40px;display:flex;justify-content:space-between;align-items:center}
 .brand{font-size:20px;font-weight:bold}.brand .dot{display:inline-block;width:11px;height:11px;border-radius:6px;background:#FFC857;margin-right:8px}

@@ -19,7 +19,7 @@ const rows: { label: string; get: (p: (typeof plans)[number]) => string }[] = [
 
 const faqs = [
   { q: 'Do you charge GST?', a: 'Not at the moment: we are not GST-registered yet, so the price you see is the price you pay.' },
-  { q: 'How do I pay?', a: 'Through Razorpay with UPI, debit or credit cards and netbanking, or by card through Stripe. Payments are processed by the payment provider; we never see your full card details.' },
+  { q: 'How do I pay?', a: 'Through Razorpay with UPI, debit or credit cards and netbanking. Payments are processed by Razorpay; we never see your full card details.' },
   { q: 'Is this an auto-debit subscription?', a: 'No. You pay for a month or a year up front. When the period ends, renew from Billing to keep your plan; if you don’t, your account moves to the Free plan and your history is kept. See the cancellation and refund policy for details.' },
   { q: 'What counts as a question?', a: 'One question is one thing a shopper might ask, such as “best sunscreen for oily skin under ₹500”. Each scan asks every AI on your plan that question.' },
   { q: 'What happens if I go over my re-scan limit?', a: 'On-demand re-scans reset every day at midnight IST. Your automatic scans keep running regardless.' },

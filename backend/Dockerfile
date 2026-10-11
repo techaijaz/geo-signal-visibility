@@ -5,6 +5,7 @@ FROM mirror.gcr.io/library/node:22-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     fonts-liberation \
+    fonts-dejavu-core \
     libasound2 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \

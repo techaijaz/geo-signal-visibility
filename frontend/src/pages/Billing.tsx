@@ -205,7 +205,7 @@ function StripeCheckoutForm({ clientSecret, plan, amount, billingCycle, onSucces
 // ─── Main Billing Component ──────────────────────────────────────────────────
 export default function Billing() {
   const { user } = useAuth();
-  const { limits, plan: currentPlanFromHook } = usePlanLimits();
+  const { limits, plan: currentPlanFromHook, refresh: refreshLimits } = usePlanLimits();
   const [currentPlan, setCurrentPlan] = useState<string>(currentPlanFromHook || 'free');
   const [plans] = useState<Plan[]>(DEFAULT_PLANS);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
@@ -270,7 +270,7 @@ export default function Billing() {
   const fetchBillingData = async () => {
     setLoading(true);
     try {
-      const [response, brandsRes] = await Promise.all([api.get('/subscription'), api.get('/orgs/brands').catch(() => null)]);
+      const [response, brandsRes] = await Promise.all([api.get('/subscription'), api.get('/orgs/brands').catch(() => null), refreshLimits()]);
       if (response.data?.data) {
         if (response.data.data.currentPlan) setCurrentPlan(response.data.data.currentPlan);
         if (response.data.data.invoices) setInvoices(response.data.data.invoices);

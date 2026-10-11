@@ -8,6 +8,7 @@ import mentionController from '../controller/mentionController'
 import subscriptionController from '../controller/subscriptionController'
 import auditController from '../controller/auditController'
 import recommendationController from '../controller/recommendationController'
+import fixController from '../controller/fixController'
 import reportController from '../controller/reportController'
 import overviewController from '../controller/overviewController'
 import categoryController from '../controller/categoryController'
@@ -74,6 +75,8 @@ router.route('/brands/:id/audit/ai-view').post(authentication, auditController.r
 router.route('/brands/:id/audit/store').post(authentication, auditController.runStoreAudit)
 router.route('/brands/:id/recommendations').get(authentication, recommendationController.getBrandRecommendations)
 router.route('/brands/:id/recommendations/:recId/toggle').patch(authentication, recommendationController.toggleRecommendation)
+router.route('/brands/:id/fixes').get(authentication, fixController.list).post(authentication, fixController.create)
+router.route('/brands/:id/fixes/:fixId').get(authentication, fixController.get).patch(authentication, fixController.update)
 router.route('/brands/:id/fix-impact').get(authentication, recommendationController.getFixImpact)
 router.route('/brands/:id/recommendations/rescan').post(authentication, recommendationController.rescanBrandRecommendations)
 

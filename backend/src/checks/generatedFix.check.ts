@@ -10,6 +10,7 @@ import { pageText, readPages, homepageLinks } from '../service/fix/readPages'
 import { buildFixPrompt, parseFixResponse } from '../service/fix/prompt'
 import { fixOutputs } from '../service/fix/output'
 import { runFix } from '../service/fix/runFix'
+import { createFix } from '../service/fix/createFix'
 import brandModel from '../model/brandModel'
 
 const p = (title: string, url: string) => ({
@@ -289,6 +290,33 @@ const run = async () => {
         byQuestion: noLost,
         aiSaid: noSaid
     })
+
+    // Creating: free plan has 1; a second request the same month is refused with the reset date
+    const org2 = String(new mongoose.Types.ObjectId())
+    const req = {
+        orgId: org2,
+        brandId: String(brand._id),
+        userId: String(base.userId),
+        plan: 'free' as const,
+        type: 'faq' as const,
+        kind: 'attar',
+        language: 'en' as const
+    }
+    const queued: string[] = []
+    const enq = async (id: string) => queued.push(id)
+    const first = await createFix(req, enq, now)
+    assert.ok(first.ok && queued.length === 1)
+    const second = await createFix(req, enq, now)
+    assert.deepEqual(second, { ok: false, status: 403, message: "You've used all 1 generations this month. They reset on 1 Nov." })
+    // Parallel clicks on the last generation: exactly one gets through
+    const org3 = String(new mongoose.Types.ObjectId())
+    const both = await Promise.all([createFix({ ...req, orgId: org3 }, enq, now), createFix({ ...req, orgId: org3 }, enq, now)])
+    assert.equal(both.filter((r) => r.ok).length, 1)
+    // Queue down: the fix is marked failed and the slot is freed
+    const org4 = String(new mongoose.Types.ObjectId())
+    const down = await createFix({ ...req, orgId: org4 }, async () => null, now)
+    assert.equal(down.ok, false)
+    assert.equal(await countFixUsage(org4, now), 0)
 
     await mongoose.connection.dropDatabase()
     await mongoose.disconnect()

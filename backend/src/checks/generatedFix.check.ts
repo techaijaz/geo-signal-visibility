@@ -5,8 +5,65 @@ import mongoose from 'mongoose'
 import { PLAN_LIMITS } from '../config/planLimits'
 import generatedFixModel from '../model/generatedFixModel'
 import { istMonthStart, nextResetLabel, countFixUsage } from '../service/fix/usage'
+import { kindsOf, pickOwnUrls, wonQueries, OTHER_KIND } from '../service/fix/pickPages'
+
+const p = (title: string, url: string) => ({
+    shopifyId: null,
+    title,
+    shortName: title,
+    aliases: [],
+    url,
+    price: null,
+    image: '',
+    productType: '',
+    nameEditedByUser: false
+})
+const products = [
+    p('Silk Oud Attar 12ml', 'https://s.in/a1'),
+    p('Black Oud Attar', 'https://s.in/a2'),
+    p('Musk Attar', 'https://s.in/a3'),
+    p('Rose Attar', 'https://s.in/a4'),
+    p('Amber Attar', 'https://s.in/a5'),
+    p('Mukhallat Attar', 'https://s.in/a6'),
+    p('Royal Bakhoor', 'https://s.in/b1'),
+    p('Gift Box', 'https://s.in/g1')
+]
 
 const run = async () => {
+    // Choosing pages
+    assert.deepEqual(kindsOf(products), [
+        { kind: 'attar', count: 6 },
+        { kind: 'bakhoor', count: 1 },
+        { kind: OTHER_KIND, count: 1 }
+    ])
+    // One kind: up to 5 of that kind, in saved order
+    assert.deepEqual(pickOwnUrls({ type: 'faq', kind: 'attar', products }), [
+        'https://s.in/a1',
+        'https://s.in/a2',
+        'https://s.in/a3',
+        'https://s.in/a4',
+        'https://s.in/a5'
+    ])
+    assert.deepEqual(pickOwnUrls({ type: 'faq', kind: OTHER_KIND, products }), ['https://s.in/g1'])
+    // Whole brand: 2 per kind, max 8
+    assert.deepEqual(pickOwnUrls({ type: 'faq', kind: null, products }), ['https://s.in/a1', 'https://s.in/a2', 'https://s.in/b1', 'https://s.in/g1'])
+    // Comparison: kinds in the questions the competitor won, up to 4
+    const byQuestion = [
+        { queryText: 'best bakhoor for home', rows: [{ model: 'ChatGPT', you: null, others: [{ name: 'Ajmal', position: 1 }] }] },
+        { queryText: 'best attar under 500', rows: [{ model: 'Gemini', you: 3, others: [{ name: 'Fogg', position: 1 }] }] }
+    ]
+    assert.deepEqual(wonQueries(byQuestion, 'ajmal'), ['best bakhoor for home'])
+    assert.deepEqual(pickOwnUrls({ type: 'comparison', competitor: 'Ajmal', products, byQuestion }), ['https://s.in/b1'])
+    // Competitor that won nothing we can map to a kind: whole-brand pick, capped at 4
+    assert.equal(pickOwnUrls({ type: 'comparison', competitor: 'Nobody', products, byQuestion }).length, 4)
+    // Only products with no detectable kind: one "Other" group, and both "Other" and whole brand pick them
+    const others = [p('Gift Box', 'https://s.in/g1'), p('Combo Pack', 'https://s.in/g2'), p('Travel Set', 'https://s.in/g3')]
+    assert.deepEqual(kindsOf(others), [{ kind: OTHER_KIND, count: 3 }])
+    assert.deepEqual(pickOwnUrls({ type: 'faq', kind: OTHER_KIND, products: others }), ['https://s.in/g1', 'https://s.in/g2', 'https://s.in/g3'])
+    assert.deepEqual(pickOwnUrls({ type: 'faq', kind: null, products: others }), ['https://s.in/g1', 'https://s.in/g2'])
+    // No saved products: nothing here (the runner falls back to homepage links)
+    assert.deepEqual(pickOwnUrls({ type: 'faq', kind: 'attar', products: [] }), [])
+
     await mongoose.connect('mongodb://127.0.0.1:27017/signal_fix_check')
     await mongoose.connection.dropDatabase()
 

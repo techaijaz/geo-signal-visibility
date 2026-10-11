@@ -171,6 +171,8 @@ const run = async () => {
     // Invoice document
     const html = renderInvoiceHtml(inv, DEFAULT_SELLER)
     assert.ok(html.includes('INVOICE') && !html.includes('Tax Invoice'))
+    // ₹ needs a font that has it (DejaVu in the image); the PDF title isn't about:blank
+    assert.ok(html.includes("'DejaVu Sans'") && html.includes('<title>Invoice ' + inv.invoiceNumber + '</title>'))
     assert.ok(html.includes(inv.invoiceNumber) && html.includes('Aijaz Ahmad, trading as GeoSignal AI') && html.includes('Bahraich'))
     assert.ok(html.includes('Owner One') && html.includes('Shop One') && html.includes('2,999'))
     assert.ok(html.includes('GST not charged: supplier is not registered under GST.'))

@@ -9,6 +9,8 @@ import { kindsOf, pickOwnUrls, wonQueries, OTHER_KIND } from '../service/fix/pic
 import { pageText, readPages, homepageLinks } from '../service/fix/readPages'
 import { buildFixPrompt, parseFixResponse } from '../service/fix/prompt'
 import { fixOutputs } from '../service/fix/output'
+import { runFix } from '../service/fix/runFix'
+import brandModel from '../model/brandModel'
 
 const p = (title: string, url: string) => ({
     shopifyId: null,
@@ -191,6 +193,102 @@ const run = async () => {
         { ...base, status: 'done', createdAt: new Date('2026-09-30T18:29:00Z') } // 23:59 IST 30 Sep
     ])
     assert.equal(await countFixUsage(String(orgId), now), 2)
+
+    // Worker job
+    const brand = await brandModel.create({
+        orgId,
+        name: 'Hasan Oud',
+        website: 'https://s.in',
+        category: 'Fragrances & Perfumes',
+        products,
+        competitors: [{ name: 'Ajmal', website: 'https://ajmal.example' }]
+    })
+    const mk = (extra: object) => generatedFixModel.create({ ...base, brandId: brand._id, status: 'pending', ...extra })
+    const okAi = async () => '{"title":"Attar FAQ","items":[{"question":"Alcohol-free?","answer":"Yes.","source":"https://s.in/a1"}]}'
+    const fetchOk = async () => html
+    const noLost = async () => []
+    const noSaid = async () => []
+
+    // Happy path: done, items saved, pages recorded, note when some pages failed
+    const f1 = await mk({ type: 'faq', kind: 'attar' })
+    await runFix(String(f1._id), {
+        fetch: async (u) => (u.endsWith('a2') ? Promise.reject(new Error('x')) : html),
+        ai: okAi,
+        byQuestion: noLost,
+        aiSaid: noSaid
+    })
+    const d1 = (await generatedFixModel.findById(f1._id).lean())!
+    assert.equal(d1.status, 'done')
+    assert.equal(d1.items[0].source, 'https://s.in/a1')
+    assert.equal(d1.pagesRead.filter((pg) => pg.ok).length, 4)
+    assert.equal(d1.note, 'Read 4 of 5 pages')
+
+    // No page opens: failed, with the reason, not counted
+    const f2 = await mk({ type: 'faq', kind: 'attar' })
+    await runFix(String(f2._id), { fetch: async () => Promise.reject(new Error('blocked')), ai: okAi, byQuestion: noLost, aiSaid: noSaid })
+    const d2 = (await generatedFixModel.findById(f2._id).lean())!
+    assert.equal(d2.status, 'failed')
+    assert.ok(d2.error!.startsWith("Couldn't open pages on your site"))
+
+    // Broken JSON once then good: done (one retry); broken twice: failed
+    let calls = 0
+    const f3 = await mk({ type: 'faq', kind: 'attar' })
+    await runFix(String(f3._id), { fetch: fetchOk, ai: async () => (++calls === 1 ? 'oops' : await okAi()), byQuestion: noLost, aiSaid: noSaid })
+    assert.equal((await generatedFixModel.findById(f3._id).lean())!.status, 'done')
+    assert.equal(calls, 2)
+    const f4 = await mk({ type: 'faq', kind: 'attar' })
+    await runFix(String(f4._id), { fetch: fetchOk, ai: async () => 'oops', byQuestion: noLost, aiSaid: noSaid })
+    assert.equal((await generatedFixModel.findById(f4._id).lean())!.error, "Couldn't write this one, try again")
+
+    // Comparison: competitor pages read too, and their URLs are allowed sources
+    const seen: string[] = []
+    const f5 = await mk({ type: 'comparison', competitor: 'Ajmal' })
+    await runFix(String(f5._id), {
+        fetch: async (u) => {
+            seen.push(u)
+            return u.startsWith('https://ajmal.example') ? '<a href="/products/x">x</a><main>Ajmal oud</main>' : html
+        },
+        ai: async () => '{"title":"Hasan Oud vs Ajmal","items":[{"heading":"About Ajmal","body":"Oud maker.","source":"https://ajmal.example"}]}',
+        byQuestion: async () => [
+            { queryText: 'best bakhoor for home', rows: [{ model: 'ChatGPT', you: null, others: [{ name: 'Ajmal', position: 1 }] }] }
+        ],
+        aiSaid: async () => ['Ajmal is a known oud brand']
+    })
+    const d5 = (await generatedFixModel.findById(f5._id).lean())!
+    assert.equal(d5.status, 'done')
+    assert.ok(seen.includes('https://s.in/b1') && seen.includes('https://ajmal.example'))
+    assert.equal(d5.items[0].source, 'https://ajmal.example')
+
+    // Competitor with no saved website: no competitor page fetched, prompt says so, still done
+    await brandModel.updateOne({ _id: brand._id }, { $push: { competitors: { name: 'Fogg' } } })
+    const fetched: string[] = []
+    let sentPrompt = ''
+    const f6 = await mk({ type: 'comparison', competitor: 'Fogg' })
+    await runFix(String(f6._id), {
+        fetch: async (u) => {
+            fetched.push(u)
+            return html
+        },
+        ai: async (pr) => {
+            sentPrompt = pr
+            return '{"title":"Hasan Oud vs Fogg","items":[{"heading":"About Fogg","body":"[confirm: what Fogg sells]"}]}'
+        },
+        byQuestion: noLost,
+        aiSaid: noSaid
+    })
+    assert.equal((await generatedFixModel.findById(f6._id).lean())!.status, 'done')
+    assert.ok(fetched.every((u) => u.startsWith('https://s.in')))
+    assert.ok(sentPrompt.includes('none could be read') && sentPrompt.includes('nothing stored'))
+
+    // A fix that isn't pending (already done or failed) is left alone
+    await runFix(String(f1._id), {
+        fetch: fetchOk,
+        ai: async () => {
+            throw new Error('should not run')
+        },
+        byQuestion: noLost,
+        aiSaid: noSaid
+    })
 
     await mongoose.connection.dropDatabase()
     await mongoose.disconnect()

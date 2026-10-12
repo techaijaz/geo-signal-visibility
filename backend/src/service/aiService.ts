@@ -53,6 +53,7 @@ const GEMINI_GROUNDED_MODEL = 'gemini-3.8-flash'
 
 interface IClaudeResponse {
     content?: Array<{
+        type?: string
         text?: string
     }>
     usage?: { input_tokens?: number; output_tokens?: number }
@@ -342,7 +343,8 @@ const aiService = {
                 latencyMs: Date.now() - startedAt,
                 prompt
             })
-            return data.content?.[0]?.text || null
+            // Newer models can open with a thinking block, so take the text block
+            return data.content?.find((c) => c.type === 'text' && c.text)?.text || data.content?.[0]?.text || null
         } catch (error) {
             logger.error('Claude API Error:', { meta: error })
             return null

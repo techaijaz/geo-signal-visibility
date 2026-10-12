@@ -373,6 +373,30 @@ const run = async () => {
     assert.equal(bodies.length, 2) // Claude once, OpenAI once: a 503 isn't retried
     assert.ok(bodies.every((b) => b.max_tokens === 8000))
 
+    // Claude's answer may open with a thinking block: the text block after it is the answer, no OpenAI call
+    let claudeCalls = 0
+    keyOwner.getDecryptedApiKey = async () => 'test-key'
+    globalThis.fetch = (async () => {
+        claudeCalls++
+        return new Response(
+            JSON.stringify({
+                content: [
+                    { type: 'thinking', thinking: 'planning' },
+                    { type: 'text', text: '{"items":[]}' }
+                ],
+                usage: { input_tokens: 1, output_tokens: 1 }
+            }),
+            { status: 200 }
+        )
+    }) as typeof fetch
+    try {
+        assert.equal(await fixAi('prompt'), '{"items":[]}')
+    } finally {
+        globalThis.fetch = realFetch
+        keyOwner.getDecryptedApiKey = realKey
+    }
+    assert.equal(claudeCalls, 1)
+
     // Creating: free plan has 1; a second request the same month is refused with the reset date
     const org2 = String(new mongoose.Types.ObjectId())
     const req = {

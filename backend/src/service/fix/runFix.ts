@@ -29,7 +29,7 @@ const START_WINDOW_MS = 5 * 60 * 1000
 
 export const fixAi = async (prompt: string) =>
     (await aiService.callClaude(prompt, MAX_TOKENS, config.FIX_MODEL_CLAUDE, HTTP)) ??
-    (await aiService.callOpenAiCompatible('OpenAI', prompt, config.FIX_MODEL_OPENAI, MAX_TOKENS, HTTP))
+    (await aiService.callOpenAiCompatible('DeepSeek', prompt, config.FIX_MODEL_DEEPSEEK, MAX_TOKENS, HTTP))
 
 const defaultDeps: IFixDeps = {
     ai: fixAi,

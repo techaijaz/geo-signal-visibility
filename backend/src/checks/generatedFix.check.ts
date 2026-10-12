@@ -358,10 +358,10 @@ const run = async () => {
     const keyOwner = (await import('../service/databseService')).default as unknown as { getDecryptedApiKey: (k: string) => Promise<string> }
     const realKey = keyOwner.getDecryptedApiKey
     const realFetch = globalThis.fetch
-    const bodies: Array<{ max_tokens?: number }> = []
+    const bodies: Array<{ url: string; model?: string; max_tokens?: number }> = []
     keyOwner.getDecryptedApiKey = async () => 'test-key'
-    globalThis.fetch = (async (_url: string, init: RequestInit) => {
-        bodies.push(JSON.parse(String(init.body)))
+    globalThis.fetch = (async (url: string, init: RequestInit) => {
+        bodies.push({ url, ...JSON.parse(String(init.body)) })
         return new Response('busy', { status: 503 })
     }) as typeof fetch
     try {
@@ -370,10 +370,18 @@ const run = async () => {
         globalThis.fetch = realFetch
         keyOwner.getDecryptedApiKey = realKey
     }
-    assert.equal(bodies.length, 2) // Claude once, OpenAI once: a 503 isn't retried
+    // Sonnet, then DeepSeek pro as the backup, then DeepSeek's own fallback model; a 503 is never retried
+    assert.deepEqual(
+        bodies.map((b) => [new URL(b.url).host, b.model]),
+        [
+            ['api.anthropic.com', 'claude-sonnet-5-5'],
+            ['api.deepseek.com', 'deepseek-v4-pro'],
+            ['api.deepseek.com', 'deepseek-chat']
+        ]
+    )
     assert.ok(bodies.every((b) => b.max_tokens === 8000))
 
-    // Claude's answer may open with a thinking block: the text block after it is the answer, no OpenAI call
+    // Claude's answer may open with a thinking block: the text block after it is the answer, no backup call
     let claudeCalls = 0
     keyOwner.getDecryptedApiKey = async () => 'test-key'
     globalThis.fetch = (async () => {

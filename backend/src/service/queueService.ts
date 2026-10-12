@@ -30,6 +30,8 @@ export const weeklyReportQueue = new Queue('weekly-report', { connection, defaul
 export const citationQueue = new Queue('citation-scan', { connection, defaultJobOptions })
 // One try: a retry would pay for the same answers again; the visitor can run it again
 export const freeCheckQueue = new Queue('free-check', { connection, defaultJobOptions: { ...defaultJobOptions, attempts: 1 } })
+// One try: a retry would pay for the same writing again; the user can press Generate again
+export const fixQueue = new Queue('fix-generation', { connection, defaultJobOptions: { ...defaultJobOptions, attempts: 1 } })
 export const schedulerQueue = new Queue('scan-scheduler', { connection, defaultJobOptions: { removeOnComplete: 100, removeOnFail: 100 } })
 
 // 2. Define Interfaces
@@ -230,6 +232,15 @@ export const enqueueFreeCheckJob = async (checkId: string, runAt?: Date): Promis
         )
     } catch (err) {
         logger.error(`[BullMQ Queue Error] Failed to enqueue free check ${checkId}:`, { meta: err })
+        return null
+    }
+}
+
+export const enqueueFixJob = async (fixId: string): Promise<Job<{ fixId: string }> | null> => {
+    try {
+        return await enqueueWithTimeout(fixQueue.add('fix-job', { fixId }, { jobId: `fix-${fixId}` }), 1500)
+    } catch (err) {
+        logger.error(`[BullMQ Queue Error] Failed to enqueue fix ${fixId}:`, { meta: err })
         return null
     }
 }

@@ -16,6 +16,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './components/PublicRoute';
 import WebsiteAudit from './pages/WebsiteAudit';
 import Recommendations from './pages/Recommendations';
+import Fixes from './pages/Fixes';
 import Reports from './pages/Reports';
 import Pricing from './pages/Pricing';
 import Billing from './pages/Billing';
@@ -69,6 +70,10 @@ export const router = createBrowserRouter([
           {
             path: 'recommendations',
             element: <Recommendations />,
+          },
+          {
+            path: 'fixes',
+            element: <Fixes />,
           },
           {
             path: 'reports',

@@ -66,6 +66,7 @@ export default function AppLayout() {
     { path: '/products', label: 'Products', icon: '◫' },
     { path: '/audit', label: 'Website audit', icon: '⚙' },
     { path: '/recommendations', label: 'Recommendations', icon: '✓' },
+    { path: '/fixes', label: 'Fixes', icon: '✎' },
     { path: '/reports', label: 'Reports', icon: '▥' },
     { path: '/settings', label: 'Settings', icon: '⚙' },
     { path: '/billing', label: 'Billing & Plans', icon: '💳' },

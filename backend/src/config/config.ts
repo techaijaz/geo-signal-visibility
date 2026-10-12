@@ -74,7 +74,7 @@ export default {
     },
     // "Generate fix" (FAQ / comparison) needs a strong writer; both need a price on the AI Models page
     FIX_MODEL_CLAUDE: process.env.FIX_MODEL_CLAUDE || 'claude-sonnet-5-5',
-    FIX_MODEL_OPENAI: process.env.FIX_MODEL_OPENAI || 'gpt-4o',
+    FIX_MODEL_DEEPSEEK: process.env.FIX_MODEL_DEEPSEEK || 'deepseek-v4-pro',
     // Run jobs inside the API process when Redis/BullMQ is down. Development only: in production a
     // queue outage returns 503 instead of letting API instances run AI scans themselves
     // Sandbox "mock" payment gateway that activates plans without charging. Never enabled in production

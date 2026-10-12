@@ -171,7 +171,7 @@ const aiService = {
             if (!response.ok) {
                 await logProviderFailure(provider, model, response)
                 if (spec.fallbackModel && model !== spec.fallbackModel) {
-                    return aiService.callOpenAiCompatible(provider, prompt, spec.fallbackModel, maxTokens)
+                    return aiService.callOpenAiCompatible(provider, prompt, spec.fallbackModel, maxTokens, httpOpts)
                 }
                 return null
             }

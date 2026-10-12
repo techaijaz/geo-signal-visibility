@@ -83,7 +83,7 @@ separate counter to drift. Re-opening, editing and copying don't count.
    - picks pages (above), fetches each with `fetchPublicText` (SSRF-safe, 10 s timeout);
    - extracts title, price, description, review text and on-page FAQs (`extractPageFacts` plus the
      main text), trimmed to about 1,500 words per page;
-   - calls a strong model (Claude Sonnet first, then GPT-4o, through `aiService` with a model
+   - calls a strong model (Claude Sonnet first, then DeepSeek V4 Pro, through `aiService` with a model
      override) inside `withAiCallContext` so `recordAiUsage` logs the cost with purpose `fix`;
    - prompt rules: use only the given page text; return JSON; every answer cites a source URL
      from the given list; unknown facts as `[confirm: …]`; no negative claims about competitors;

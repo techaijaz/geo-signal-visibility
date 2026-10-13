@@ -9,3 +9,15 @@ services:
     profiles: [production-only]
   uptime-kuma:
     profiles: [production-only]
+
+  # Staging mail never leaves the server: every email lands here. Point staging's SMTP_* at
+  # mailpit:1025 (any user/pass); read mail at http://127.0.0.1:8025 on the server (web UI and API)
+  mailpit:
+    image: axllent/mailpit:v1.29.7
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+      MP_MAX_MESSAGES: 2000
+    ports:
+      - '127.0.0.1:8025:8025'

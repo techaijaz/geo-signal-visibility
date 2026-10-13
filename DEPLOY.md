@@ -267,6 +267,8 @@ certbot --nginx -d staging.geosignalai.com -d app.staging.geosignalai.com
 
 Then deploy to staging from GitHub, and add the first-time data in `/opt/signal-ai-staging` (section 7).
 
+Staging email goes to Mailpit, never to real inboxes. In staging's `.env`: `EMAIL_PROVIDER=smtp`, `SMTP_HOST=mailpit`, `SMTP_PORT=1025`, `SMTP_SECURE=false`, `SMTP_USER=qa`, `SMTP_PASS=qa`. Read the mail from your PC with `ssh -L 8025:127.0.0.1:8025 root@<server>` and open http://localhost:8025 (or the API, `curl http://127.0.0.1:8025/api/v1/messages` on the server).
+
 ## Moving to Kubernetes later
 
 The Compose setup is built to move over without code changes:

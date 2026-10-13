@@ -2,7 +2,7 @@
 // Run: NODE_ENV=development npx ts-node --transpile-only src/checks/publicUrl.check.ts
 import assert from 'assert'
 import axios from 'axios'
-import { isBlockedIp, isPrivateAddress, assertPublicUrl, fetchPublicText } from '../util/publicUrl'
+import { isBlockedIp, isPrivateAddress, assertPublicUrl, fetchPublicText, publicAxiosOptions } from '../util/publicUrl'
 
 const run = async () => {
     for (const ip of [
@@ -63,6 +63,10 @@ const run = async () => {
         assert.equal(isPrivateAddress(u), true, u)
     for (const u of ['https://shop.alharamainperfumes.com/default/a.html', 'https://hasanoud.com/products/vibe', 'http://8.8.8.8/'])
         assert.equal(isPrivateAddress(u), false, u)
+    // axios (audit): a redirect to an internal IP is refused; a public host passes
+    assert.throws(() => publicAxiosOptions.beforeRedirect({ hostname: '127.0.0.1' }), /Only public websites/)
+    assert.throws(() => publicAxiosOptions.beforeRedirect({ hostname: '[::1]' }), /Only public websites/)
+    publicAxiosOptions.beforeRedirect({ hostname: 'example.com' })
     console.log('public-url checks: PASS')
 }
 

@@ -81,6 +81,16 @@ const safeLookup: net.LookupFunction = (hostname, options, callback) => {
 }
 const httpAgent = new http.Agent({ lookup: safeLookup })
 const httpsAgent = new https.Agent({ lookup: safeLookup })
+// For axios calls to a user-typed site: every connection must land on a public address. The agents check
+// names (Node skips lookup for an IP), so a redirect to an IP is checked here; check the first URL with assertPublicUrl
+export const publicAxiosOptions = {
+    httpAgent,
+    httpsAgent,
+    beforeRedirect: (options: { hostname?: string }) => {
+        const host = (options.hostname || '').replace(/^\[|\]$/g, '')
+        if (net.isIP(host) && isBlockedIp(host)) throw new Error(NOT_PUBLIC)
+    }
+}
 
 const MAX_PAGE_BYTES = 3_000_000
 

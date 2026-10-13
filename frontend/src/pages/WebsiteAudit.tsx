@@ -159,6 +159,21 @@ export default function WebsiteAudit() {
     return () => { isMounted = false; };
   }, [activeBrandId]);
 
+  // A new brand's first audit runs in the background: refresh until it lands
+  const firstAuditPending = !!auditData?.holdingBack?.[0]?.startsWith('Initial audit in progress');
+  useEffect(() => {
+    if (!firstAuditPending || !activeBrandId) return;
+    const timer = window.setInterval(async () => {
+      try {
+        const res = await api.get(`/brands/${activeBrandId}/audit`);
+        if (res.data?.data?.audit) setAuditData(res.data.data.audit);
+      } catch {
+        // try again on the next tick
+      }
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [firstAuditPending, activeBrandId]);
+
   const handleRescan = async () => {
     if (!activeBrandId || isRescanning) return;
     setIsRescanning(true);
@@ -311,7 +326,7 @@ export default function WebsiteAudit() {
               geoImpact="Higher scores mean AI bots (ChatGPT, Perplexity, Gemini) can easily crawl, index, and cite your website."
             />
           </div>
-          <div className="score-big" style={{ color: scoreColor }}>{healthScore}</div>
+          <div className="score-big" style={{ color: firstAuditPending ? 'var(--text-dim)' : scoreColor }}>{firstAuditPending ? '—' : healthScore}</div>
           <div className="score-delta" style={{ color: 'var(--text-faint)' }}>out of 100</div>
         </div>
         <div className="card">

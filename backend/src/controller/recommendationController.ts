@@ -8,7 +8,7 @@ import httpError from '../util/httpError'
 import logger from '../util/loger'
 import responceseMessage from '../constent/responceseMessage'
 import { EUserRole } from '../constent/userConstent'
-import { DAILY_RESCAN_LIMITS, rescanLimitMessage, type PlanName } from '../config/planLimits'
+import { DAILY_RESCAN_LIMITS, PLAN_LIMITS, rescanLimitMessage, type PlanName } from '../config/planLimits'
 import { recordDone, recordUndone } from '../service/fixEventService'
 import { getFixImpact, pickOverviewGroup } from '../service/fixImpactService'
 
@@ -28,12 +28,16 @@ export default {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
             }
 
-            const recommendations = await databseService.findRecommendationsByBrandId(brandId)
+            // Locked plans see the upgrade screen, so the list itself stays on the server
+            const plan = authenticatedUser.role === EUserRole.ADMIN ? 'agency' : ((org.plan || 'free') as PlanName)
+            const locked = !(PLAN_LIMITS[plan] ?? PLAN_LIMITS.free).features.recommendations
+            const recommendations = locked ? [] : await databseService.findRecommendationsByBrandId(brandId)
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 brandId,
                 brandName: brand.name,
-                recommendations
+                recommendations,
+                locked
             })
         } catch (error) {
             httpError(next, error, req, 500)

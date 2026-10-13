@@ -8,6 +8,7 @@ import {
     IUpdateProfileRequestBody
 } from '../types/userTypes'
 import { EBrandRole, EBusinessType, ICreateBrandRequestBody, IUpdateBrandRequestBody } from '../types/brandTypes'
+import { isPrivateAddress } from '../util/publicUrl'
 
 export const validationRegisterBody = Joi.object<IRegisterRequestBody>({
     name: Joi.string().required().min(3).max(72).trim(),
@@ -108,7 +109,13 @@ const productJoiSchema = Joi.object({
     title: Joi.string().trim().max(300).required(),
     shortName: Joi.string().trim().min(2).max(60).required(),
     aliases: Joi.array().items(Joi.string().trim().min(2).max(60)).max(3).optional().default([]),
-    url: Joi.string().uri().allow('').optional().default(''),
+    url: Joi.string()
+        .uri()
+        .allow('')
+        .optional()
+        .default('')
+        .custom((v: string, h) => (v && isPrivateAddress(v) ? h.error('any.invalid') : v))
+        .messages({ 'any.invalid': 'Product link must be a public website address' }),
     price: Joi.number().min(0).allow(null).optional().default(null),
     image: Joi.string().allow('').optional().default(''),
     productType: Joi.string().allow('').optional().default(''),

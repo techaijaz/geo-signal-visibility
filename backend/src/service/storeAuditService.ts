@@ -217,6 +217,17 @@ const sameHost = (url: string, origin: string) => {
     }
 }
 
+// Saved products may live on a subdomain of the store (Magento's shop.<domain>); the brand picked them
+const sameSite = (url: string, origin: string) => {
+    try {
+        const site = new URL(origin).hostname.replace(/^www\./, '')
+        const host = new URL(url).hostname
+        return host.replace(/^www\./, '') === site || host.endsWith(`.${site}`)
+    } catch {
+        return false
+    }
+}
+
 const locsIn = (xml: string) => [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => m[1].replace(/&amp;/g, '&'))
 
 // A sitemap index lists more sitemaps (nested); a urlset lists pages, of which we keep product pages
@@ -264,7 +275,7 @@ export const choosePages = async ({ origin, saved, max, fetchText }: { origin: s
     const home = () => (homepage ??= get(origin))
 
     let source: 'products' | 'sitemap' | 'homepage' = 'products'
-    let products = [...new Set(saved.filter((u) => sameHost(u, origin)))].slice(0, max)
+    let products = [...new Set(saved.filter((u) => sameSite(u, origin)))].slice(0, max)
     if (!products.length) {
         source = 'sitemap'
         const root = productUrlsFromSitemap(await get(`${origin}/sitemap.xml`), origin)

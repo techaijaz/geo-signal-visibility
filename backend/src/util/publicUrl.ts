@@ -42,6 +42,19 @@ export const isBlockedIp = (ip: string): boolean => {
 
 const NOT_PUBLIC = 'Only public websites can be checked'
 
+// No DNS: for saving a link, refuses an IP inside our network and names that only resolve locally
+export const isPrivateAddress = (url: string): boolean => {
+    try {
+        const { protocol, hostname } = new URL(url)
+        if (protocol !== 'http:' && protocol !== 'https:') return true
+        const host = hostname.replace(/^\[|\]$/g, '').toLowerCase()
+        if (net.isIP(host)) return isBlockedIp(host)
+        return !host.includes('.') || /\.(localhost|local|internal)$/.test(host)
+    } catch {
+        return true
+    }
+}
+
 export const assertPublicUrl = async (url: string): Promise<void> => {
     let parsed: URL
     try {

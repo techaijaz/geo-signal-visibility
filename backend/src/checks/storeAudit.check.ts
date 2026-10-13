@@ -162,6 +162,14 @@ const run = async () => {
     assert.equal(fromSaved.source, 'products')
     assert.deepStrictEqual(fromSaved.products, [`${O}/products/x`, 'https://www.shop.example/products/y'])
     assert.equal(fromSaved.collections.length, 5)
+    // Saved products on a subdomain of the store (Magento shop.<domain>) belong to the brand too
+    const fromSub = await choosePages({
+        origin: O,
+        saved: ['https://shop.shop.example/default/attar.html', 'https://evilshop.example/p'],
+        max: 5,
+        fetchText: fetchStore
+    })
+    assert.deepStrictEqual(fromSub.products, ['https://shop.shop.example/default/attar.html'])
     // No saved products: the sitemap
     const fromSitemap = await choosePages({ origin: O, saved: [], max: 10, fetchText: fetchStore })
     assert.deepStrictEqual([fromSitemap.source, fromSitemap.products], ['sitemap', [`${O}/products/silk-oud`, `${O}/products/vibe`]])

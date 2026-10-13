@@ -2,7 +2,7 @@
 // Run: NODE_ENV=development npx ts-node --transpile-only src/checks/publicUrl.check.ts
 import assert from 'assert'
 import axios from 'axios'
-import { isBlockedIp, assertPublicUrl, fetchPublicText } from '../util/publicUrl'
+import { isBlockedIp, isPrivateAddress, assertPublicUrl, fetchPublicText } from '../util/publicUrl'
 
 const run = async () => {
     for (const ip of [
@@ -49,6 +49,20 @@ const run = async () => {
     assert.equal(seen.maxBodyLength, 3_000_000)
     assert.ok(seen.signal, 'an abort signal bounds the whole request')
 
+    // Saving a product link: refused without DNS when it points inside our network
+    for (const u of [
+        'http://127.0.0.1:8080/api/v1/health',
+        'http://localhost/x',
+        'http://[::1]/',
+        'http://169.254.169.254/',
+        'http://api/x',
+        'http://db.internal/',
+        'ftp://shop.in/a',
+        'nonsense'
+    ])
+        assert.equal(isPrivateAddress(u), true, u)
+    for (const u of ['https://shop.alharamainperfumes.com/default/a.html', 'https://hasanoud.com/products/vibe', 'http://8.8.8.8/'])
+        assert.equal(isPrivateAddress(u), false, u)
     console.log('public-url checks: PASS')
 }
 

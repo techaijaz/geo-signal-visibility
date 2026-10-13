@@ -6,6 +6,7 @@ import mentionModel from '../model/mentionModel'
 import recommendationModel from '../model/recommendationModel'
 import { isResolvedByAudit } from './recommendationService'
 import { markVerified, recordDone } from './fixEventService'
+import { assertPublicUrl, publicAxiosOptions } from '../util/publicUrl'
 import { IAuditGridItem } from '../types/auditTypes'
 import logger from '../util/loger'
 import type { IFeedHealth, keepSavedFeed } from './feedHealthService'
@@ -147,6 +148,8 @@ export const auditService = {
         // 0. SSL / HTTPS Security Validation (Strict Gate: Halt scan if insecure)
         let isHttpsSecure = false
         let sslErrorMsg = ''
+        // No answer at all (DNS, refused, timeout) is a dead address, not a missing certificate
+        let unreachable = false
 
         // Check if rawUrl is explicitly http:// or test https connection
         if (rawUrl.trim().toLowerCase().startsWith('http://')) {
@@ -154,8 +157,11 @@ export const auditService = {
             sslErrorMsg = 'Served over unencrypted http://'
         } else {
             try {
+                // An IP inside our network never reaches the agents' name check
+                await assertPublicUrl(targetUrl)
                 const httpsUrl = `https://${domainHost}`
                 const sslTest = await axios.get(httpsUrl, {
+                    ...publicAxiosOptions,
                     timeout: 6000,
                     maxRedirects: 5,
                     headers: { 'User-Agent': BROWSER_UA }
@@ -165,21 +171,26 @@ export const auditService = {
                 }
             } catch (err: unknown) {
                 isHttpsSecure = false
-                const error = err as { code?: string; message?: string }
+                const error = err as { code?: string; message?: string; response?: unknown }
+                // Any HTTP answer (403 from bot protection, 404, 500) means HTTPS itself works
+                if (error.response) isHttpsSecure = true
                 sslErrorMsg = error.code || error.message || 'SSL handshake failed'
+                unreachable = !error.response && !/CERT|TLS|SSL|SELF_SIGNED|UNABLE_TO_VERIFY|DEPTH_ZERO/i.test(sslErrorMsg)
             }
         }
 
         // STRICT GATE: If website is not secure, DO NOT SCAN FURTHER!
         if (!isHttpsSecure) {
-            logger.warn(`Scan aborted for brand ${brand.name} (${domainHost}) - Website is not secure (${sslErrorMsg})`)
+            logger.warn(`Scan aborted for brand ${brand.name} (${domainHost}) - ${unreachable ? 'unreachable' : 'not secure'} (${sslErrorMsg})`)
 
             const blockedHoldingBack = [
-                `CRITICAL SECURITY BLOCKER: Website is not secure (${sslErrorMsg}). Scan halted immediately - SSL/HTTPS encryption is mandatory for AI engines and search crawlers.`
+                unreachable
+                    ? `WEBSITE UNREACHABLE: ${domainHost} could not be opened (${sslErrorMsg}). Check the website address in Settings → Brand; the audit runs once the site opens.`
+                    : `CRITICAL SECURITY BLOCKER: Website is not secure (${sslErrorMsg}). Scan halted immediately - SSL/HTTPS encryption is mandatory for AI engines and search crawlers.`
             ]
 
             const blockedCrawlerAccess: IAuditGridItem[] = [
-                { name: 'SSL / HTTPS Security', status: 'Insecure (HTTP/SSL)', badgeType: 'badge-bad' },
+                { name: 'SSL / HTTPS Security', status: unreachable ? 'Unreachable' : 'Insecure (HTTP/SSL)', badgeType: 'badge-bad' },
                 { name: 'GPTBot (OpenAI)', status: 'Scan Aborted', badgeType: 'badge-bad' },
                 { name: 'ClaudeBot (Anthropic)', status: 'Scan Aborted', badgeType: 'badge-bad' },
                 { name: 'Google-Extended (Gemini)', status: 'Scan Aborted', badgeType: 'badge-bad' },
@@ -196,7 +207,7 @@ export const auditService = {
             ]
 
             const blockedOffSite: IAuditGridItem[] = [
-                { name: 'Search Indexing', status: 'Blocked (Insecure)', badgeType: 'badge-bad' },
+                { name: 'Search Indexing', status: unreachable ? 'Unreachable' : 'Blocked (Insecure)', badgeType: 'badge-bad' },
                 { name: 'Social / Brand Links', status: 'Scan Aborted', badgeType: 'badge-bad' },
                 { name: 'Wikipedia presence', status: 'Scan Aborted', badgeType: 'badge-bad' }
             ]
@@ -245,6 +256,7 @@ export const auditService = {
 
         try {
             const robotsRes = await axios.get(`${targetUrl}/robots.txt`, {
+                ...publicAxiosOptions,
                 timeout: 6000,
                 headers: { 'User-Agent': BROWSER_UA },
                 validateStatus: (status) => status < 500
@@ -278,6 +290,7 @@ export const auditService = {
         // Check llms.txt standard
         try {
             const llmsRes = await axios.get(`${targetUrl}/llms.txt`, {
+                ...publicAxiosOptions,
                 timeout: 5000,
                 validateStatus: (status) => status === 200
             })
@@ -302,6 +315,7 @@ export const auditService = {
 
         try {
             const htmlRes = await axios.get(targetUrl, {
+                ...publicAxiosOptions,
                 timeout: 8000,
                 headers: { 'User-Agent': BROWSER_UA }
             })
@@ -322,7 +336,7 @@ export const auditService = {
             const productPages = await Promise.all(
                 productLinksIn(htmlContent, targetUrl).map((url) =>
                     axios
-                        .get<string>(url, { timeout: 8000, headers: { 'User-Agent': BROWSER_UA }, responseType: 'text' })
+                        .get<string>(url, { ...publicAxiosOptions, timeout: 8000, headers: { 'User-Agent': BROWSER_UA }, responseType: 'text' })
                         .then((res) => res.data)
                         .catch(() => '')
                 )
@@ -571,23 +585,6 @@ export const auditService = {
             healthScore = Math.max(10, healthScore - 25)
         }
 
-        // Recommendations made before this audit (or against an older one) may ask for things now in place
-        const stale = await recommendationModel
-            .find({ brandId, isCompleted: { $ne: true } })
-            .select('brandId text category')
-            .lean()
-        const resolved = stale.filter((r) => isResolvedByAudit(r.text, { brandId, healthScore, crawlerAccess, structuredData }))
-        if (resolved.length > 0) {
-            await recommendationModel.updateMany({ _id: { $in: resolved.map((r) => r._id) } }, { isCompleted: true })
-            for (const r of resolved) await recordDone(r, 'audit')
-        }
-        // Work the user already ticked that the audit now confirms
-        const ticked = await recommendationModel.find({ brandId, isCompleted: true }).select('text').lean()
-        await markVerified(
-            String(brandId),
-            ticked.filter((r) => isResolvedByAudit(r.text, { brandId, healthScore, crawlerAccess, structuredData })).map((r) => r._id)
-        )
-
         // Product and collection pages; never fails the audit
         let storeAudit: unknown = undefined
         // Not when the homepage couldn't be opened: every page would time out against a dead site
@@ -625,20 +622,40 @@ export const auditService = {
             existingAudit.marketplaceReadability = marketplaceReadability
             existingAudit.lastAuditedAt = new Date()
             await existingAudit.save()
-            return existingAudit
         }
+        const saved =
+            existingAudit ??
+            (await auditModel.create({
+                brandId,
+                healthScore,
+                holdingBack,
+                crawlerAccess,
+                structuredData,
+                offSiteFootprint,
+                marketplaceReadability,
+                ...(storeAudit !== undefined ? { storeAudit } : {}),
+                ...(feedHealth !== undefined ? { feedHealth } : {}),
+                lastAuditedAt: new Date()
+            }))
 
-        return auditModel.create({
-            brandId,
-            healthScore,
-            holdingBack,
-            crawlerAccess,
-            structuredData,
-            offSiteFootprint,
-            marketplaceReadability,
-            ...(storeAudit !== undefined ? { storeAudit } : {}),
-            ...(feedHealth !== undefined ? { feedHealth } : {}),
-            lastAuditedAt: new Date()
-        })
+        // Only after the audit is saved, so the page never shows "Checking" next to work it already ticked
+        // Recommendations made before this audit (or against an older one) may ask for things now in place
+        const stale = await recommendationModel
+            .find({ brandId, isCompleted: { $ne: true } })
+            .select('brandId text category')
+            .lean()
+        const resolved = stale.filter((r) => isResolvedByAudit(r.text, { brandId, healthScore, crawlerAccess, structuredData }))
+        if (resolved.length > 0) {
+            await recommendationModel.updateMany({ _id: { $in: resolved.map((r) => r._id) } }, { isCompleted: true })
+            for (const r of resolved) await recordDone(r, 'audit')
+        }
+        // Work the user already ticked that the audit now confirms
+        const ticked = await recommendationModel.find({ brandId, isCompleted: true }).select('text').lean()
+        await markVerified(
+            String(brandId),
+            ticked.filter((r) => isResolvedByAudit(r.text, { brandId, healthScore, crawlerAccess, structuredData })).map((r) => r._id)
+        )
+
+        return saved
     }
 }

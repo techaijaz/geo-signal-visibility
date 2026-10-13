@@ -48,7 +48,7 @@ export const validationUpdateProfileBody = Joi.object<IUpdateProfileRequestBody>
 
 const competitorJoiSchema = Joi.object({
     name: Joi.string().required().trim(),
-    website: Joi.string().uri({ allowRelative: true }).optional().allow('').trim()
+    website: publicWebsite().optional().allow('').trim()
 })
 
 const queryJoiSchema = Joi.object({
@@ -60,7 +60,7 @@ const queryJoiSchema = Joi.object({
 
 export const validationCreateBrandBody = Joi.object<ICreateBrandRequestBody>({
     name: Joi.string().required().min(2).max(100).trim(),
-    website: Joi.string().uri({ allowRelative: true }).required().trim(),
+    website: publicWebsite().required().trim(),
     category: Joi.string().required().trim(),
     businessType: Joi.string()
         .valid(...Object.values(EBusinessType))
@@ -78,7 +78,7 @@ export const validationCreateBrandBody = Joi.object<ICreateBrandRequestBody>({
 
 export const validationUpdateBrandBody = Joi.object<IUpdateBrandRequestBody>({
     name: Joi.string().min(2).max(100).optional().trim(),
-    website: Joi.string().uri({ allowRelative: true }).optional().trim(),
+    website: publicWebsite().optional().trim(),
     category: Joi.string().optional().trim(),
     businessType: Joi.string()
         .valid(...Object.values(EBusinessType))
@@ -103,6 +103,14 @@ export const validateJoiSchema = <T>(schema: Joi.Schema, value: unknown) => {
 export const validationEmailPreferencesBody = Joi.object<{ weeklyReportEmails: boolean }>({
     weeklyReportEmails: Joi.boolean().required()
 })
+
+// A brand website is opened by the server, so an address inside our network is refused when saved
+function publicWebsite() {
+    return Joi.string()
+        .uri({ allowRelative: true })
+        .custom((v: string, h) => (v && isPrivateAddress(/^https?:\/\//i.test(v) ? v : `https://${v}`) ? h.error('any.invalid') : v))
+        .messages({ 'any.invalid': 'Website must be a public website address' })
+}
 
 const productJoiSchema = Joi.object({
     shopifyId: Joi.string().allow(null).optional(),

@@ -216,7 +216,8 @@ const databseService = {
                 {
                     $setOnInsert: {
                         brandId,
-                        healthScore: 70,
+                        // 0 + this note: the audit page shows "—" and waits, never a made-up score
+                        healthScore: 0,
                         holdingBack: ['Initial audit in progress via background worker...'],
                         crawlerAccess: [
                             'GPTBot (OpenAI)',
@@ -228,7 +229,7 @@ const databseService = {
                         structuredData: [],
                         offSiteFootprint: [],
                         marketplaceReadability: [],
-                        lastAuditedAt: new Date()
+                        lastAuditedAt: null
                     }
                 },
                 { upsert: true, new: true, runValidators: true }

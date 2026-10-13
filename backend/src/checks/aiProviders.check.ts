@@ -5,11 +5,12 @@ import aiService, { silentModels } from '../service/aiService'
 import { modelScore } from '../service/databseService'
 
 const run = async () => {
-    // Engines that gave no answer at all in a scan are reported, in the order they ran
-    assert.deepStrictEqual(silentModels(['ChatGPT', 'Gemini', 'Claude'], [{ model: 'ChatGPT' }, { model: 'Claude' }, { model: 'ChatGPT' }]), [
-        'Gemini'
-    ])
-    assert.deepStrictEqual(silentModels(['ChatGPT'], [{ model: 'ChatGPT' }]), [])
+    // Engines that missed any question are reported, in the order they ran
+    const a = (model: string, queryText: string) => ({ model, queryText })
+    assert.deepStrictEqual(silentModels(['ChatGPT', 'Gemini', 'Claude'], [a('ChatGPT', 'q1'), a('Claude', 'q1')], 1), ['Gemini'])
+    assert.deepStrictEqual(silentModels(['ChatGPT'], [a('ChatGPT', 'q1')], 1), [])
+    // Old questions answered from the cache don't hide an engine that failed on a new one
+    assert.deepStrictEqual(silentModels(['ChatGPT', 'DeepSeek'], [a('ChatGPT', 'q1'), a('ChatGPT', 'new'), a('DeepSeek', 'q1')], 2), ['DeepSeek'])
 
     // Helper calls (brand names, suggestions, product names) try the cheapest paid engine first and
     // Gemini last, so they don't use up the quota the scans need

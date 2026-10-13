@@ -5,11 +5,11 @@ export interface ScanError {
   at: string;
 }
 
-// Engines that gave no answer in the latest scan: the scan still counts, but the score misses them
+// Engines that missed answers in the latest scan (all questions, or only new ones): the scan still counts
 function SilentModelsNote({ models }: { models: string[] }) {
   return (
     <div role="status" style={{ marginBottom: '16px', padding: '10px 14px', borderRadius: '8px', background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', fontSize: '13px' }}>
-      <strong>{models.join(', ')} didn't answer in the last scan.</strong> Your results use the other AI engines only. We'll try again in the next scan.
+      <strong>{models.join(', ')} didn't answer every question in the last scan.</strong> Where an answer is missing, your results use the other AI engines only. We'll try again in the next scan.
     </div>
   );
 }

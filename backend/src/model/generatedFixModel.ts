@@ -7,7 +7,8 @@ const itemSchema = new mongoose.Schema(
         answer: String,
         heading: String,
         body: String,
-        rows: [{ _id: false, label: String, brand: String, competitor: String }],
+        // No default: an empty array would make every prose item look like a table
+        rows: { type: [{ _id: false, label: String, brand: String, competitor: String }], default: undefined },
         source: String
     },
     { _id: false }

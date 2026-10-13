@@ -23,10 +23,10 @@ export const fixOutputs = (fix: Pick<IGeneratedFix, 'type' | 'title' | 'items'>)
             : null
         return { text, html, jsonLd }
     }
-    const text = [title, ...fix.items.map((i) => `${i.heading}\n${i.rows ? rowsText(i) : i.body}`)].join('\n\n')
+    const text = [title, ...fix.items.map((i) => `${i.heading}\n${i.rows?.length ? rowsText(i) : i.body}`)].join('\n\n')
     const html = [
         `<h2>${esc(title)}</h2>`,
-        ...fix.items.map((i) => `<h3>${esc(i.heading)}</h3>\n${i.rows ? rowsHtml(i) : `<p>${esc(i.body)}</p>`}`)
+        ...fix.items.map((i) => `<h3>${esc(i.heading)}</h3>\n${i.rows?.length ? rowsHtml(i) : `<p>${esc(i.body)}</p>`}`)
     ].join('\n')
     return { text, html, jsonLd: null }
 }

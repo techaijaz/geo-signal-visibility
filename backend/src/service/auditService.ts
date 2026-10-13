@@ -147,6 +147,8 @@ export const auditService = {
         // 0. SSL / HTTPS Security Validation (Strict Gate: Halt scan if insecure)
         let isHttpsSecure = false
         let sslErrorMsg = ''
+        // No answer at all (DNS, refused, timeout) is a dead address, not a missing certificate
+        let unreachable = false
 
         // Check if rawUrl is explicitly http:// or test https connection
         if (rawUrl.trim().toLowerCase().startsWith('http://')) {
@@ -165,21 +167,24 @@ export const auditService = {
                 }
             } catch (err: unknown) {
                 isHttpsSecure = false
-                const error = err as { code?: string; message?: string }
+                const error = err as { code?: string; message?: string; response?: unknown }
                 sslErrorMsg = error.code || error.message || 'SSL handshake failed'
+                unreachable = !error.response && !/CERT|TLS|SSL|SELF_SIGNED|UNABLE_TO_VERIFY|DEPTH_ZERO/i.test(sslErrorMsg)
             }
         }
 
         // STRICT GATE: If website is not secure, DO NOT SCAN FURTHER!
         if (!isHttpsSecure) {
-            logger.warn(`Scan aborted for brand ${brand.name} (${domainHost}) - Website is not secure (${sslErrorMsg})`)
+            logger.warn(`Scan aborted for brand ${brand.name} (${domainHost}) - ${unreachable ? 'unreachable' : 'not secure'} (${sslErrorMsg})`)
 
             const blockedHoldingBack = [
-                `CRITICAL SECURITY BLOCKER: Website is not secure (${sslErrorMsg}). Scan halted immediately - SSL/HTTPS encryption is mandatory for AI engines and search crawlers.`
+                unreachable
+                    ? `WEBSITE UNREACHABLE: ${domainHost} could not be opened (${sslErrorMsg}). Check the website address in Settings → Brand; the audit runs once the site opens.`
+                    : `CRITICAL SECURITY BLOCKER: Website is not secure (${sslErrorMsg}). Scan halted immediately - SSL/HTTPS encryption is mandatory for AI engines and search crawlers.`
             ]
 
             const blockedCrawlerAccess: IAuditGridItem[] = [
-                { name: 'SSL / HTTPS Security', status: 'Insecure (HTTP/SSL)', badgeType: 'badge-bad' },
+                { name: 'SSL / HTTPS Security', status: unreachable ? 'Unreachable' : 'Insecure (HTTP/SSL)', badgeType: 'badge-bad' },
                 { name: 'GPTBot (OpenAI)', status: 'Scan Aborted', badgeType: 'badge-bad' },
                 { name: 'ClaudeBot (Anthropic)', status: 'Scan Aborted', badgeType: 'badge-bad' },
                 { name: 'Google-Extended (Gemini)', status: 'Scan Aborted', badgeType: 'badge-bad' },
@@ -196,7 +201,7 @@ export const auditService = {
             ]
 
             const blockedOffSite: IAuditGridItem[] = [
-                { name: 'Search Indexing', status: 'Blocked (Insecure)', badgeType: 'badge-bad' },
+                { name: 'Search Indexing', status: unreachable ? 'Unreachable' : 'Blocked (Insecure)', badgeType: 'badge-bad' },
                 { name: 'Social / Brand Links', status: 'Scan Aborted', badgeType: 'badge-bad' },
                 { name: 'Wikipedia presence', status: 'Scan Aborted', badgeType: 'badge-bad' }
             ]

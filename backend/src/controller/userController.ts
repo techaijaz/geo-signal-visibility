@@ -308,7 +308,13 @@ export default {
     selfIdentification: async (req: Request, res: Response, next: NextFunction) => {
         try {
             const { authenticatedUser } = req as ISelfIdentificationRequest
-            httpResponse(req, res, 200, responceseMessage.SUCCESS, authenticatedUser)
+            // Confirmation and reset codes stay on the server: with them a stolen session could change the password
+            const doc = authenticatedUser as unknown as { toObject?: () => Record<string, unknown> }
+            const { accountConfirmation, passwordReset: _reset, refreshToken: _refresh, ...user } = doc.toObject ? doc.toObject() : { ...doc }
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, {
+                ...user,
+                accountConfirmation: { status: (accountConfirmation as { status?: boolean } | undefined)?.status ?? false }
+            })
         } catch (error) {
             httpError(next, error, req, 500)
         }

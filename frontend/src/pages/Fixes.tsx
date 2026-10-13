@@ -158,7 +158,8 @@ const Fixes: React.FC = () => {
     try {
       const res = await api.patch(`/brands/${brandId}/fixes/${open._id}`, { items: draft, title: open.title });
       const f: Fix = res.data.data;
-      setOpen(f);
+      // Rebuild the draft from the saved copy, else key-order differences keep it "unsaved" and copy stays off
+      openFix(f);
       setData((d) => (d ? { ...d, fixes: d.fixes.map((x) => (x._id === f._id ? f : x)) } : d));
       setMessage({ text: 'Saved.' });
     } catch {
@@ -336,7 +337,7 @@ const Fixes: React.FC = () => {
                     value={it.heading || ''}
                     onChange={(e) => editItem(i, { heading: e.target.value })}
                   />
-                  {it.rows ? (
+                  {it.rows?.length ? (
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                         <thead>

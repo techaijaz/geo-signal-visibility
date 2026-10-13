@@ -188,6 +188,9 @@ const run = async () => {
         items: [{ heading: 'Differences', rows: [{ label: 'Price', brand: '₹799', competitor: '₹999' }] }]
     })
     assert.ok(cmpOut.html.includes('<table>') && cmpOut.html.includes('<td>₹799</td>') && cmpOut.jsonLd === null)
+    // Saved prose sections come back from Mongo with rows: [] and must stay prose
+    const proseOut = fixOutputs({ type: 'comparison', title: 'A vs B', items: [{ heading: 'Intro', body: 'Both sell oud.', rows: [] }] })
+    assert.ok(proseOut.html.includes('<p>Both sell oud.</p>') && !proseOut.html.includes('<table>') && proseOut.text.includes('Both sell oud.'))
 
     await mongoose.connect('mongodb://127.0.0.1:27017/signal_fix_check')
     await mongoose.connection.dropDatabase()

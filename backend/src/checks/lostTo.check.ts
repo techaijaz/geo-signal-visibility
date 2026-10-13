@@ -32,10 +32,11 @@ const answer = '1. **Ajmal Dahn Al Oudh** - long lasting\n2. Fogg Scent - budget
     const answers = [...Array(12)].map((_, i) => ({ id: 'a' + i, text: answer }))
     const out = await extractBrands(answers, 'Hasan Oud')
     assert.deepStrictEqual(out.get('a0'), [{ name: 'Ajmal', position: 1 }])
-    assert.deepStrictEqual(out.get('a11'), [])
-    assert.equal(out.size, 12)
+    // A chunk whose reply can't be read is left out (not "no brands"), so it never wipes the lost-to list
+    assert.equal(out.get('a11'), undefined)
+    assert.equal(out.size, 10)
 
-    // saveBrandsNamed writes to the DB; when every provider fails it writes [] and does not throw
+    // saveBrandsNamed writes to the DB; when every provider fails it writes nothing and does not throw
     const mentionModel = (await import('../model/mentionModel')).default
     const { saveBrandsNamed } = await import('../service/brandExtractionService')
     const brandId = new mongoose.Types.ObjectId()
@@ -58,7 +59,17 @@ const answer = '1. **Ajmal Dahn Al Oudh** - long lasting\n2. Fogg Scent - budget
     // 400 is not retried, so every provider fails fast
     globalThis.fetch = (async () => new Response('bad key', { status: 400 })) as typeof fetch
     await saveBrandsNamed([m], 'Hasan Oud')
-    assert.deepStrictEqual((await mentionModel.findById(m._id).lean())?.brandsNamed, [])
+    assert.deepStrictEqual((await mentionModel.findById(m._id).lean())?.brandsNamed, [{ name: 'Ajmal', position: 1 }])
+    // The same answer again (served from the AI cache) reuses the names found before, with no AI call
+    let aiCalls = 0
+    globalThis.fetch = (async () => {
+        aiCalls++
+        return new Response('bad key', { status: 400 })
+    }) as typeof fetch
+    const [again] = await mentionModel.insertMany([{ ...m.toObject(), _id: new mongoose.Types.ObjectId(), brandsNamed: undefined }])
+    await saveBrandsNamed([again], 'Hasan Oud')
+    assert.deepStrictEqual((await mentionModel.findById(again._id).lean())?.brandsNamed, [{ name: 'Ajmal', position: 1 }])
+    assert.equal(aiCalls, 0)
     await mentionModel.deleteMany({ brandId })
 
     const { computeLostTo } = await import('../service/competitorService')

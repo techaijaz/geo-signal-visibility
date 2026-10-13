@@ -560,10 +560,11 @@ const aiService = {
         if (failed > 0) {
             logger.warn(`[aiService] Scan for brand ${brandId}: ${failed}/${answers.length} AI calls failed and were skipped`)
         }
-        // An engine that answered nothing at all (quota, key, outage) is shown to the user, not just logged
+        // An engine that missed answers (quota, key, outage) is shown to the user, not just logged
         const silent = silentModels(
             modelsToRun.map((m) => m.name),
-            results
+            results,
+            queries.length
         )
         if (results.length === 0) {
             // Keep the previous scan as the latest; the scheduler lease retries this brand later
@@ -596,10 +597,12 @@ const aiService = {
     }
 }
 
-// Engines that ran in a scan but gave no answer at all, in the order they ran
-export const silentModels = (ran: string[], results: Array<{ model: string }>) => {
-    const answered = new Set(results.map((r) => r.model))
-    return ran.filter((name) => !answered.has(name))
+// Engines that missed at least one question, in the order they ran. Counting per question matters:
+// old questions come back from the cache, so an engine whose key broke would otherwise look fine
+export const silentModels = (ran: string[], results: Array<{ model: string; queryText: string }>, questions: number) => {
+    const answered = new Map<string, Set<string>>()
+    for (const r of results) answered.set(r.model, (answered.get(r.model) ?? new Set()).add(r.queryText))
+    return ran.filter((name) => (answered.get(name)?.size ?? 0) < questions)
 }
 
 export default aiService

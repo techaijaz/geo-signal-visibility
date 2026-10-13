@@ -47,26 +47,49 @@ export const extractBrands = async (answers: { id: string; text: string }[], own
     for (let i = 0; i < answers.length; i += CHUNK) {
         const chunk = answers.slice(i, i + CHUNK)
         const parsed = parseJson(await aiService.callAnyAvailableAi(promptFor(chunk.map((a) => a.text)), 1500))
-        if (!parsed) logger.warn(`[brandExtraction] No usable JSON for answers ${i}-${i + chunk.length - 1}`)
-        chunk.forEach((a, j) => result.set(a.id, validateNames(parsed?.[String(j)], a.text, ownBrand)))
+        // Unreadable or no reply (every provider down): leave these out rather than save "no brands"
+        if (!parsed) {
+            logger.warn(`[brandExtraction] No usable JSON for answers ${i}-${i + chunk.length - 1}`)
+            continue
+        }
+        chunk.forEach((a, j) => result.set(a.id, validateNames(parsed[String(j)], a.text, ownBrand)))
     }
     return result
 }
 
 // Never throws: a failed extraction leaves brandsNamed unset and the scan stands
-export const saveBrandsNamed = async (mentions: Array<{ _id: unknown; rawText?: string }>, ownBrand: string) => {
+export const saveBrandsNamed = async (mentions: Array<{ _id: unknown; rawText?: string; brandId?: unknown }>, ownBrand: string) => {
     try {
         const withText = mentions.filter((m) => m.rawText)
         if (!withText.length) return
-        const found = await extractBrands(
-            withText.map((m) => ({ id: String(m._id), text: m.rawText as string })),
-            ownBrand
-        )
-        await mentionModel.bulkWrite(
-            withText.map((m) => ({
-                updateOne: { filter: { _id: m._id }, update: { $set: { brandsNamed: found.get(String(m._id)) ?? [] } } }
-            }))
-        )
+        // An answer served from the AI cache is word for word one this brand saw before: reuse its names
+        const known = new Map<string, IBrandNamed[]>()
+        const brandId = withText[0].brandId
+        if (brandId) {
+            const earlier = await mentionModel
+                .find({
+                    brandId,
+                    rawText: { $in: withText.map((m) => m.rawText) },
+                    brandsNamed: { $exists: true },
+                    _id: { $nin: withText.map((m) => m._id) }
+                })
+                .sort({ _id: -1 })
+                .select('rawText brandsNamed')
+                .lean()
+            for (const e of earlier) if (e.rawText && !known.has(e.rawText)) known.set(e.rawText, e.brandsNamed as IBrandNamed[])
+        }
+        const fresh = withText.filter((m) => !known.has(m.rawText as string))
+        const found = fresh.length
+            ? await extractBrands(
+                  fresh.map((m) => ({ id: String(m._id), text: m.rawText as string })),
+                  ownBrand
+              )
+            : new Map<string, IBrandNamed[]>()
+        const writes = withText.flatMap((m) => {
+            const names = known.get(m.rawText as string) ?? found.get(String(m._id))
+            return names ? [{ updateOne: { filter: { _id: m._id }, update: { $set: { brandsNamed: names } } } }] : []
+        })
+        if (writes.length) await mentionModel.bulkWrite(writes)
     } catch (error) {
         logger.warn('[brandExtraction] Failed, brand names skipped for this scan', { meta: error })
     }

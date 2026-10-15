@@ -210,7 +210,6 @@ export default function Billing() {
   const [plans] = useState<Plan[]>(DEFAULT_PLANS);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [renewsOn, setRenewsOn] = useState<string | null>(null);
   // A paid plan's end; smaller plans unlock after it (admin-granted plans have none)
   const [paidUntil, setPaidUntil] = useState<string | null>(null);
   // Synchronous guard: two clicks in the same tick can't both start a checkout
@@ -274,7 +273,6 @@ export default function Billing() {
       if (response.data?.data) {
         if (response.data.data.currentPlan) setCurrentPlan(response.data.data.currentPlan);
         if (response.data.data.invoices) setInvoices(response.data.data.invoices);
-        setRenewsOn(response.data.data.subscription?.currentPeriodEnd || null);
         setPaidUntil(response.data.data.subscription?.expiresAt || null);
       }
       // Query limits are per brand, so show the brand picked in the sidebar
@@ -563,25 +561,28 @@ export default function Billing() {
           </div>
           <div style={{ fontSize: '22px', fontWeight: 700, color: '#fff', textTransform: 'capitalize', display: 'flex', alignItems: 'center', gap: '10px' }}>
             {currentPlan} Plan
-            <span
-              style={{
-                fontSize: '11px',
-                padding: '3px 10px',
-                borderRadius: '12px',
-                background: currentPlan === 'free' ? 'rgba(148, 163, 184, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                color: currentPlan === 'free' ? '#94a3b8' : '#f59e0b',
-                border: `1px solid ${currentPlan === 'free' ? 'rgba(148, 163, 184, 0.3)' : 'rgba(245, 158, 11, 0.4)'}`
-              }}
-            >
-              Active
-            </span>
+            {currentPlan !== 'free' && (
+              <span
+                style={{
+                  fontSize: '11px',
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  background: 'rgba(245, 158, 11, 0.2)',
+                  color: '#f59e0b',
+                  border: '1px solid rgba(245, 158, 11, 0.4)'
+                }}
+              >
+                Active
+              </span>
+            )}
           </div>
           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
+            {/* Payments are one-off, nothing renews by itself; an admin-granted plan has no end date */}
             {currentPlan === 'free'
               ? 'Free plan, nothing to renew.'
-              : renewsOn
-                ? `Renews on ${new Date(renewsOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`
-                : 'Renews monthly.'}
+              : paidUntil
+                ? `Paid until ${new Date(paidUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`
+                : 'No end date.'}
           </div>
         </div>
 

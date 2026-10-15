@@ -12,7 +12,7 @@ import { fetchPublicText } from '../util/publicUrl'
 import { isoWeek } from '../util/isoWeek'
 import logger from '../util/loger'
 import config from '../config/config'
-export { groundedUsage } from '../util/groundedUsage'
+export { groundedUsage, groundingFee } from '../util/groundedUsage'
 import type { ICitationRun } from '../types/citationTypes'
 
 export type PageType = 'marketplace' | 'video' | 'own' | 'competitor' | 'article'

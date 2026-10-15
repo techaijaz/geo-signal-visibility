@@ -17,6 +17,7 @@ import {
     textOf,
     isRecentWeek,
     groundedUsage,
+    groundingFee,
     type ICitedPage
 } from '../service/citationService'
 import type { ICitationRun } from '../types/citationTypes'
@@ -209,6 +210,12 @@ const run = async () => {
     assert.equal(isRecentWeek('2026-W39', new Date('2026-10-12T04:00:00Z')), false)
 
     // I4: thinking tokens are billed as output
+    // Google Search grounding: 5,000 searches a month free, then $14 per 1,000 (only the searches past the allowance)
+    assert.equal(groundingFee(0, 3), 0)
+    assert.equal(groundingFee(4999, 1), 0)
+    assert.equal(groundingFee(4999, 3).toFixed(3), '0.028')
+    assert.equal(groundingFee(6000, 2).toFixed(3), '0.028')
+    assert.equal(groundingFee(6000, 0), 0)
     assert.deepEqual(groundedUsage({ promptTokenCount: 8, candidatesTokenCount: 396, thoughtsTokenCount: 120 }), {
         inputTokens: 8,
         outputTokens: 516

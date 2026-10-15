@@ -9,6 +9,7 @@ interface CostLogRecord {
   queryText: string;
   inputTokens?: number;
   outputTokens?: number;
+  searches?: number;
   tokensUsed: number;
   cost: number;
   latencyMs: number;
@@ -164,6 +165,7 @@ export default function AdminCostLogs() {
                     <td style={{ padding: '12px 16px' }}>
                       <span style={{ fontWeight: 600 }}>{log.provider}</span>
                       {log.model && <div style={{ fontSize: '11.5px', color: 'var(--text-dim)' }}>{log.model}</div>}
+                      {!!log.searches && <div style={{ fontSize: '11.5px', color: 'var(--text-dim)' }} title="Google Search queries (billed after 5,000 a month)">{log.searches} Google searches</div>}
                     </td>
                     <td style={{ padding: '12px 16px', color: 'var(--text-dim)', maxWidth: '300px' }}>
                       {log.queryText || '—'}

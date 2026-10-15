@@ -1,6 +1,7 @@
 import { unsubscribeToken, verifyUnsubscribeToken } from '../reportService/weeklyReport'
 import config from '../../config/config'
 import { fullResult } from './helpers'
+import { brandKey } from '../competitorService'
 import type { IFreeCheck, IFreeCheckAnswer } from '../../types/freeCheckTypes'
 import { layout } from '../emailTemplates'
 
@@ -61,7 +62,9 @@ export const reportEmail = (check: IFreeCheck, email: string, consent: boolean) 
         label(`Your ${check.questions.length} questions`) +
         check.questions
             .map((q) => {
-                const others = [...new Set(q.answers.flatMap((a) => a.brands))]
+                // One entry per brand: "Al Rehab" and "Al-Rehab" from two AIs are the same
+                const seen = new Set<string>()
+                const others = q.answers.flatMap((a) => a.brands).filter((n) => !seen.has(brandKey(n)) && !!seen.add(brandKey(n)))
                 const lines = q.answers
                     .map(
                         (a) =>

@@ -218,6 +218,20 @@ const run = async () => {
         ]
     } as IFreeCheck
     assert.ok(reportEmail(many, 'a@b.co', false).html.includes('and 2 more'))
+    // Two spellings of one brand on a question card count once
+    const spelled = {
+        ...check,
+        questions: [
+            {
+                text: 'q',
+                answers: [
+                    { engine: 'ChatGPT', ok: true, named: false, position: null, brands: ['Al-Rehab', 'Ajmal'] },
+                    { engine: 'Gemini', ok: true, named: false, position: null, brands: ['Al Rehab'] }
+                ]
+            }
+        ]
+    } as IFreeCheck
+    assert.ok(reportEmail(spelled, 'a@b.co', false).html.includes('Named instead: Al-Rehab, Ajmal<'))
     const u = new URL(leadUnsubscribeUrl('owner@hasanoud.com'))
     assert.equal(verifyLeadUnsubscribe('owner@hasanoud.com', u.searchParams.get('t')!), true)
     assert.equal(verifyLeadUnsubscribe('other@hasanoud.com', u.searchParams.get('t')!), false)

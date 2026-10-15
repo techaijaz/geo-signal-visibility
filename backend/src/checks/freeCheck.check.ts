@@ -92,6 +92,10 @@ const run = async () => {
         { brandName: 'Hasan Oud', category: 'Fragrances & Perfumes' }
     )
     assert.deepEqual(siteFacts('<title>Glowleaf – Natural skin care</title>', cats), { brandName: 'Glowleaf', category: 'Skincare & Personal Care' })
+    // "Home" in a title is the homepage, not home decor; decor words still count
+    const withHome = [...cats, 'Home, Furniture & Living']
+    assert.equal(siteFacts('<title>BBC Home - Breaking News, World News</title>', withHome).category, '')
+    assert.equal(siteFacts('<title>Home | Glowleaf scented candles</title>', withHome).category, 'Home, Furniture & Living')
     assert.deepEqual(siteFacts('<div id="root"></div>', cats), { brandName: '', category: '' }) // JS shell
     assert.deepEqual(siteFacts('', cats), { brandName: '', category: '' })
     // The title part that matches the domain is the name, whatever its length

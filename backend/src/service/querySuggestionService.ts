@@ -54,8 +54,12 @@ const VERTICAL_RULES: [Vertical, RegExp][] = [
     ['retail', /e-?commerce|retail|\bd2c\b|\bother\b|\bgeneral\b/i]
 ]
 
-// Same rules on free text (a homepage title/description), for the free checker's category guess
-export const verticalOfText = (text: string): Vertical | null => VERTICAL_RULES.find(([, re]) => re.test(text || ''))?.[0] ?? null
+// Same rules on free text (a homepage title/description), for the free checker's category guess.
+// A lone "Home" there is the homepage ("BBC Home"), not home decor, so it is left out
+export const verticalOfText = (text: string): Vertical | null => {
+    const t = (text || '').replace(/\bhome(page)?\b/gi, ' ')
+    return VERTICAL_RULES.find(([, re]) => re.test(t))?.[0] ?? null
+}
 
 export const detectVertical = (category: string): Vertical => {
     const c = (category || '').trim()

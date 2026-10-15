@@ -31,3 +31,7 @@ export async function fetchAiQuerySuggestions(
   const res = await api.post(`/brands/${brandId}/query-suggestions`, { existing });
   return { queries: res.data?.data?.queries || [], message: res.data?.data?.message };
 }
+
+// Tag for a query the user typed: Hinglish if it has a common Hindi word, else English
+export const queryLang = (text: string): 'HI-EN' | 'EN' =>
+  /\b(kaunsa|sasta|accha|hai|ke|liye|kaise)\b/i.test(text) ? 'HI-EN' : 'EN';

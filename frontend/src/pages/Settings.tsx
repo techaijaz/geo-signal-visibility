@@ -4,7 +4,7 @@ import ProductsSettings from '../components/ProductsSettings';
 import api from '../utils/axios';
 import { useAuth } from '../context/AuthContext';
 import { usePlanLimits } from '../hooks/usePlanLimits';
-import { fetchAiQuerySuggestions, fetchQueryTemplates, type SuggestedQuery } from '../utils/queryTemplates';
+import { fetchAiQuerySuggestions, fetchQueryTemplates, queryLang, type SuggestedQuery } from '../utils/queryTemplates';
 
 // Names must match planLimits.allowedModels on the backend
 const TRACKED_AI_MODELS = [
@@ -399,7 +399,7 @@ export default function Settings() {
       return;
     }
 
-    setQueries([...queries, { text: trimmed, enabled: true, lang: 'EN', intent: 'Direct' }]);
+    setQueries([...queries, { text: trimmed, enabled: true, lang: queryLang(trimmed), intent: 'Direct' }]);
     setQueryInput('');
   };
 

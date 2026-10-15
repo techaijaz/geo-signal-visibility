@@ -215,6 +215,8 @@ button{font-family:inherit;cursor:pointer;}
 .header-user-info .name{font-size:13px;font-weight:600;}
 .header-user-info .role{font-size:11px;color:var(--text-faint);}
 .header-user-caret{color:var(--text-faint);font-size:10px;margin-left:2px;}
+/* Phones: the avatar opens the same menu, so the name and role make room for Re-scan */
+@media (max-width:640px){.header-user-info{display:none;}.header-right{gap:8px;}}
 .header-user-menu{
   position:absolute;top:calc(100% + 8px);right:0;background:var(--surface);border:1px solid var(--line);
   border-radius:10px;padding:6px;min-width:180px;display:none;flex-direction:column;

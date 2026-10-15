@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { Fragment, useState, useEffect, useRef } from 'react';
 import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import api from '../utils/axios';
 import { timeAgo } from '../utils/timeAgo';
@@ -20,6 +20,7 @@ interface MentionItem {
   position: number | null;
   sentiment: 'Positive' | 'Neutral' | 'Negative';
   extractedAt: string;
+  rawText?: string;
 }
 
 interface OutletContextType {
@@ -38,13 +39,14 @@ export default function Mentions() {
   const activeBrandId = context?.currentBrand?._id;
   const location = useLocation();
   const navigate = useNavigate();
-  const handoffWatched = useRef(false);
+  const handoffWatched = useRef<string | null>(null);
   const { limits } = usePlanLimits();
   const allowedProviders = limits?.allowedProviders;
 
   const [modelFilters, setModelFilters] = useState<string[]>(DEFAULT_MODEL_FILTERS);
   const [activeModel, setActiveModel] = useState('All models');
   const [mentions, setMentions] = useState<MentionItem[]>([]);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
@@ -162,14 +164,15 @@ export default function Mentions() {
     }, 5000);
   };
 
-  // Header and Settings start a scan, then send the user here to watch it
+  // Header and Settings start a scan, then send the user here to watch it; runs on every navigation,
+  // so a Re-scan clicked while already on this page is watched too
   useEffect(() => {
-    // The ref stops React's dev double-run of effects from starting two polling loops
-    if (handoffWatched.current || !(location.state as { scanStarted?: boolean } | null)?.scanStarted) return;
-    handoffWatched.current = true;
+    // The ref (one per navigation) stops React's dev double-run of effects from starting two polling loops
+    if (handoffWatched.current === location.key || !(location.state as { scanStarted?: boolean } | null)?.scanStarted) return;
+    handoffWatched.current = location.key;
     navigate(location.pathname, { replace: true, state: null });
     fetchMentions(true).then((s) => watchScan(s ?? { lastScannedAt: null, lastScanError: null }));
-  }, []);
+  }, [location.key]);
 
   const getTimeAgo = (dateStr: string) => timeAgo(dateStr) ?? '—';
 
@@ -268,7 +271,14 @@ export default function Mentions() {
             </thead>
             <tbody>
               {mentions.map((row) => (
-                <tr key={row._id}>
+                <Fragment key={row._id}>
+                <tr
+                  onClick={() => row.rawText && setOpenId(openId === row._id ? null : row._id)}
+                  onKeyDown={(e) => e.key === 'Enter' && row.rawText && setOpenId(openId === row._id ? null : row._id)}
+                  tabIndex={row.rawText ? 0 : undefined}
+                  style={{ cursor: row.rawText ? 'pointer' : undefined }}
+                  title={row.rawText ? 'Show the full answer' : undefined}
+                >
                   <td>{row.queryText}</td>
                   <td>{row.model}</td>
                   <td>
@@ -294,6 +304,18 @@ export default function Mentions() {
                   </td>
                   <td className="mono">{getTimeAgo(row.extractedAt)}</td>
                 </tr>
+                {openId === row._id && (
+                  <tr>
+                    <td colSpan={6}>
+                      <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: '360px', overflowY: 'auto', fontSize: '13px', color: 'var(--text-dim)', lineHeight: 1.55 }}>
+                        <strong style={{ color: 'var(--text)' }}>{row.model}'s full answer</strong>
+                        <br />
+                        {row.rawText}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

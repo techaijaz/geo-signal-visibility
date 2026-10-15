@@ -4,6 +4,7 @@ import api from '../utils/axios';
 import { timeAgo } from '../utils/timeAgo';
 import ScanErrorBanner, { type ScanError } from '../components/ScanErrorBanner';
 import ScanProgress from '../components/ScanProgress';
+import { usePlanLimits } from '../hooks/usePlanLimits';
 
 interface ScanState {
   lastScannedAt: string | null;
@@ -37,6 +38,8 @@ export default function Mentions() {
   const location = useLocation();
   const navigate = useNavigate();
   const handoffWatched = useRef(false);
+  const { limits } = usePlanLimits();
+  const allowedProviders = limits?.allowedProviders;
 
   const [modelFilters, setModelFilters] = useState<string[]>(DEFAULT_MODEL_FILTERS);
   const [activeModel, setActiveModel] = useState('All models');
@@ -46,15 +49,16 @@ export default function Mentions() {
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [scanState, setScanState] = useState<ScanState>({ lastScannedAt: null, lastScanError: null });
 
-  // Fetch active AI models dynamically from MongoDB database
+  // Active AI models the plan scans with (same provider rule as the scan)
   useEffect(() => {
+    if (!allowedProviders) return;
     let isMounted = true;
     const fetchDbModels = async () => {
       try {
         const res = await api.get('/ai-models');
-        const dbModels: Array<{ name: string; isActive?: boolean }> = res.data?.data?.models || [];
+        const dbModels: Array<{ name: string; provider: string; isActive?: boolean }> = res.data?.data?.models || [];
         const activeNames = dbModels
-          .filter(m => m.isActive !== false)
+          .filter(m => m.isActive !== false && allowedProviders.includes(m.provider))
           .map(m => m.name);
 
         if (isMounted && activeNames.length > 0) {
@@ -67,7 +71,7 @@ export default function Mentions() {
 
     fetchDbModels();
     return () => { isMounted = false; };
-  }, []);
+  }, [allowedProviders]);
 
   const fetchMentions = async (isMounted = true): Promise<ScanState | null> => {
     setIsLoading(true);

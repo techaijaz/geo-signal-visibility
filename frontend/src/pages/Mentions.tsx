@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { Fragment, useState, useEffect, useRef } from 'react';
 import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import api from '../utils/axios';
 import { timeAgo } from '../utils/timeAgo';
@@ -20,6 +20,7 @@ interface MentionItem {
   position: number | null;
   sentiment: 'Positive' | 'Neutral' | 'Negative';
   extractedAt: string;
+  rawText?: string;
 }
 
 interface OutletContextType {
@@ -45,6 +46,7 @@ export default function Mentions() {
   const [modelFilters, setModelFilters] = useState<string[]>(DEFAULT_MODEL_FILTERS);
   const [activeModel, setActiveModel] = useState('All models');
   const [mentions, setMentions] = useState<MentionItem[]>([]);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
@@ -268,7 +270,14 @@ export default function Mentions() {
             </thead>
             <tbody>
               {mentions.map((row) => (
-                <tr key={row._id}>
+                <Fragment key={row._id}>
+                <tr
+                  onClick={() => row.rawText && setOpenId(openId === row._id ? null : row._id)}
+                  onKeyDown={(e) => e.key === 'Enter' && row.rawText && setOpenId(openId === row._id ? null : row._id)}
+                  tabIndex={row.rawText ? 0 : undefined}
+                  style={{ cursor: row.rawText ? 'pointer' : undefined }}
+                  title={row.rawText ? 'Show the full answer' : undefined}
+                >
                   <td>{row.queryText}</td>
                   <td>{row.model}</td>
                   <td>
@@ -294,6 +303,18 @@ export default function Mentions() {
                   </td>
                   <td className="mono">{getTimeAgo(row.extractedAt)}</td>
                 </tr>
+                {openId === row._id && (
+                  <tr>
+                    <td colSpan={6}>
+                      <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: '360px', overflowY: 'auto', fontSize: '13px', color: 'var(--text-dim)', lineHeight: 1.55 }}>
+                        <strong style={{ color: 'var(--text)' }}>{row.model}'s full answer</strong>
+                        <br />
+                        {row.rawText}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

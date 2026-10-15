@@ -309,7 +309,7 @@ const PRODUCT_VERTICALS: Vertical[] = [
 ]
 
 // "Scented Candles" falls under home, whose list never says candle: lead with questions about the category itself
-const nicheTemplates = (category: string, vertical: Vertical): ISuggestedQuery[] => {
+const nicheTemplates = (category: string, vertical: Exclude<Vertical, 'generic'>): ISuggestedQuery[] => {
     // Broad seeded names ("Home, Furniture & Living") keep their list
     if (!PRODUCT_VERTICALS.includes(vertical) || /[&,]/.test(category)) return []
     const listText = TEMPLATES[vertical].map((t) => t.text.toLowerCase()).join(' ')

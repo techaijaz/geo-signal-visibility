@@ -130,7 +130,7 @@ export default function Mentions() {
     try {
       const res = await api.post(`/brands/${activeBrandId}/mentions/rescan`);
       if (res.data?.data?.status === 'queued') {
-        watchScan(scanState);
+        watchScan(scanState, res.data.data.queuedAt);
       } else {
         const fresh: MentionItem[] = res.data?.data?.mentions || [];
         setMentions(fresh);
@@ -145,16 +145,18 @@ export default function Mentions() {
     }
   };
 
-  // Poll until the scan saves results or records a failure: either timestamp moves past `before`
-  const watchScan = (before: ScanState) => {
+  // Poll until the scan saves results or records a failure. With the server's queuedAt, "done" is a time after it
+  // (a cached scan can finish before the first poll); without it, a time different from `before`
+  const watchScan = (before: ScanState, queuedAt?: string) => {
+    const newer = (t?: string | null, old?: string | null) => !!t && (queuedAt ? new Date(t) >= new Date(queuedAt) : t !== old);
     setIsScanning(true);
     setScanMessage(null);
     let attempts = 0;
     const interval = setInterval(async () => {
       attempts++;
       const now = await fetchMentions(true);
-      const failed = now?.lastScanError && now.lastScanError.at !== before.lastScanError?.at;
-      const done = now?.lastScannedAt && now.lastScannedAt !== before.lastScannedAt;
+      const failed = newer(now?.lastScanError?.at, before.lastScanError?.at);
+      const done = newer(now?.lastScannedAt, before.lastScannedAt);
       if (failed || done || attempts >= 36) {
         clearInterval(interval);
         setIsScanning(false);
@@ -168,10 +170,11 @@ export default function Mentions() {
   // so a Re-scan clicked while already on this page is watched too
   useEffect(() => {
     // The ref (one per navigation) stops React's dev double-run of effects from starting two polling loops
-    if (handoffWatched.current === location.key || !(location.state as { scanStarted?: boolean } | null)?.scanStarted) return;
+    const handoff = location.state as { scanStarted?: boolean; queuedAt?: string } | null;
+    if (handoffWatched.current === location.key || !handoff?.scanStarted) return;
     handoffWatched.current = location.key;
     navigate(location.pathname, { replace: true, state: null });
-    fetchMentions(true).then((s) => watchScan(s ?? { lastScannedAt: null, lastScanError: null }));
+    fetchMentions(true).then((s) => watchScan(s ?? { lastScannedAt: null, lastScanError: null }, handoff.queuedAt));
   }, [location.key]);
 
   const getTimeAgo = (dateStr: string) => timeAgo(dateStr) ?? '—';

@@ -487,8 +487,8 @@ export default function Settings() {
       });
 
       // Start the scan; Mentions shows its progress until it finishes
-      await api.post(`/brands/${selectedBrandId}/mentions/rescan`);
-      navigate('/mentions', { state: { scanStarted: true } });
+      const res = await api.post(`/brands/${selectedBrandId}/mentions/rescan`);
+      navigate('/mentions', { state: { scanStarted: true, queuedAt: res.data?.data?.queuedAt } });
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || 'Failed to run AI query scan.';
       setQueryScanMessage({ type: 'error', text: msg });

@@ -128,28 +128,30 @@ export default function Competitors() {
         <h3>Head-to-head</h3>
         <p className="sub">{summaryText}</p>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Competitor</th>
-              <th>Mention rate</th>
-              <th>Avg. position</th>
-              <th>Trend</th>
-            </tr>
-          </thead>
-          <tbody>
-            {headToHeadList.map((row, idx) => (
-              <tr key={idx}>
-                <td style={{ fontWeight: row.isUserBrand ? 600 : 400 }}>{row.name}</td>
-                <td>{row.mentionRate}</td>
-                <td className="mono">{row.avgPosition}</td>
-                <td className={row.trend.includes('rising') ? 'sent-pos' : 'sent-neu'}>
-                  {row.trend}
-                </td>
+        <div style={{ overflowX: 'auto' }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Competitor</th>
+                <th>Mention rate</th>
+                <th>Avg. position</th>
+                <th>Trend</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {headToHeadList.map((row, idx) => (
+                <tr key={idx}>
+                  <td style={{ fontWeight: row.isUserBrand ? 600 : 400 }}>{row.name}</td>
+                  <td>{row.mentionRate}</td>
+                  <td className="mono">{row.avgPosition}</td>
+                  <td className={row.trend.includes('rising') ? 'sent-pos' : 'sent-neu'}>
+                    {row.trend}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <LostToSection brandId={activeBrandId} brandName={context?.currentBrand?.name} />

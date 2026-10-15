@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 // Run: NODE_ENV=development DATABASE_URL=mongodb://127.0.0.1:1/none npx ts-node --transpile-only src/checks/products.check.ts
 import assert from 'assert'
+import { validateJoiSchema, validationSaveProductsBody } from '../service/validationService'
 import {
     ruleShortName,
     cleanProductList,
@@ -356,6 +357,14 @@ const run = async () => {
     assert.equal(validateAiShortName('Fresh Aromatic', 'VIBE Long Lasting Fresh Aromatic Perfume By Hasan Oud', 'Hasan Oud'), null)
     assert.equal(validateAiShortName('Vibe', 'VIBE Long Lasting Fresh Aromatic Perfume By Hasan Oud', 'Hasan Oud'), 'Vibe')
 
+    // Saving products: plain messages, never Joi's "products[0].url" text
+    const saveError = (p: Record<string, unknown>) =>
+        validateJoiSchema(validationSaveProductsBody, { products: [{ title: 'Silk Oud', shortName: 'Silk Oud', ...p }] }).error
+    assert.equal(saveError({ url: 'not a link' }), 'Product link must be a full web address, like https://yourstore.com/products/silk-oud')
+    assert.equal(saveError({ shortName: 'S' }), 'Product name must be 2 to 60 letters')
+    assert.equal(saveError({ price: -5 }), 'Price must be 0 or more')
+    assert.equal(saveError({ aliases: ['x'] }), 'Other names must be 2 to 60 letters each, up to 3')
+    assert.equal(saveError({}), undefined)
     console.log('products checks: PASS')
     process.exit(0)
 }

@@ -115,16 +115,42 @@ function publicWebsite() {
 const productJoiSchema = Joi.object({
     shopifyId: Joi.string().allow(null).optional(),
     title: Joi.string().trim().max(300).required(),
-    shortName: Joi.string().trim().min(2).max(60).required(),
-    aliases: Joi.array().items(Joi.string().trim().min(2).max(60)).max(3).optional().default([]),
+    shortName: Joi.string()
+        .trim()
+        .min(2)
+        .max(60)
+        .required()
+        .messages({
+            'string.min': 'Product name must be 2 to 60 letters',
+            'string.max': 'Product name must be 2 to 60 letters',
+            'string.empty': 'Product name must be 2 to 60 letters'
+        }),
+    aliases: Joi.array()
+        .items(Joi.string().trim().min(2).max(60))
+        .max(3)
+        .optional()
+        .default([])
+        .messages({
+            'string.min': 'Other names must be 2 to 60 letters each, up to 3',
+            'string.max': 'Other names must be 2 to 60 letters each, up to 3',
+            'array.max': 'Other names must be 2 to 60 letters each, up to 3'
+        }),
     url: Joi.string()
         .uri()
         .allow('')
         .optional()
         .default('')
         .custom((v: string, h) => (v && isPrivateAddress(v) ? h.error('any.invalid') : v))
-        .messages({ 'any.invalid': 'Product link must be a public website address' }),
-    price: Joi.number().min(0).allow(null).optional().default(null),
+        .messages({
+            'any.invalid': 'Product link must be a public website address',
+            'string.uri': 'Product link must be a full web address, like https://yourstore.com/products/silk-oud'
+        }),
+    price: Joi.number()
+        .min(0)
+        .allow(null)
+        .optional()
+        .default(null)
+        .messages({ 'number.min': 'Price must be 0 or more', 'number.base': 'Price must be 0 or more' }),
     image: Joi.string().allow('').optional().default(''),
     productType: Joi.string().allow('').optional().default(''),
     nameEditedByUser: Joi.boolean().optional().default(false)

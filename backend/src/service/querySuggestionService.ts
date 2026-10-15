@@ -54,8 +54,12 @@ const VERTICAL_RULES: [Vertical, RegExp][] = [
     ['retail', /e-?commerce|retail|\bd2c\b|\bother\b|\bgeneral\b/i]
 ]
 
-// Same rules on free text (a homepage title/description), for the free checker's category guess
-export const verticalOfText = (text: string): Vertical | null => VERTICAL_RULES.find(([, re]) => re.test(text || ''))?.[0] ?? null
+// Same rules on free text (a homepage title/description), for the free checker's category guess.
+// A lone "Home" there is the homepage ("BBC Home"), not home decor, so it is left out
+export const verticalOfText = (text: string): Vertical | null => {
+    const t = (text || '').replace(/\bhome(page)?\b/gi, ' ')
+    return VERTICAL_RULES.find(([, re]) => re.test(t))?.[0] ?? null
+}
 
 export const detectVertical = (category: string): Vertical => {
     const c = (category || '').trim()
@@ -290,9 +294,38 @@ const genericTemplates = (category: string): ISuggestedQuery[] => {
     ]
 }
 
+const PRODUCT_VERTICALS: Vertical[] = [
+    'fragrance',
+    'skincare',
+    'beauty',
+    'fashion',
+    'jewellery',
+    'baby',
+    'pet',
+    'wellness',
+    'food',
+    'home',
+    'electronics'
+]
+
+// "Scented Candles" falls under home, whose list never says candle: lead with questions about the category itself
+const nicheTemplates = (category: string, vertical: Exclude<Vertical, 'generic'>): ISuggestedQuery[] => {
+    // Broad seeded names ("Home, Furniture & Living") keep their list
+    if (!PRODUCT_VERTICALS.includes(vertical) || /[&,]/.test(category)) return []
+    const listText = TEMPLATES[vertical].map((t) => t.text.toLowerCase()).join(' ')
+    const words = category.toLowerCase().match(/\p{L}{4,}/gu) || []
+    if (words.some((w) => listText.includes(w.slice(0, 5)))) return []
+    const noun = category.trim().toLowerCase()
+    return [
+        q(`Best ${noun} brands in India`, 'EN', 'Best-of'),
+        q(`1000 ke andar sabse accha ${noun} kaunsa hai`, 'HI-EN', 'Price'),
+        q(`Gift ke liye best ${noun} kaunse hain`, 'HI-EN', 'Occasion')
+    ]
+}
+
 export const templateQueries = (category: string, brandName?: string): ISuggestedQuery[] => {
     const vertical = detectVertical(category)
-    const list = vertical === 'generic' ? genericTemplates(category) : [...TEMPLATES[vertical]]
+    const list = vertical === 'generic' ? genericTemplates(category) : [...nicheTemplates(category, vertical), ...TEMPLATES[vertical]]
     const brand = (brandName || '').trim()
     // One branded question, last, so small plans keep the unbranded discovery questions
     if (brand) list.push(q(`${brand} reviews: original aur value for money hai ya nahi?`, 'HI-EN', 'Direct'))

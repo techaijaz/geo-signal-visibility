@@ -40,6 +40,8 @@ import logger from '../util/loger'
 const API_KEY_CACHE_TTL_MS = 60 * 1000
 const apiKeyCache = new Map<string, { value: string; expiresAt: number }>()
 const resolveApiKey = (provider: string) => databseService.getDecryptedApiKeyUncached(provider)
+// Reports being built, per brand and type: a double click or a second tab shares the one in progress
+const buildingReports = new Map<string, Promise<InstanceType<typeof reportModel>>>()
 
 // One engine's visibility in the latest scan: answers that named the brand out of the questions it was
 // asked in that scan (not the brand's current question list, which may have changed since)
@@ -393,6 +395,18 @@ const databseService = {
         return reportModel.find({ brandId }).select('-data').sort({ createdAt: -1 })
     },
     generateBrandReport: async (brandId: string, type: 'manual run' | 'weekly' = 'manual run') => {
+        const key = `${brandId}:${type}`
+        const inflight = buildingReports.get(key)
+        if (inflight) return inflight
+        const work = databseService.buildBrandReport(brandId, type)
+        buildingReports.set(key, work)
+        try {
+            return await work
+        } finally {
+            buildingReports.delete(key)
+        }
+    },
+    buildBrandReport: async (brandId: string, type: 'manual run' | 'weekly') => {
         const { buildReportData } = await import('./reportService/reportData')
         const data = await buildReportData(brandId)
         const questions = data.questions.length

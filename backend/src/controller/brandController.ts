@@ -18,6 +18,7 @@ import citationRunModel from '../model/citationRunModel'
 import { CITATION_QUESTIONS, citationView } from '../service/citationService'
 import type { ICitationRun } from '../types/citationTypes'
 import { detectVertical, suggestQueries as suggestQueriesWithAi, templateQueries } from '../service/querySuggestionService'
+import { resolvesToPrivate } from '../util/publicUrl'
 
 // AI query suggestions per brand per rolling 24 hours, counted from cost logs so restarts don't reset it
 const AI_SUGGESTIONS_PER_DAY = 10
@@ -67,6 +68,9 @@ export default {
             const { error, value } = validateJoiSchema<ICreateBrandRequestBody>(validationCreateBrandBody, req.body)
             if (error) {
                 return httpError(next, new Error(error), req, 422)
+            }
+            if (await resolvesToPrivate(value.website)) {
+                return httpError(next, new Error('Website must be a public website address'), req, 422)
             }
 
             const org = await ensureUserOrg(authenticatedUser._id.toString(), authenticatedUser.name)
@@ -178,6 +182,9 @@ export default {
             const { error, value } = validateJoiSchema<IUpdateBrandRequestBody>(validationUpdateBrandBody, req.body)
             if (error) {
                 return httpError(next, new Error(error), req, 422)
+            }
+            if (value.website && (await resolvesToPrivate(value.website))) {
+                return httpError(next, new Error('Website must be a public website address'), req, 422)
             }
 
             const org = await ensureUserOrg(authenticatedUser._id.toString(), authenticatedUser.name)

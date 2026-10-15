@@ -55,6 +55,19 @@ export const isPrivateAddress = (url: string): boolean => {
     }
 }
 
+// For saving a brand website: true when the name resolves inside our network ("localtest.me" is 127.0.0.1).
+// A name that does not resolve (yet) is allowed; fetching it later fails on its own
+export const resolvesToPrivate = async (website: string): Promise<boolean> => {
+    try {
+        const host = new URL(/^https?:\/\//i.test(website) ? website : `https://${website}`).hostname.replace(/^\[|\]$/g, '')
+        if (net.isIP(host)) return isBlockedIp(host)
+        const addresses = await dns.promises.lookup(host, { all: true })
+        return addresses.some((a) => isBlockedIp(a.address))
+    } catch {
+        return false
+    }
+}
+
 export const assertPublicUrl = async (url: string): Promise<void> => {
     let parsed: URL
     try {

@@ -36,7 +36,7 @@ export default function ProductsSettings({ brandId }: { brandId?: string }) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [review, setReview] = useState<Product[]>([]);
   const [editing, setEditing] = useState<number | null>(null);
-  const [draft, setDraft] = useState({ shortName: '', aliases: '' });
+  const [draft, setDraft] = useState({ shortName: '', aliases: '', price: '' });
   const [manual, setManual] = useState<{ open: boolean; shortName: string; url: string; price: string }>({ open: false, shortName: '', url: '', price: '' });
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -174,7 +174,8 @@ export default function ProductsSettings({ brandId }: { brandId?: string }) {
     const shortName = draft.shortName.trim();
     if (shortName.length < 2) { setError('Write the product name (at least 2 letters).'); return; }
     const aliases = draft.aliases.split(',').map((a) => a.trim()).filter((a) => a.length >= 2).slice(0, 3);
-    const next = saved.map((p, j) => (j === i ? { ...p, shortName, aliases, nameEditedByUser: true } : p));
+    const price = parseFloat(draft.price);
+    const next = saved.map((p, j) => (j === i ? { ...p, shortName, aliases, price: isNaN(price) ? null : price, nameEditedByUser: true } : p));
     if (await save(next)) setEditing(null);
   };
 
@@ -216,6 +217,9 @@ export default function ProductsSettings({ brandId }: { brandId?: string }) {
                 <input value={manual.price} inputMode="decimal" onChange={(e) => setManual({ ...manual, price: e.target.value })} />
               </div>
               <button type="button" className="btn btn-primary" onClick={addManual} disabled={!!busy || saved.length >= maxProducts}>Add</button>
+              {saved.length >= maxProducts && (
+                <p className="sub" style={{ flexBasis: '100%', margin: 0 }}>Your plan tracks up to {maxProducts} products. Remove one, or upgrade to add more.</p>
+              )}
             </div>
           )}
 
@@ -227,6 +231,7 @@ export default function ProductsSettings({ brandId }: { brandId?: string }) {
                 <span style={{ ...text, display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   <input value={draft.shortName} onChange={(e) => setDraft({ ...draft, shortName: e.target.value })} style={{ flex: '1 1 140px' }} aria-label="Short name" />
                   <input value={draft.aliases} placeholder="Other names, comma separated" onChange={(e) => setDraft({ ...draft, aliases: e.target.value })} style={{ flex: '2 1 180px' }} aria-label="Other names" />
+                  <input value={draft.price} placeholder="Price ₹" inputMode="decimal" onChange={(e) => setDraft({ ...draft, price: e.target.value })} style={{ flex: '0 1 90px' }} aria-label="Price in rupees" />
                 </span>
               ) : (
                 <span style={text}>
@@ -243,7 +248,7 @@ export default function ProductsSettings({ brandId }: { brandId?: string }) {
                 </span>
               ) : (
                 <span style={{ display: 'flex', gap: '6px' }}>
-                  <button type="button" className="btn btn-ghost" onClick={() => { setEditing(i); setDraft({ shortName: p.shortName, aliases: p.aliases.join(', ') }); }}>Edit</button>
+                  <button type="button" className="btn btn-ghost" onClick={() => { setEditing(i); setDraft({ shortName: p.shortName, aliases: p.aliases.join(', '), price: p.price ? String(p.price) : '' }); }}>Edit</button>
                   <button type="button" className="btn btn-ghost" onClick={() => save(saved.filter((_, j) => j !== i))} disabled={!!busy}>Remove</button>
                 </span>
               )}

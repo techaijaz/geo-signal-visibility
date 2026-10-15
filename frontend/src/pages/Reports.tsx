@@ -66,7 +66,9 @@ const Reports: React.FC = () => {
     try {
       const res = await api.post(`/brands/${activeBrandId}/reports/generate`);
       if (res.data?.data?.report) {
-        setReports((prev) => [res.data.data.report, ...prev]);
+        const report = res.data.data.report;
+        // A double click gets the same report back twice: list it once
+        setReports((prev) => [report, ...prev.filter((r) => r._id !== report._id)]);
       }
     } catch (err) {
       console.error('Failed to generate report', err);

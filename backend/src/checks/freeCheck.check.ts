@@ -92,6 +92,10 @@ const run = async () => {
         { brandName: 'Hasan Oud', category: 'Fragrances & Perfumes' }
     )
     assert.deepEqual(siteFacts('<title>Glowleaf – Natural skin care</title>', cats), { brandName: 'Glowleaf', category: 'Skincare & Personal Care' })
+    // "Home" in a title is the homepage, not home decor; decor words still count
+    const withHome = [...cats, 'Home, Furniture & Living']
+    assert.equal(siteFacts('<title>BBC Home - Breaking News, World News</title>', withHome).category, '')
+    assert.equal(siteFacts('<title>Home | Glowleaf scented candles</title>', withHome).category, 'Home, Furniture & Living')
     assert.deepEqual(siteFacts('<div id="root"></div>', cats), { brandName: '', category: '' }) // JS shell
     assert.deepEqual(siteFacts('', cats), { brandName: '', category: '' })
     // The title part that matches the domain is the name, whatever its length
@@ -218,6 +222,20 @@ const run = async () => {
         ]
     } as IFreeCheck
     assert.ok(reportEmail(many, 'a@b.co', false).html.includes('and 2 more'))
+    // Two spellings of one brand on a question card count once
+    const spelled = {
+        ...check,
+        questions: [
+            {
+                text: 'q',
+                answers: [
+                    { engine: 'ChatGPT', ok: true, named: false, position: null, brands: ['Al-Rehab', 'Ajmal'] },
+                    { engine: 'Gemini', ok: true, named: false, position: null, brands: ['Al Rehab'] }
+                ]
+            }
+        ]
+    } as IFreeCheck
+    assert.ok(reportEmail(spelled, 'a@b.co', false).html.includes('Named instead: Al-Rehab, Ajmal<'))
     const u = new URL(leadUnsubscribeUrl('owner@hasanoud.com'))
     assert.equal(verifyLeadUnsubscribe('owner@hasanoud.com', u.searchParams.get('t')!), true)
     assert.equal(verifyLeadUnsubscribe('other@hasanoud.com', u.searchParams.get('t')!), false)

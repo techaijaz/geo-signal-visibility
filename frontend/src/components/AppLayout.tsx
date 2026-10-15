@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation, Navigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -11,6 +11,11 @@ export default function AppLayout() {
   const [loadingBrands, setLoadingBrands] = useState(true);
   const [shouldRedirectToOnboarding, setShouldRedirectToOnboarding] = useState(false);
   const location = useLocation();
+
+  // A page that sees a newer scan time passes it up, so the header's "Last scanned" follows without a reload
+  const setScannedAt = useCallback((brandId: string, at: string) => {
+    setBrands((prev) => prev.map((b) => (b._id === brandId && b.lastScannedAt !== at ? { ...b, lastScannedAt: at } : b)));
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -125,7 +130,7 @@ export default function AppLayout() {
         />
 
         {/* Page Content */}
-        <Outlet context={{ currentBrand, brands, setCurrentBrand }} />
+        <Outlet context={{ currentBrand, brands, setCurrentBrand, setScannedAt }} />
 
         {/* Footer Component */}
         <Footer />

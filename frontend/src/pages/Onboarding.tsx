@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import api from '../utils/axios';
 import { useAuth } from '../context/AuthContext';
 import { usePlanLimits } from '../hooks/usePlanLimits';
-import { fetchQueryTemplates, toQueryItems, type QueryItem } from '../utils/queryTemplates';
+import { fetchQueryTemplates, queryLang, toQueryItems, type QueryItem } from '../utils/queryTemplates';
 import { clearFreeCheck, loadFreeCheck, type FreeCheckHandoff } from '../utils/freeCheckHandoff';
 
 const FALLBACK_CATEGORIES = [
@@ -303,14 +303,12 @@ export default function Onboarding() {
       return;
     }
 
-    const isHinglish = /\b(kaunsa|sasta|accha|hai|ke|liye|kaise)\b/i.test(trimmed);
-
     setQueries([
       ...queries,
       {
         id: `q-${Date.now()}`,
         text: trimmed,
-        lang: isHinglish ? 'HI-EN' : 'EN',
+        lang: queryLang(trimmed),
         intent: 'Direct',
         enabled: true,
       },

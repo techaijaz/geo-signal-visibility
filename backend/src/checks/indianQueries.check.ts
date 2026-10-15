@@ -93,6 +93,14 @@ const texts = (qs: { text: string }[]) => qs.map((q) => q.text)
             `no Hinglish in ${c}`
         )
     }
+    // A narrow product category the vertical's list never names gets its own questions first
+    const candles = texts(templateQueries('Scented Candles')).slice(0, 3)
+    assert.ok(
+        candles.every((t) => t.toLowerCase().includes('scented candles')),
+        candles.join(' / ')
+    )
+    // Broad seeded categories keep their list as it was
+    for (const c of categories.slice(0, -1)) assert.ok(!texts(templateQueries(c))[0].includes(c.toLowerCase()), c)
     // Generic list uses the category name
     assert.ok(texts(templateQueries('Logistics & Supply Chain')).some((t) => t.includes('logistics & supply chain')))
     // Non-D2C presets still come back

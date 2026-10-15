@@ -7,6 +7,7 @@ interface PlanLimits {
   maxCompetitors?: number;
   maxProducts?: number;
   allowedModels: string[];
+  allowedProviders: string[];
   allowedLanguages: string[];
   features: {
     multiBrand?: boolean;

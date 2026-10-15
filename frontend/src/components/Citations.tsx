@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import api from '../utils/axios';
 
 // Where AI reads (feature #9): the pages Gemini with Google Search cites for the brand's questions, and the
@@ -21,7 +21,7 @@ interface Citations {
 }
 
 const PAGE = 20;
-const TYPE_LABEL: Record<PageType, string> = { article: 'Article', video: 'Video', marketplace: 'Marketplace', own: 'Your site', competitor: 'Competitor site' };
+const TYPE_LABEL: Record<PageType, string> = { article: 'Article', video: 'Video', marketplace: 'Store / marketplace', own: 'Your site', competitor: 'Competitor site' };
 const small = { fontSize: '13px', color: 'var(--text-faint)' } as const;
 const day = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 const label = (r: Row) => r.title || r.domain;
@@ -44,6 +44,13 @@ export function CitationsSection({ brandId }: { brandId?: string }) {
   const { data, error } = useCitations(brandId);
   const [shown, setShown] = useState(PAGE);
   const [open, setOpen] = useState<string | null>(null);
+  const { hash } = useLocation();
+  const loaded = !!data;
+
+  // Overview's "See all" links here; scroll once the section has its content
+  useEffect(() => {
+    if (loaded && hash === '#where-ai-reads') document.getElementById('where-ai-reads')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [loaded, hash]);
 
   const body = () => {
     if (error) return <p style={small}>Couldn't load where AI reads right now.</p>;
@@ -80,7 +87,13 @@ export function CitationsSection({ brandId }: { brandId?: string }) {
                 <tbody>
                   {data.outreach.slice(0, shown).map((r) => (
                     <Fragment key={r.url}>
-                      <tr onClick={() => setOpen(open === r.url ? null : r.url)} style={{ cursor: 'pointer' }}>
+                      <tr
+                        onClick={() => setOpen(open === r.url ? null : r.url)}
+                        onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && setOpen(open === r.url ? null : r.url)}
+                        tabIndex={0}
+                        aria-expanded={open === r.url}
+                        style={{ cursor: 'pointer' }}
+                      >
                         <td style={{ overflowWrap: 'anywhere' }}>
                           <a href={r.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>{label(r)}</a>
                           {r.isNew && <span style={{ color: 'var(--good)', fontSize: '12px', fontWeight: 700 }}> NEW</span>}
@@ -125,7 +138,7 @@ export function CitationsSection({ brandId }: { brandId?: string }) {
   };
 
   return (
-    <div className="panel">
+    <div className="panel" id="where-ai-reads">
       <h3>Where AI reads</h3>
       {body()}
     </div>
@@ -143,7 +156,7 @@ export function CitationsCard({ brandId }: { brandId?: string }) {
           <a href={r.url} target="_blank" rel="noopener noreferrer">{label(r)}</a> <span style={small}>· names {r.brands.join(', ')}</span>
         </div>
       ))}
-      <div style={{ textAlign: 'right', marginTop: '10px', fontSize: '13px' }}><Link to="/competitors">See all →</Link></div>
+      <div style={{ textAlign: 'right', marginTop: '10px', fontSize: '13px' }}><Link to="/competitors#where-ai-reads">See all →</Link></div>
     </div>
   );
 }

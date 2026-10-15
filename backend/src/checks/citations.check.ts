@@ -69,6 +69,11 @@ const run = async () => {
     assert.equal(pageType('https://shop.hasanoud.com/x', 'hasanoud.com', []), 'own')
     assert.equal(pageType('https://in.ajmal.com/products/x', own, ['https://www.ajmal.com']), 'competitor')
     assert.equal(pageType('https://lbb.in/all/best-attars', own, []), 'article')
+    // Another store's shop pages are a place to be stocked, not an article
+    assert.equal(pageType('https://www.perfumeshop.in/collections/attar', own, []), 'marketplace')
+    assert.equal(pageType('https://scentstore.com/products/oud-attar', own, []), 'marketplace')
+    assert.equal(pageType('https://scentstore.com/product-category/attars/', own, []), 'marketplace')
+    assert.equal(pageType('https://blog.example.com/best-attars-collection-2026', own, []), 'article')
 
     // Brand matching on page text: whole names, aliases, no-space forms
     const names = [{ name: 'Adil Qadri' }, { name: 'Ajmal', aliases: ['Ajmal Perfumes'] }, { name: 'Glow' }]

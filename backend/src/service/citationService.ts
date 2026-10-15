@@ -67,6 +67,14 @@ export const domainOf = (url: string): string => {
     }
 }
 
+const pathOf = (url: string): string => {
+    try {
+        return new URL(url.includes('://') ? url : `https://${url}`).pathname
+    } catch {
+        return ''
+    }
+}
+
 // A "website" on a shared platform (an Instagram page, an Amazon store, a Linktree) must not claim the whole platform
 const PLATFORMS = ['instagram.com', 'facebook.com', 'linktr.ee', 'wa.me', 'twitter.com', 'x.com', 'linkedin.com']
 const isPlatform = (d: string) =>
@@ -93,6 +101,8 @@ export const pageType = (url: string, ownSite: string, competitorSites: string[]
     if (competitorSites.some((s) => sameSite(domain, s)) || namedSite(domain, competitorNames)) return 'competitor'
     if (VIDEO.some((v) => domain === v || domain.endsWith(`.${v}`))) return 'video'
     if (domain.split('.').some((label) => MARKETPLACES.includes(label))) return 'marketplace'
+    // Another store's shop pages (Shopify /collections/, /products/, WooCommerce /product-category/): a place to be stocked
+    if (/^\/(collections|products|product|product-category|shop)\//i.test(pathOf(url))) return 'marketplace'
     return 'article'
 }
 

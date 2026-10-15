@@ -39,7 +39,7 @@ export default function Mentions() {
   const activeBrandId = context?.currentBrand?._id;
   const location = useLocation();
   const navigate = useNavigate();
-  const handoffWatched = useRef(false);
+  const handoffWatched = useRef<string | null>(null);
   const { limits } = usePlanLimits();
   const allowedProviders = limits?.allowedProviders;
 
@@ -164,14 +164,15 @@ export default function Mentions() {
     }, 5000);
   };
 
-  // Header and Settings start a scan, then send the user here to watch it
+  // Header and Settings start a scan, then send the user here to watch it; runs on every navigation,
+  // so a Re-scan clicked while already on this page is watched too
   useEffect(() => {
-    // The ref stops React's dev double-run of effects from starting two polling loops
-    if (handoffWatched.current || !(location.state as { scanStarted?: boolean } | null)?.scanStarted) return;
-    handoffWatched.current = true;
+    // The ref (one per navigation) stops React's dev double-run of effects from starting two polling loops
+    if (handoffWatched.current === location.key || !(location.state as { scanStarted?: boolean } | null)?.scanStarted) return;
+    handoffWatched.current = location.key;
     navigate(location.pathname, { replace: true, state: null });
     fetchMentions(true).then((s) => watchScan(s ?? { lastScannedAt: null, lastScanError: null }));
-  }, []);
+  }, [location.key]);
 
   const getTimeAgo = (dateStr: string) => timeAgo(dateStr) ?? '—';
 

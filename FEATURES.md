@@ -59,7 +59,7 @@ Signal AI Indian D2C / Shopify brands ko dikhata hai ki ChatGPT, Gemini, Claude,
 
 ### 10. Account, workspace, admin
 - Signup/login, password reset, profile, multi-brand (Free/Starter 1, Growth 3, Agency 25), brand settings, onboarding.
-- **Admin portal:** users aur plans, billing aur seller details, AI models (price per 1k tokens, on/off), API keys (encrypted), categories, cost logs, free checker.
+- **Admin portal:** users aur plans, billing aur seller details, AI models (price per 1k tokens, on/off), API keys (encrypted), categories, free checker, cost logs (har AI call: purpose, model, tokens in/out, Google Search grounding fee, pages me).
 - **Infra:** staging + production ek VPS pe, GitHub Actions se images aur deploy (rollback ke saath), har deploy se pehle Mongo backup.
 
 ---
@@ -77,8 +77,6 @@ Signal AI Indian D2C / Shopify brands ko dikhata hai ki ChatGPT, Gemini, Claude,
 | — | **Generate fix: llms.txt** | Brand ke data se llms.txt ka draft (FAQ aur comparison ban chuke hain). | Chhota |
 
 ### Chhote kaam jo baaki hain
-- Admin Cost Logs me purpose / model / token columns aur pagination.
-- Cost log me Google Search grounding ka kharcha (5,000/mahina free ke baad $14 per 1,000).
 - Razorpay live keys + live webhook secret (KYC ke baad).
 
 ### Jaan-boojh ke nahi banayenge

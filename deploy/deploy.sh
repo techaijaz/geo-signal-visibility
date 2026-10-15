@@ -69,8 +69,13 @@ for s in "${services[@]}"; do
         log "warning: no rollback image for $s"
 done
 
-log "backing up MongoDB"
-deploy/backup-mongo.sh
+# A first deploy has no running MongoDB yet (nothing to back up); compose up below starts it
+if [ -n "$(docker compose ps -q --status running mongo 2>/dev/null)" ]; then
+    log "backing up MongoDB"
+    deploy/backup-mongo.sh
+else
+    log "MongoDB is not running yet, so there is nothing to back up"
+fi
 
 git checkout -q --detach "$sha"
 export IMAGE_TAG="$sha"

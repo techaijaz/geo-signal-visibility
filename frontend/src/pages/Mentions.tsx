@@ -26,6 +26,7 @@ interface OutletContextType {
   currentBrand: { _id?: string; name: string; role: string };
   brands: Array<{ _id?: string; name: string; role?: string }>;
   setCurrentBrand: (brand: { _id?: string; name: string; role: string }) => void;
+  setScannedAt?: (brandId: string, at: string) => void;
 }
 
 const DEFAULT_MODEL_FILTERS = ['All models'];
@@ -98,6 +99,7 @@ export default function Mentions() {
       if (isMounted) {
         setMentions(data);
         setScanState(state);
+        if (state.lastScannedAt) context?.setScannedAt?.(activeBrandId, state.lastScannedAt);
       }
       return state;
     } catch (err) {

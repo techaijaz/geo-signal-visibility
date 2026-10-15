@@ -498,8 +498,8 @@ export default function Settings() {
   };
 
   // Save Brand settings
-  const handleSaveBrand = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveBrand = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setBrandMessage(null);
     if (!selectedBrandId) {
       setBrandMessage({ type: 'error', text: 'No brand selected to update.' });
@@ -527,6 +527,23 @@ export default function Settings() {
       setIsSavingBrand(false);
     }
   };
+
+  // Competitors and queries change only on Save changes, which sits in the profile panel above;
+  // the panels below say so when their list differs from the saved one
+  const savedBrand = brands.find((b) => b._id === selectedBrandId);
+  const competitorsKey = (list: Competitor[]) => JSON.stringify(list.map((c) => [c.name, c.website || '']));
+  const queriesKey = (list: QueryItem[]) => JSON.stringify(list.map((q) => [q.text, q.enabled !== false]));
+  const competitorsUnsaved = !!savedBrand && competitorsKey(competitors) !== competitorsKey(savedBrand.competitors || []);
+  const queriesUnsaved = !!savedBrand && queriesKey(queries) !== queriesKey(savedBrand.queries || []);
+  const unsavedNote = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginTop: '12px', fontSize: '13px', color: 'var(--amber)' }}>
+      <span>Unsaved changes. They apply after you save.</span>
+      <button type="button" className="btn btn-primary" onClick={() => handleSaveBrand()} disabled={isSavingBrand}>
+        {isSavingBrand ? 'Saving changes...' : 'Save changes'}
+      </button>
+      {brandMessage?.type === 'error' && <span style={{ color: '#ef4444' }}>{brandMessage.text}</span>}
+    </div>
+  );
 
   // Delete Brand
   const handleDeleteBrand = async () => {
@@ -971,6 +988,7 @@ export default function Settings() {
                 {competitorError}
               </p>
             )}
+            {competitorsUnsaved && unsavedNote}
           </div>
 
           {/* TRACKED QUERIES PANEL */}
@@ -1172,6 +1190,7 @@ export default function Settings() {
                 {queryError}
               </p>
             )}
+            {queriesUnsaved && unsavedNote}
           </div>
 
           <ProductsSettings brandId={selectedBrandId} key={selectedBrandId} />

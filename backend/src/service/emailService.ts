@@ -13,6 +13,8 @@ export interface IEmailOptions {
     html?: string
     attachments?: IEmailAttachment[]
     headers?: Record<string, string>
+    cc?: string[]
+    replyTo?: string
 }
 
 const plainToHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>')
@@ -62,6 +64,8 @@ export default {
                     text,
                     html,
                     headers: options.headers,
+                    ...(options.cc?.length ? { cc: options.cc } : {}),
+                    ...(options.replyTo ? { replyTo: options.replyTo } : {}),
                     attachments: options.attachments?.map((a) => ({ filename: a.filename, content: a.content }))
                 })
                 if (result.error) {
@@ -81,6 +85,8 @@ export default {
                     text,
                     html,
                     headers: options.headers,
+                    cc: options.cc?.join(','),
+                    replyTo: options.replyTo,
                     attachments: options.attachments
                 })
                 loger.info('EMAIL_SERVICE: Sent via SMTP', { meta: { messageId: info.messageId, to } })

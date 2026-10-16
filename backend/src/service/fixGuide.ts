@@ -1,4 +1,6 @@
+import mongoose from 'mongoose'
 import auditModel from '../model/auditModel'
+import developerSendModel from '../model/developerSendModel'
 
 // Fix guide: for every kind of task the app gives a founder, who usually does it, plain steps for a Shopify
 // store and for other sites, and a note for a developer. Written by us, never by an AI, so menu names are right.
@@ -429,7 +431,12 @@ export const guideContext = async (
 ) => {
     const fromProducts = (brand.products || []).some((p) => !!p.shopifyId)
     const audit = fromProducts ? null : await auditModel.findOne({ brandId: brand._id }).select('isShopify').lean()
-    return { isShopify: fromProducts || !!audit?.isShopify, developerEmail: brand.developerEmail || '', guides: guidesFor(kinds) }
+    return {
+        isShopify: fromProducts || !!audit?.isShopify,
+        developerEmail: brand.developerEmail || '',
+        guides: guidesFor(kinds),
+        lastSent: await lastSends(String(brand._id))
+    }
 }
 
 type KindedCheck = { key: string; pass?: boolean | null; kind?: string }
@@ -456,4 +463,15 @@ export const withFeedKinds = (
     for (const p of feed?.products || []) for (const c of p.checks || []) if (c.pass === false) kinds.push((c.kind = kindForCheck('feed', c.key)))
     for (const s of feed?.summary || []) kinds.push((s.kind = kindForCheck('feed', s.key)))
     return kinds
+}
+
+// The latest "Send to developer" per task of a brand, keyed like developerTask.taskKey
+export const lastSends = async (brandId: string): Promise<Record<string, { to: string; at: Date }>> => {
+    if (!mongoose.isValidObjectId(brandId)) return {}
+    const rows = await developerSendModel.aggregate([
+        { $match: { brandId: new mongoose.Types.ObjectId(brandId) } },
+        { $sort: { sentAt: -1 } },
+        { $group: { _id: '$taskKey', to: { $first: '$to' }, at: { $first: '$sentAt' } } }
+    ])
+    return Object.fromEntries(rows.map((r) => [r._id as string, { to: r.to as string, at: r.at as Date }]))
 }

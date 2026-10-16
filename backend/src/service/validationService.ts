@@ -189,3 +189,17 @@ export const validationBillingSeller = Joi.object({
         .pattern(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/)
         .messages({ 'string.pattern.base': 'GSTIN must be 15 characters, like 09ABCDE1234F1Z5' })
 })
+
+export const validationSendToDeveloperBody = Joi.object({
+    task: Joi.alternatives()
+        .try(
+            Joi.object({ type: Joi.string().valid('recommendation', 'fix').required(), id: Joi.string().required() }),
+            Joi.object({
+                type: Joi.string().valid('store-audit', 'collection', 'ai-view', 'feed').required(),
+                key: Joi.string().max(40).required(),
+                url: Joi.string().uri().max(500).optional()
+            })
+        )
+        .required(),
+    developerEmail: Joi.string().trim().max(200).optional()
+})

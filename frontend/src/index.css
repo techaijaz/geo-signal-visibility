@@ -696,3 +696,14 @@ tbody tr:last-child td{border-bottom:none;}
 /* Input + button rows (Settings competitors and queries): the input shrinks, the button never leaves the panel */
 .add-row input{flex:1;min-width:0;}
 .add-row .btn{flex-shrink:0;}
+
+/* Fix guide: who does it, steps, send to developer */
+.fix-guide{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
+.fix-guide-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.fix-guide-row input{flex:1 1 200px;min-width:0;}
+.fix-guide-who{font-size:12px;font-weight:700;padding:3px 10px;border-radius:12px;}
+.fix-guide-who.you{background:rgba(74,222,128,.15);color:var(--good);}
+.fix-guide-who.developer{background:rgba(245,158,11,.15);color:var(--amber);}
+.fix-guide-steps{margin:0;padding-left:20px;font-size:13px;line-height:1.6;color:var(--text-dim);overflow-wrap:anywhere;}
+.fix-guide-msg{font-size:12.5px;color:var(--text-dim);}
+.fix-guide.compact .btn{padding:4px 10px;font-size:12px;}

@@ -4,6 +4,8 @@ import api from '../utils/axios';
 import ScanProgress from '../components/ScanProgress';
 import { usePlanLimits } from '../hooks/usePlanLimits';
 import { FixImpactSection } from '../components/FixImpact';
+import FixGuide from '../components/FixGuide';
+import type { GuideContext } from '../utils/fixGuide';
 
 interface RecommendationItem {
   _id: string;
@@ -14,6 +16,7 @@ interface RecommendationItem {
   reasoning?: string;
   snippet?: string;
   isCompleted: boolean;
+  kind?: string | null;
 }
 
 interface OutletContextType {
@@ -31,6 +34,9 @@ const Recommendations: React.FC = () => {
   const { limits, plan, loading: planLoading } = usePlanLimits();
 
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
+  const [guideCtx, setGuideCtx] = useState<GuideContext | null>(null);
+  // Steps, platform and developer email come with every recommendations response
+  const readGuideCtx = (d: any) => d?.guides && setGuideCtx({ guides: d.guides, isShopify: !!d.isShopify, developerEmail: d.developerEmail || '', lastSent: d.lastSent || {} });
   const [isLoading, setIsLoading] = useState(true);
   const [isRescanning, setIsRescanning] = useState(false);
   const [openSnippets, setOpenSnippets] = useState<Record<string, boolean>>({});
@@ -56,6 +62,7 @@ const Recommendations: React.FC = () => {
         const res = await api.get(`/brands/${activeBrandId}/recommendations`);
         if (isMounted && res.data?.data?.recommendations) {
           setRecommendations(res.data.data.recommendations);
+          readGuideCtx(res.data.data);
         }
       } catch (err) {
         console.error('Failed to fetch recommendations from backend', err);
@@ -113,6 +120,7 @@ const Recommendations: React.FC = () => {
             const fresh = pollRes.data?.data?.recommendations;
             if (fresh) {
               setRecommendations(fresh);
+              readGuideCtx(pollRes.data.data);
               done = fresh.length > 0 && fresh.map((r: { _id: string }) => r._id).join() !== before;
             }
           } catch (e) {
@@ -125,6 +133,7 @@ const Recommendations: React.FC = () => {
         }, 5000);
       } else if (res.data?.data?.recommendations) {
         setRecommendations(res.data.data.recommendations);
+        readGuideCtx(res.data.data);
         setIsRescanning(false);
       }
     } catch (err: any) {
@@ -369,6 +378,16 @@ const Recommendations: React.FC = () => {
           </div>
         )}
 
+        {/* How much the founder can do alone; the rest goes to the developer */}
+        {guideCtx && recommendations.length > 0 && (() => {
+          const you = recommendations.filter((r) => guideCtx.guides[r.kind || '']?.who === 'you').length;
+          return (
+            <p className="sub" style={{ margin: '0 0 12px' }}>
+              {recommendations.length} tasks: {you} you can do, {recommendations.length - you} need a developer
+            </p>
+          );
+        })()}
+
         {/* Recommendation Cards List */}
         {filteredRecommendations.length > 0 ? (
           filteredRecommendations.map((rec) => {
@@ -398,6 +417,18 @@ const Recommendations: React.FC = () => {
                     <span className="rec-tag rec-effort">{rec.effort}</span>
                     <span className={`rec-tag ${getImpactClass(rec.impact)}`}>{rec.impact}</span>
                   </div>
+
+                  {guideCtx && activeBrandId && (
+                    <FixGuide
+                      brandId={activeBrandId}
+                      task={{ type: 'recommendation', id: rec._id }}
+                      kind={rec.kind}
+                      ctx={guideCtx}
+                      what={rec.text}
+                      code={rec.snippet}
+                      onEmailSaved={(email) => setGuideCtx((c) => (c ? { ...c, developerEmail: email } : c))}
+                    />
+                  )}
 
                   {/faq|comparison|\bvs\b|versus/i.test(rec.text) && (
                     <div className="rec-actions">

@@ -418,7 +418,7 @@ const Fixes: React.FC = () => {
           {shown.outputs && guideCtx && brandId && (
             <>
               <h4 style={{ margin: '16px 0 4px', fontSize: '14px' }}>How to add this to your store</h4>
-              <FixGuide brandId={brandId} ctx={guideCtx} kind={shown.guideKind}
+              <FixGuide key={shown._id} brandId={brandId} ctx={guideCtx} kind={shown.guideKind}
                 task={{ type: 'fix', id: shown._id }}
                 what={shown.title || (shown.type === 'faq' ? 'FAQ page' : 'Comparison page')}
                 code={[shown.outputs.html, shown.outputs.jsonLd].filter(Boolean).join('\n\n')}

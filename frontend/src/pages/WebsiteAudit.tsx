@@ -4,6 +4,7 @@ import api from '../utils/axios';
 import ScanProgress from '../components/ScanProgress';
 import AiViewPanel, { type AiView } from '../components/AiViewPanel';
 import StoreAuditPanel, { type StoreAudit } from '../components/StoreAuditPanel';
+import type { GuideContext } from '../utils/fixGuide';
 
 interface AuditGridItem {
   name: string;
@@ -127,6 +128,7 @@ export default function WebsiteAudit() {
   const activeBrandId = context?.currentBrand?._id;
 
   const [auditData, setAuditData] = useState<AuditData | null>(null);
+  const [guideCtx, setGuideCtx] = useState<GuideContext | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRescanning, setIsRescanning] = useState(false);
   const [websiteUrl, setWebsiteUrl] = useState<string>('');
@@ -146,6 +148,8 @@ export default function WebsiteAudit() {
         if (isMounted && res.data?.data) {
           setAuditData(res.data.data.audit);
           setWebsiteUrl(res.data.data.website || '');
+          const d = res.data.data;
+          if (d.guides) setGuideCtx({ guides: d.guides, isShopify: !!d.isShopify, developerEmail: d.developerEmail || '', lastSent: d.lastSent || {} });
         }
       } catch (err) {
         console.error('Failed to fetch website audit data', err);
@@ -361,9 +365,11 @@ export default function WebsiteAudit() {
         brandId={activeBrandId}
         initial={productUrl ? null : auditData?.aiView}
         productUrl={productUrl || undefined}
+        ctx={guideCtx}
+        onEmailSaved={(email) => setGuideCtx((g) => (g ? { ...g, developerEmail: email } : g))}
       />
 
-      <StoreAuditPanel key={`store-${activeBrandId}-${auditData?.lastAuditedAt ?? ''}`} brandId={activeBrandId} initial={auditData?.storeAudit} />
+      <StoreAuditPanel key={`store-${activeBrandId}-${auditData?.lastAuditedAt ?? ''}`} brandId={activeBrandId} initial={auditData?.storeAudit} ctx={guideCtx} onEmailSaved={(email) => setGuideCtx((g) => (g ? { ...g, developerEmail: email } : g))} />
       {auditData?.feedHealth?.shopify && auditData.feedHealth.score != null && (
         <p style={{ fontSize: '13px', margin: '-6px 0 18px' }}>
           Product feed: <strong>{auditData.feedHealth.score}/100</strong> across {auditData.feedHealth.total} products. <Link to="/products">See Products →</Link>

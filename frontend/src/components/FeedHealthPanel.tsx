@@ -2,10 +2,12 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import api from '../utils/axios';
 import ScanProgress from './ScanProgress';
 import { timeAgo } from '../utils/timeAgo';
+import FixGuide from './FixGuide';
+import type { GuideContext } from '../utils/fixGuide';
 
 type Level = 'good' | 'warn' | 'bad';
 type Key = 'description' | 'title' | 'brand' | 'image' | 'images' | 'price' | 'stock' | 'category' | 'gtin';
-interface FeedCheck { key: Key; label: string; pass: boolean | null; points: number; max: number; detail: string }
+interface FeedCheck { key: Key; label: string; pass: boolean | null; points: number; max: number; detail: string; kind?: string }
 interface FeedProduct { url: string; name: string; score: number; level: Level; checks: FeedCheck[] }
 export interface FeedHealth { checkedAt: string; shopify: boolean; total: number; score: number | null; summary: Array<{ key: Key; label: string; failing: number }>; products: FeedProduct[]; truncated?: boolean; partial?: boolean }
 
@@ -58,6 +60,7 @@ const Pill = ({ score, big }: { score: number; big?: boolean }) => (
 // onChecked: a new result was saved, so the Products table's Feed column can reload
 export default function FeedHealthPanel({ brandId, onChecked }: { brandId?: string; onChecked?: () => void }) {
   const [feed, setFeed] = useState<FeedHealth | null>(null);
+  const [guideCtx, setGuideCtx] = useState<GuideContext | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -79,7 +82,9 @@ export default function FeedHealthPanel({ brandId, onChecked }: { brandId?: stri
     if (!brandId) return;
     try {
       const res = await api.get(`/brands/${brandId}/products/feed`);
-      setFeed(res.data?.data?.feedHealth ?? null);
+      const d = res.data?.data;
+      setFeed(d?.feedHealth ?? null);
+      if (d?.guides) setGuideCtx({ guides: d.guides, isShopify: !!d.isShopify, developerEmail: d.developerEmail || '', lastSent: d.lastSent || {} });
     } catch {
       setFeed(null);
     }
@@ -163,6 +168,14 @@ export default function FeedHealthPanel({ brandId, onChecked }: { brandId?: stri
                                 <div key={c.key} style={{ margin: '6px 0' }}>
                                   <Mark c={c} /> <strong>{c.label}</strong> <span style={small}>· {c.detail}</span>
                                   {c.pass === false && TIP[c.key] && <div style={{ ...small, marginLeft: '16px' }}>{TIP[c.key]}</div>}
+                                  {c.pass === false && guideCtx && brandId && (
+                                    <div style={{ marginLeft: '16px' }}>
+                                      <FixGuide compact brandId={brandId} ctx={guideCtx} kind={c.kind}
+                                        task={{ type: 'feed', key: c.key, url: p.url }}
+                                        what={`${p.name} (${p.url}): ${c.label}, ${c.detail}. ${TIP[c.key]}`.trim()}
+                                        onEmailSaved={(email) => setGuideCtx((g) => (g ? { ...g, developerEmail: email } : g))} />
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>

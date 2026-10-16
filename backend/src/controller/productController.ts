@@ -26,6 +26,7 @@ import { aiReadyFor, type IStoreAudit } from '../service/storeAuditService'
 import { feedScoreFor, feedScores, keepSavedFeed, runFeedHealth, type IFeedHealth } from '../service/feedHealthService'
 import costLogModel from '../model/costLogModel'
 import { IBrandProduct } from '../types/brandTypes'
+import { ALL_FIX_KINDS, guideContext, withFeedKinds } from '../service/fixGuide'
 
 const AI_NAMES_PER_DAY = 10
 const FEED_EVERY_MS = 10 * 60 * 1000
@@ -154,7 +155,9 @@ export default {
             const saved = (await auditModel.findOne({ brandId: found.brand._id }).select('feedHealth').lean()) as {
                 feedHealth?: IFeedHealth | null
             } | null
-            httpResponse(req, res, 200, responceseMessage.SUCCESS, { feedHealth: saved?.feedHealth ?? null })
+            const feedHealth = saved?.feedHealth ?? null
+            const kinds = withFeedKinds(feedHealth)
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, { feedHealth, ...(await guideContext(found.brand, [...kinds, ...ALL_FIX_KINDS])) })
         } catch (error) {
             httpError(next, error, req, 500)
         }
@@ -168,6 +171,8 @@ export default {
             const { brand } = found
             const id = brand._id.toString()
             const saved = (await auditModel.findOne({ brandId: brand._id }).select('feedHealth').lean()) as { feedHealth?: IFeedHealth | null } | null
+            // Saved results go back as they are, with fix guide kinds on the failing checks (response only)
+            withFeedKinds(saved?.feedHealth)
             const last = Math.max(saved?.feedHealth?.checkedAt ? new Date(saved.feedHealth.checkedAt).getTime() : 0, lastFeedRun.get(id) ?? 0)
             if (Date.now() - last < FEED_EVERY_MS) {
                 return httpResponse(req, res, 200, responceseMessage.SUCCESS, {
@@ -188,6 +193,7 @@ export default {
             }
             // Saved only on an existing audit (no upsert: a bare audit would stop the brand's first real audit)
             const result = await auditModel.updateOne({ brandId: brand._id }, { $set: { feedHealth } })
+            withFeedKinds(feedHealth)
             httpResponse(req, res, 200, responceseMessage.SUCCESS, { feedHealth, saved: result.matchedCount > 0, fresh: true })
         } catch (error) {
             httpError(next, error, req, 500)

@@ -25,7 +25,7 @@ import { IInvoice } from '../types/billingTypes'
 import { IRecommendationData } from '../types/recommendationTypes'
 import { EUserRole } from '../constent/userConstent'
 import aiService from './aiService'
-import { generateRecommendations, isResolvedByAudit } from './recommendationService'
+import { generateRecommendations, isResolvedByAudit, withKind } from './recommendationService'
 import { withAiCallContext } from './costLogService'
 import type { RescanKind } from '../config/planLimits'
 
@@ -260,7 +260,7 @@ const databseService = {
         if (recommendations.length === 0) {
             recommendations = await databseService.seedDefaultRecommendations(brandId)
         }
-        return recommendations
+        return recommendations.map((r) => withKind(r.toObject() as IRecommendationData))
     },
     // First list for a brand. Building it calls the AI and takes seconds, so a second page load in that time
     // must not build and save another one: only save while the brand still has none
@@ -318,6 +318,7 @@ const databseService = {
             {
                 brandId,
                 text: `Unblock Google-Extended in robots.txt so Gemini can crawl ${brandName}`,
+                kind: 'crawler-access',
                 category: 'Technical',
                 effort: 'Low effort',
                 impact: 'High impact',
@@ -328,6 +329,7 @@ const databseService = {
             {
                 brandId,
                 text: `Publish an llms.txt with a clear, structured summary of what ${brandName} sells`,
+                kind: 'llms-txt',
                 category: 'Technical',
                 effort: 'Low effort',
                 impact: 'Medium impact',
@@ -338,6 +340,7 @@ const databseService = {
             {
                 brandId,
                 text: `Add FAQPage schema to your top 10 product pages for ${brandName}`,
+                kind: 'faq-schema',
                 category: 'Content',
                 effort: 'Medium effort',
                 impact: 'High impact',
@@ -348,6 +351,7 @@ const databseService = {
             {
                 brandId,
                 text: `Publish a direct "${brandName} vs. ${comp1}" comparison page`,
+                kind: 'comparison-page',
                 category: 'Content',
                 effort: 'Medium effort',
                 impact: 'High impact',
@@ -358,6 +362,7 @@ const databseService = {
             {
                 brandId,
                 text: `Collect 20+ verified customer reviews for ${brandName} on your primary sales channel or Google/Trustpilot`,
+                kind: 'reviews',
                 category: 'Off-site',
                 effort: 'High effort',
                 impact: 'High impact',
@@ -367,6 +372,7 @@ const databseService = {
             {
                 brandId,
                 text: `Build a genuine presence in relevant ${category} subreddits & online forums`,
+                kind: 'forums',
                 category: 'Off-site',
                 effort: 'High effort',
                 impact: 'Medium impact',

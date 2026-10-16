@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import api from '../utils/axios';
+import FixGuide from '../components/FixGuide';
+import type { GuideContext } from '../utils/fixGuide';
 
 // Feature #13: FAQ and "Brand vs Competitor" pages written from the brand's own product pages,
 // with sources and [confirm] marks the owner fills in before publishing
@@ -30,6 +32,8 @@ interface Fix {
   items: FixItem[];
   createdAt: string;
   outputs: { text: string; html: string; jsonLd: string | null } | null;
+  // Fix guide for publishing it (kind above is the product kind the FAQ is about)
+  guideKind?: string;
 }
 
 interface FixesData {
@@ -72,6 +76,7 @@ const Fixes: React.FC = () => {
   const [params] = useSearchParams();
 
   const [data, setData] = useState<FixesData | null>(null);
+  const [guideCtx, setGuideCtx] = useState<GuideContext | null>(null);
   const [loadError, setLoadError] = useState('');
   const [type, setType] = useState<FixType>(params.get('type') === 'comparison' ? 'comparison' : 'faq');
   const [kind, setKind] = useState('');
@@ -91,6 +96,8 @@ const Fixes: React.FC = () => {
       const res = await api.get(`/brands/${brandId}/fixes`);
       const d: FixesData = res.data.data;
       setData(d);
+      const g = res.data.data;
+      if (g.guides) setGuideCtx({ guides: g.guides, isShopify: !!g.isShopify, developerEmail: g.developerEmail || '', lastSent: g.lastSent || {} });
       setCompetitor((c) => c || d.competitors[0] || '');
       setLoadError('');
     } catch {
@@ -408,6 +415,16 @@ const Fixes: React.FC = () => {
             )}
           </div>
           {dirty && <p style={{ fontSize: '12px', color: 'var(--text-faint)', margin: '8px 0 0' }}>Save your changes to copy the updated version.</p>}
+          {shown.outputs && guideCtx && brandId && (
+            <>
+              <h4 style={{ margin: '16px 0 4px', fontSize: '14px' }}>How to add this to your store</h4>
+              <FixGuide brandId={brandId} ctx={guideCtx} kind={shown.guideKind}
+                task={{ type: 'fix', id: shown._id }}
+                what={shown.title || (shown.type === 'faq' ? 'FAQ page' : 'Comparison page')}
+                code={[shown.outputs.html, shown.outputs.jsonLd].filter(Boolean).join('\n\n')}
+                onEmailSaved={(email) => setGuideCtx((g) => (g ? { ...g, developerEmail: email } : g))} />
+            </>
+          )}
         </div>
       )}
 

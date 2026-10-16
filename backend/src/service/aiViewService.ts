@@ -101,6 +101,8 @@ export const extractPageFacts = (html: string): IPageFacts => {
 
 // Shopify themes and apps load from Shopify's CDN; used to word the fix tips
 export const isShopifyHtml = (html: string) => /cdn\.shopify\.com|myshopify\.com|Shopify\.shop\b/i.test(html)
+// The audit's Shopify flag: the homepage decides; when it couldn't be fetched, the last known answer stays
+export const shopifyFlag = (previous: boolean | undefined, html: string) => (html ? isShopifyHtml(html) : !!previous)
 
 const FIX_TIPS: Record<IFactRow['key'], { tip: string; shopify?: string }> = {
     name: {

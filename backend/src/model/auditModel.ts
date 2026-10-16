@@ -66,6 +66,11 @@ const auditSchema = new mongoose.Schema<IAuditDocument>(
         feedHealth: {
             type: mongoose.Schema.Types.Mixed,
             default: null
+        },
+        // Homepage served by Shopify: fix guides show Shopify steps
+        isShopify: {
+            type: Boolean,
+            default: false
         }
     },
     { timestamps: true }

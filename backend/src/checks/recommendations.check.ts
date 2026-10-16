@@ -44,6 +44,18 @@ import recommendationModel from '../model/recommendationModel'
         const twice = (await recommendationModel.find({ brandId }).lean()).map((r) => r.text)
         assert.equal(new Set(twice).size, twice.length, `duplicate recommendations after two loads: ${twice.length}`)
 
+        // Every recommendation leaves the service with a kind: AI-given, built-in, or from its text
+        const { withKind } = await import('../service/recommendationService')
+        assert.equal(withKind({ text: 'Unblock GPTBot in robots.txt', kind: undefined }).kind, 'crawler-access')
+        assert.equal(withKind({ text: 'anything', kind: 'reviews' }).kind, 'reviews')
+        assert.equal(withKind({ text: 'Collect reviews', kind: 'not-a-kind' }).kind, 'reviews')
+        // Read from the DB: old rows without a kind get one
+        const listed = await databseService.findRecommendationsByBrandId(brandId)
+        assert.ok(
+            listed.length > 0 && listed.every((r) => typeof (r as { kind?: string }).kind === 'string'),
+            'every listed recommendation has a kind'
+        )
+
         console.log('recommendations checks: PASS')
     } finally {
         await recommendationModel.deleteMany({ brandId })

@@ -2,9 +2,11 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import api from '../utils/axios';
 import ScanProgress from './ScanProgress';
 import { timeAgo } from '../utils/timeAgo';
+import FixGuide from './FixGuide';
+import type { GuideContext } from '../utils/fixGuide';
 
 type Level = 'good' | 'warn' | 'bad';
-interface StoreCheck { key: string; label: string; pass: boolean; points: number; max: number; detail: string; tip?: string }
+interface StoreCheck { key: string; label: string; pass: boolean; points: number; max: number; detail: string; tip?: string; kind?: string }
 interface StorePage { url: string; name: string; kind: 'product' | 'collection'; score: number | null; level: Level | null; checks: StoreCheck[]; error?: string }
 export interface StoreAudit { checkedAt: string; source: 'products' | 'sitemap' | 'homepage'; score: number | null; pages: StorePage[] }
 
@@ -33,7 +35,7 @@ const Pill = ({ score, big }: { score: number; big?: boolean }) => (
 );
 
 // What each check found, and the fix for every one that failed
-function Details({ page }: { page: StorePage }) {
+function Details({ page, brandId, ctx, onEmailSaved }: { page: StorePage; brandId?: string; ctx?: GuideContext | null; onEmailSaved?: (email: string) => void }) {
   if (page.error) return <p style={{ color: 'var(--bad)', fontSize: '13px', margin: '4px 0' }}>{page.error}</p>;
   return (
     <div style={{ fontSize: '12.5px' }}>
@@ -42,13 +44,21 @@ function Details({ page }: { page: StorePage }) {
         <div key={c.key} style={{ margin: '6px 0' }}>
           <Mark c={c} /> <strong>{c.label}</strong> <span style={small}>· {c.detail}</span>
           {c.tip && <div style={{ ...small, marginLeft: '16px' }}>{c.tip}</div>}
+          {!c.pass && ctx && brandId && (
+            <div style={{ marginLeft: '16px' }}>
+              <FixGuide compact brandId={brandId} ctx={ctx} kind={c.kind}
+                task={{ type: page.kind === 'collection' ? 'collection' : 'store-audit', key: c.key, url: page.url }}
+                onEmailSaved={onEmailSaved}
+                what={`${page.url}: ${c.label} (${c.detail}). ${c.tip ?? ''}`.trim()} />
+            </div>
+          )}
         </div>
       ))}
     </div>
   );
 }
 
-export default function StoreAuditPanel({ brandId, initial }: { brandId?: string; initial?: StoreAudit | null }) {
+export default function StoreAuditPanel({ brandId, initial, ctx, onEmailSaved }: { brandId?: string; initial?: StoreAudit | null; ctx?: GuideContext | null; onEmailSaved?: (email: string) => void }) {
   const [view, setView] = useState<StoreAudit | null>(initial ?? null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +130,7 @@ export default function StoreAuditPanel({ brandId, initial }: { brandId?: string
                         {PRODUCT_COLS.map((k) => <td key={k}>{p.error ? <span style={small}>—</span> : <Mark c={p.checks.find((c) => c.key === k)} />}</td>)}
                       </tr>
                       {open === p.url && (
-                        <tr><td colSpan={2 + PRODUCT_COLS.length}><div style={sticky}><Details page={p} /></div></td></tr>
+                        <tr><td colSpan={2 + PRODUCT_COLS.length}><div style={sticky}><Details page={p} brandId={brandId} ctx={ctx} onEmailSaved={onEmailSaved} /></div></td></tr>
                       )}
                     </Fragment>
                   ))}
@@ -142,7 +152,7 @@ export default function StoreAuditPanel({ brandId, initial }: { brandId?: string
                           <td style={{ maxWidth: 220, overflowWrap: 'break-word' }}><strong>{p.name}</strong></td>
                           {['schema', 'description', 'meta'].map((k) => <td key={k}>{p.error ? <span style={small}>—</span> : <Mark c={p.checks.find((c) => c.key === k)} />}</td>)}
                         </tr>
-                        {open === p.url && <tr><td colSpan={4}><div style={sticky}><Details page={p} /></div></td></tr>}
+                        {open === p.url && <tr><td colSpan={4}><div style={sticky}><Details page={p} brandId={brandId} ctx={ctx} onEmailSaved={onEmailSaved} /></div></td></tr>}
                       </Fragment>
                     ))}
                   </tbody>

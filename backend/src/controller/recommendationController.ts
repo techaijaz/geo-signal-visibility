@@ -11,6 +11,7 @@ import { EUserRole } from '../constent/userConstent'
 import { DAILY_RESCAN_LIMITS, PLAN_LIMITS, rescanLimitMessage, type PlanName } from '../config/planLimits'
 import { recordDone, recordUndone } from '../service/fixEventService'
 import { getFixImpact, pickOverviewGroup } from '../service/fixImpactService'
+import { guideContext } from '../service/fixGuide'
 
 export default {
     getBrandRecommendations: async (req: Request, res: Response, next: NextFunction) => {
@@ -37,7 +38,11 @@ export default {
                 brandId,
                 brandName: brand.name,
                 recommendations,
-                locked
+                locked,
+                ...(await guideContext(
+                    brand,
+                    recommendations.map((r) => r.kind)
+                ))
             })
         } catch (error) {
             httpError(next, error, req, 500)

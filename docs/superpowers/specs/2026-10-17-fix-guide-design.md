@@ -54,9 +54,9 @@ export const kindFromText = (text: string): FixKind             // keyword match
 |---|---|
 | reviews, description, alt-text, title-meta, price-stock, product-ids, images, faq-page, comparison-page, marketplace, outreach, forums | crawler-access, llms-txt, product-schema, faq-schema, rating-schema, js-content, collection-schema, other |
 
-The Shopify lines now in `storeAuditService.TIPS[key].shopify`, `COLLECTION_TIPS` and
-`aiViewService.FIX_TIPS[key].shopify` move into the library's `steps.shopify`, so there is one source.
-The one-line `tip` in those panels stays as it is (it says what is wrong); the guide says how to fix it.
+The one-line tips in the audit panels (`storeAuditService.TIPS`, `COLLECTION_TIPS`, `aiViewService.FIX_TIPS`,
+including their Shopify wording) stay as they are: they say what is wrong on that page. The guide under them
+says how to fix it, step by step.
 
 ### Where each task gets its kind
 

@@ -32,6 +32,11 @@ const costLogSchema = new mongoose.Schema(
             type: Number,
             default: 0
         },
+        // Google Search queries a grounded answer ran (billed after a monthly free allowance)
+        searches: {
+            type: Number,
+            default: 0
+        },
         tokensUsed: {
             type: Number,
             default: 0

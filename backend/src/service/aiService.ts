@@ -43,6 +43,7 @@ interface IGeminiGroundedResponse extends Omit<IGeminiResponse, 'usageMetadata'>
         groundingMetadata?: {
             groundingChunks?: Array<{ web?: { uri?: string; title?: string } }>
             groundingSupports?: Array<{ segment?: { text?: string }; groundingChunkIndices?: number[] }>
+            webSearchQueries?: string[]
         }
     }>
 }
@@ -283,7 +284,9 @@ const aiService = {
                 model: GEMINI_GROUNDED_MODEL,
                 ...groundedUsage(data.usageMetadata),
                 latencyMs: Date.now() - startedAt,
-                prompt
+                prompt,
+                // Grounding is billed per Google Search query the answer ran
+                searches: data.candidates?.[0]?.groundingMetadata?.webSearchQueries?.length ?? 0
             })
             const c = data.candidates?.[0]
             const meta = c?.groundingMetadata

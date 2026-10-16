@@ -63,6 +63,8 @@ export default {
                 return httpError(next, new Error(rescanLimitMessage('scan', plan, perDay)), req, 429)
             }
 
+            // Server time before the job exists: a scan that ends later is the one started here, even a fast cached one
+            const queuedAt = new Date()
             const job = await enqueueScanJob(brandId)
 
             if (job) {
@@ -71,6 +73,7 @@ export default {
                     brandId,
                     brandName: brand.name,
                     status: 'queued',
+                    queuedAt,
                     jobId: job.id,
                     mentions: currentMentions
                 })

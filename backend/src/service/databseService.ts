@@ -39,6 +39,7 @@ import logger from '../util/loger'
 // Decrypted keys are cached briefly: a scan makes hundreds of AI calls. Worker processes pick up key edits within the TTL.
 const API_KEY_CACHE_TTL_MS = 60 * 1000
 const apiKeyCache = new Map<string, { value: string; expiresAt: number }>()
+const COST_LOG_PAGE = 50
 const resolveApiKey = (provider: string) => databseService.getDecryptedApiKeyUncached(provider)
 // Reports being built, per brand and type: a double click or a second tab shares the one in progress
 const buildingReports = new Map<string, Promise<InstanceType<typeof reportModel>>>()
@@ -1111,9 +1112,17 @@ const databseService = {
     },
 
     // Cost Logs & API Usage
-    getCostLogsSummary: async () => {
+    // Newest first, COST_LOG_PAGE rows a page; the totals cover every log
+    getCostLogsSummary: async (page = 1) => {
         const totalLogs = await costLogModel.countDocuments()
-        const logs = await costLogModel.find().sort({ createdAt: -1 }).limit(50).lean()
+        const pages = Math.max(1, Math.ceil(totalLogs / COST_LOG_PAGE))
+        const current = Math.min(Math.max(1, Math.floor(page) || 1), pages)
+        const logs = await costLogModel
+            .find()
+            .sort({ createdAt: -1 })
+            .skip((current - 1) * COST_LOG_PAGE)
+            .limit(COST_LOG_PAGE)
+            .lean()
 
         const providerAgg = await costLogModel.aggregate([
             {
@@ -1129,6 +1138,8 @@ const databseService = {
 
         return {
             totalLogs,
+            page: current,
+            pages,
             logs,
             providerStats: providerAgg
         }

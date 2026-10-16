@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'async_hooks'
 import aiModel from '../model/aiModel'
 import costLogModel from '../model/costLogModel'
 import logger from '../util/loger'
+import { groundingFee } from '../util/groundedUsage'
 
 interface IAiCallContext {
     brandId?: string
@@ -34,6 +35,17 @@ export interface IAiUsage {
     outputTokens: number
     latencyMs: number
     prompt: string
+    searches?: number
+}
+
+// Searches logged since the 1st of this month (UTC), for the grounding free allowance
+const searchesThisMonth = async () => {
+    const now = new Date()
+    const [row] = await costLogModel.aggregate([
+        { $match: { searches: { $gt: 0 }, createdAt: { $gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)) } } },
+        { $group: { _id: null, n: { $sum: '$searches' } } }
+    ])
+    return (row?.n as number) ?? 0
 }
 
 // Never throws: a failed log must not fail the scan
@@ -42,7 +54,9 @@ export const recordAiUsage = async (usage: IAiUsage) => {
         const context = aiCallContext.getStore()
         const price = await priceFor(usage.model)
         if (!price) logger.warn(`[costLog] No price for model "${usage.model}"; add it on the AI Models page`)
-        const cost = price ? (usage.inputTokens / 1000) * price.input + (usage.outputTokens / 1000) * price.output : 0
+        const searches = usage.searches ?? 0
+        const tokenCost = price ? (usage.inputTokens / 1000) * price.input + (usage.outputTokens / 1000) * price.output : 0
+        const cost = tokenCost + (searches ? groundingFee(await searchesThisMonth(), searches) : 0)
         await costLogModel.create({
             brandId: context?.brandId,
             purpose: context?.purpose,
@@ -51,6 +65,7 @@ export const recordAiUsage = async (usage: IAiUsage) => {
             queryText: usage.prompt.slice(0, 300),
             inputTokens: usage.inputTokens,
             outputTokens: usage.outputTokens,
+            searches,
             tokensUsed: usage.inputTokens + usage.outputTokens,
             cost,
             latencyMs: usage.latencyMs

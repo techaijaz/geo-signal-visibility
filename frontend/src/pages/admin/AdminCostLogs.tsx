@@ -4,7 +4,12 @@ import api from '../../utils/axios';
 interface CostLogRecord {
   _id: string;
   provider: string;
+  purpose?: string;
+  model?: string;
   queryText: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  searches?: number;
   tokensUsed: number;
   cost: number;
   latencyMs: number;
@@ -23,19 +28,23 @@ export default function AdminCostLogs() {
   const [logs, setLogs] = useState<CostLogRecord[]>([]);
   const [providerStats, setProviderStats] = useState<ProviderStat[]>([]);
   const [totalLogs, setTotalLogs] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCostLogs();
+    fetchCostLogs(1);
   }, []);
 
-  const fetchCostLogs = async () => {
+  const fetchCostLogs = async (toPage = page) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.get('/admin/cost-logs');
+      const res = await api.get('/admin/cost-logs', { params: { page: toPage } });
       setLogs(res.data.data.logs || []);
+      setPage(res.data.data.page || 1);
+      setPages(res.data.data.pages || 1);
       setProviderStats(res.data.data.providerStats || []);
       setTotalLogs(res.data.data.totalLogs || 0);
     } catch (err: any) {
@@ -58,7 +67,7 @@ export default function AdminCostLogs() {
             Track LLM API token consumption, estimated costs, and latency across providers ({totalLogs} total API calls logged).
           </p>
         </div>
-        <button onClick={fetchCostLogs} className="btn" style={{ fontSize: '13px' }}>
+        <button onClick={() => fetchCostLogs()} className="btn" style={{ fontSize: '13px' }}>
           🔄 Refresh Logs
         </button>
       </div>
@@ -125,7 +134,7 @@ export default function AdminCostLogs() {
       {/* Recent Cost Logs Table */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '12px', overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', background: 'var(--ink-2)' }}>
-          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>Recent Query API Logs</h3>
+          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>API call logs (newest first)</h3>
         </div>
 
         {loading ? (
@@ -137,9 +146,10 @@ export default function AdminCostLogs() {
             <thead>
               <tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--text-dim)' }}>
                 <th style={{ padding: '12px 16px' }}>Timestamp</th>
-                <th style={{ padding: '12px 16px' }}>Provider</th>
+                <th style={{ padding: '12px 16px' }}>Purpose</th>
+                <th style={{ padding: '12px 16px' }}>Provider / model</th>
                 <th style={{ padding: '12px 16px' }}>Query Text</th>
-                <th style={{ padding: '12px 16px' }}>Tokens</th>
+                <th style={{ padding: '12px 16px' }} title="Input / output / total">Tokens (in / out / total)</th>
                 <th style={{ padding: '12px 16px' }}>Latency</th>
                 <th style={{ padding: '12px 16px', textAlign: 'right' }}>Est Cost</th>
               </tr>
@@ -149,14 +159,19 @@ export default function AdminCostLogs() {
                 logs.map((log) => (
                   <tr key={log._id} style={{ borderBottom: '1px solid var(--line-soft)' }}>
                     <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '12px' }}>
-                      {new Date(log.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      {new Date(log.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </td>
-                    <td style={{ padding: '12px 16px', fontWeight: 600 }}>{log.provider}</td>
+                    <td style={{ padding: '12px 16px' }}>{log.purpose || '—'}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span style={{ fontWeight: 600 }}>{log.provider}</span>
+                      {log.model && <div style={{ fontSize: '11.5px', color: 'var(--text-dim)' }}>{log.model}</div>}
+                      {!!log.searches && <div style={{ fontSize: '11.5px', color: 'var(--text-dim)' }} title="Google Search queries (billed after 5,000 a month)">{log.searches} Google searches</div>}
+                    </td>
                     <td style={{ padding: '12px 16px', color: 'var(--text-dim)', maxWidth: '300px' }}>
                       {log.queryText || '—'}
                     </td>
                     <td className="mono" style={{ padding: '12px 16px', fontSize: '12px' }}>
-                      {log.tokensUsed || 0}
+                      {log.inputTokens || 0} / {log.outputTokens || 0} / {log.tokensUsed || 0}
                     </td>
                     <td className="mono" style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--text-dim)' }}>
                       {log.latencyMs || 0}ms
@@ -168,13 +183,20 @@ export default function AdminCostLogs() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} style={{ padding: '30px', textAlign: 'center', color: 'var(--text-dim)' }}>
+                  <td colSpan={7} style={{ padding: '30px', textAlign: 'center', color: 'var(--text-dim)' }}>
                     No API cost logs recorded yet. Logs are auto-created when AI scans are executed.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        )}
+        {pages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px', padding: '12px 16px', fontSize: '13px' }}>
+            <button className="btn" disabled={loading || page <= 1} onClick={() => fetchCostLogs(page - 1)}>← Newer</button>
+            <span style={{ color: 'var(--text-dim)' }}>Page {page} of {pages}</span>
+            <button className="btn" disabled={loading || page >= pages} onClick={() => fetchCostLogs(page + 1)}>Older →</button>
+          </div>
         )}
       </div>
     </div>

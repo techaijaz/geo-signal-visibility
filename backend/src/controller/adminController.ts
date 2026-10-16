@@ -243,7 +243,7 @@ const adminController = {
     // Cost Logs
     getCostLogs: async (req: Request, res: Response, next: NextFunction) => {
         try {
-            const logsData = await databseService.getCostLogsSummary()
+            const logsData = await databseService.getCostLogsSummary(Number(req.query.page) || 1)
             httpResponse(req, res, 200, responceseMessage.SUCCESS, logsData)
         } catch (error) {
             httpError(next, error, req, 500)

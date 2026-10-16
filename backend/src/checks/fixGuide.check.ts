@@ -48,6 +48,10 @@ for (const k of [
 assert.equal(guideFor('nope').kind, 'other')
 assert.equal(guideFor(undefined).kind, 'other')
 assert.equal(guideFor('faq-page').kind, 'faq-page')
+// Object property names are not kinds
+assert.equal(guideFor('constructor').kind, 'other')
+assert.equal(guideFor('__proto__').kind, 'other')
+assert.equal(kindForCheck('feed', 'toString'), 'other')
 
 // kindFromText: the built-in recommendation texts and typical AI texts
 const cases: Array<[string, FixKind]> = [

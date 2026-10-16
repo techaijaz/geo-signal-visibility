@@ -607,10 +607,11 @@ export const auditService = {
             }
         }
 
-        // Shopify store: the fix guides show Shopify steps
-        const isShopify = !!htmlContent && (await import('./aiViewService')).isShopifyHtml(htmlContent)
+        // Shopify store: the fix guides show Shopify steps (a homepage that failed to load keeps the last answer)
+        const { shopifyFlag } = await import('./aiViewService')
         // Update or recreate audit in database
         const existingAudit = await auditModel.findOne({ brandId })
+        const isShopify = shopifyFlag(existingAudit?.isShopify, htmlContent)
         if (existingAudit) {
             if (storeAudit !== undefined) existingAudit.storeAudit = storeAudit
             // A store blip doesn't replace the last good feed result

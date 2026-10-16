@@ -35,7 +35,23 @@ interface IResolved {
 }
 
 // The task, from what we saved; nothing from the request is put in the email
-const resolveTask = async (brandId: string, t: DeveloperTaskRef): Promise<IResolved> => {
+// A page link from the browser goes into the email only when it is on the brand's own site (or a subdomain),
+// so the button can't mail a phishing link to any address
+const hostOf = (u: string) => {
+    try {
+        return new URL(/^https?:\/\//i.test(u) ? u : `https://${u}`).hostname.toLowerCase().replace(/^www\./, '')
+    } catch {
+        return ''
+    }
+}
+export const brandPageUrl = (url: string | undefined, website: string) => {
+    if (!url || !/^https?:\/\//i.test(url)) return ''
+    const host = hostOf(url)
+    const site = hostOf(website)
+    return host && site && (host === site || host.endsWith(`.${site}`)) ? url.slice(0, 500) : ''
+}
+
+const resolveTask = async (brandId: string, website: string, t: DeveloperTaskRef): Promise<IResolved> => {
     if (t.type === 'recommendation') {
         if (!mongoose.isValidObjectId(t.id)) throw httpErr(404, 'Task not found')
         const rec = await recommendationModel.findOne({ _id: t.id, brandId }).lean()
@@ -57,7 +73,7 @@ const resolveTask = async (brandId: string, t: DeveloperTaskRef): Promise<IResol
         }
     }
     const kind = kindForCheck(t.type, t.key)
-    const url = t.url && /^https?:\/\//i.test(t.url) ? t.url.slice(0, 500) : ''
+    const url = brandPageUrl(t.url, website)
     return { kind, what: `${SURFACE_LABEL[t.type]}: ${guideFor(kind).title.toLowerCase()}.`, url, code: '' }
 }
 
@@ -113,11 +129,17 @@ const consumeSend = async (brandId: string) => {
     )
     if (same.modifiedCount === 1) return true
     const fresh = await brandModel.updateOne({ _id: brandId, devSendDay: { $ne: today } }, { $set: { devSendDay: today, devSendCount: 1 } })
-    return fresh.modifiedCount === 1
+    if (fresh.modifiedCount === 1) return true
+    // Another send started the day between the two updates: count this one on today's total
+    const again = await brandModel.updateOne(
+        { _id: brandId, devSendDay: today, devSendCount: { $lt: DEV_SENDS_PER_DAY } },
+        { $inc: { devSendCount: 1 } }
+    )
+    return again.modifiedCount === 1
 }
 
 export const sendToDeveloper = async (
-    brand: { _id: unknown; name: string; developerEmail?: string | null; products?: Array<{ shopifyId?: string | null }> },
+    brand: { _id: unknown; name: string; website?: string; developerEmail?: string | null; products?: Array<{ shopifyId?: string | null }> },
     founder: { name: string; email: string; _id?: unknown },
     task: DeveloperTaskRef,
     email?: string,
@@ -133,7 +155,7 @@ export const sendToDeveloper = async (
         await brandModel.updateOne({ _id: brandId }, { $set: { developerEmail: e } })
     }
     if (!to) throw httpErr(422, "Add your developer's email first.")
-    const resolved = await resolveTask(brandId, task)
+    const resolved = await resolveTask(brandId, brand.website || '', task)
     if (!(await consumeSend(brandId))) throw httpErr(429, `You can send ${DEV_SENDS_PER_DAY} tasks a day. Try again tomorrow, or use Copy text.`)
     const { isShopify } = await guideContext(brand, [])
     const mail = buildDeveloperEmail(brand.name, founder.name || 'the store owner', resolved, isShopify)

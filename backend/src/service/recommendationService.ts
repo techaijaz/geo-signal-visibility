@@ -5,7 +5,7 @@ import { IMention } from '../types/mentionTypes'
 import { IRecommendationData } from '../types/recommendationTypes'
 import aiService from './aiService'
 import logger from '../util/loger'
-import { FIX_GUIDES, kindFromText, type FixKind } from './fixGuide'
+import { FIX_GUIDES, isFixKind, kindFromText, type FixKind } from './fixGuide'
 
 const buildAuditSummary = (audit: IAuditData): string => {
     if (!audit) return 'Audit data unavailable'
@@ -50,7 +50,7 @@ const safelyParseJSON = (str: string): unknown => {
 // A kind the library knows, else one from the text
 export const withKind = <T extends { text: string; kind?: string | null }>(rec: T): Omit<T, 'kind'> & { kind: FixKind } => ({
     ...rec,
-    kind: rec.kind && rec.kind in FIX_GUIDES ? (rec.kind as FixKind) : kindFromText(rec.text)
+    kind: isFixKind(rec.kind) ? rec.kind : kindFromText(rec.text)
 })
 
 export const generateRecommendations = async (

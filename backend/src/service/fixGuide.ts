@@ -370,7 +370,9 @@ export const FIX_GUIDES: Record<FixKind, IFixGuide> = {
 
 export const ALL_FIX_KINDS = Object.keys(FIX_GUIDES) as FixKind[]
 
-export const guideFor = (kind?: string | null): IFixGuide => FIX_GUIDES[(kind || '') as FixKind] ?? FIX_GUIDES.other
+// Own keys only: 'constructor' or '__proto__' from a request or an AI is not a kind
+export const isFixKind = (k: unknown): k is FixKind => typeof k === 'string' && Object.prototype.hasOwnProperty.call(FIX_GUIDES, k)
+export const guideFor = (kind?: string | null): IFixGuide => (isFixKind(kind) ? FIX_GUIDES[kind] : FIX_GUIDES.other)
 
 // Old saved recommendations have no kind; the first rule that matches wins (order matters)
 const TEXT_RULES: Array<[RegExp, FixKind]> = [
@@ -420,7 +422,8 @@ const CHECK_KINDS: Record<'store-audit' | 'collection' | 'ai-view' | 'feed', Rec
         images: 'images'
     }
 }
-export const kindForCheck = (surface: keyof typeof CHECK_KINDS, key: string): FixKind => CHECK_KINDS[surface][key] ?? 'other'
+export const kindForCheck = (surface: keyof typeof CHECK_KINDS, key: string): FixKind =>
+    Object.prototype.hasOwnProperty.call(CHECK_KINDS[surface], key) ? CHECK_KINDS[surface][key] : 'other'
 
 // The guides a response needs, once each
 export const guidesFor = (kinds: Array<string | null | undefined>): Record<string, IFixGuide> =>

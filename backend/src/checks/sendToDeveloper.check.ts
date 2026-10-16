@@ -85,6 +85,33 @@ type Sent = { to: string[]; subject: string; text: string; html: string; cc?: st
     assert.equal(sent.at(-1)!.subject, 'Hasan Oud: Add alt text to product images')
     assert.ok(sent.at(-1)!.text.includes('https://hasanoud.com/products/silk'))
 
+    // A link from the browser is kept only when it is on the brand's own site (no phishing links to any inbox)
+    await sendToDeveloper((await fresh())!, founder, { type: 'store-audit', key: 'alt', url: 'https://evil.example/login' }, undefined, mailer)
+    assert.ok(!sent.at(-1)!.text.includes('evil.example') && !sent.at(-1)!.html.includes('evil.example'), 'foreign link dropped')
+    await sendToDeveloper((await fresh())!, founder, { type: 'feed', key: 'gtin', url: 'https://shop.hasanoud.com/products/x' }, undefined, mailer)
+    assert.ok(sent.at(-1)!.text.includes('https://shop.hasanoud.com/products/x'), 'subdomain of the brand site kept')
+
+    // A key that is an Object property name is treated as unknown: sent with the "other" guide, logged, no 500
+    const beforeCount = (await fresh())!.devSendCount
+    await sendToDeveloper((await fresh())!, founder, { type: 'store-audit', key: 'constructor' }, undefined, mailer)
+    assert.equal(sent.at(-1)!.subject, 'Hasan Oud: Website task')
+    const logged = await developerSendModel.findOne({ brandId: brand._id, taskKey: 'store-audit:constructor:' }).lean()
+    assert.equal(logged?.kind, 'other', 'logged kind is a real kind')
+    assert.equal((await fresh())!.devSendCount, (beforeCount ?? 0) + 1)
+
+    // First two sends of a new day, at the same time: both succeed
+    await brandModel.updateOne({ _id: brand._id }, { $set: { devSendDay: '2000-01-01', devSendCount: 20 } })
+    const both = await Promise.allSettled([
+        sendToDeveloper((await fresh())!, founder, task, undefined, mailer),
+        sendToDeveloper((await fresh())!, founder, task, undefined, mailer)
+    ])
+    assert.deepEqual(
+        both.map((b) => b.status),
+        ['fulfilled', 'fulfilled'],
+        JSON.stringify(both.map((b) => (b.status === 'rejected' ? String(b.reason) : 'ok')))
+    )
+    assert.equal((await fresh())!.devSendCount, 2)
+
     // Responses carry the last send per task, for "Sent to x · 2 days ago"
     const ctx = await guideContext((await fresh())!, [])
     assert.equal(ctx.lastSent[`recommendation:${rec._id}`]?.to, 'dev@agency.in')

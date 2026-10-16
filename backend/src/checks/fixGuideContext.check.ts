@@ -5,7 +5,7 @@ import mongoose from 'mongoose'
 import config from '../config/config'
 import auditModel from '../model/auditModel'
 import { guideContext, withAuditKinds, withFeedKinds } from '../service/fixGuide'
-import { isShopifyHtml } from '../service/aiViewService'
+import { isShopifyHtml, shopifyFlag } from '../service/aiViewService'
 ;(async () => {
     await mongoose.connect(config.DATABASE_URL as string)
     const id = new mongoose.Types.ObjectId()
@@ -24,6 +24,11 @@ import { isShopifyHtml } from '../service/aiViewService'
     assert.equal(ctx.developerEmail, 'dev@agency.in')
     await auditModel.deleteMany({ brandId: id })
     assert.equal(isShopifyHtml('<script src="https://cdn.shopify.com/x.js"></script>'), true)
+    // A re-audit that could not fetch the homepage keeps the last known answer
+    assert.equal(shopifyFlag(true, ''), true)
+    assert.equal(shopifyFlag(undefined, ''), false)
+    assert.equal(shopifyFlag(true, '<html>plain site</html>'), false)
+    assert.equal(shopifyFlag(false, '<link href="//cdn.shopify.com/s.css">'), true)
 
     // Failing audit checks and feed checks get a guide kind; passing ones are left alone
     const audit = {

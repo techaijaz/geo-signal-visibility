@@ -1,3 +1,5 @@
+import auditModel from '../model/auditModel'
+
 // Fix guide: for every kind of task the app gives a founder, who usually does it, plain steps for a Shopify
 // store and for other sites, and a note for a developer. Written by us, never by an AI, so menu names are right.
 export type FixKind =
@@ -419,3 +421,39 @@ export const kindForCheck = (surface: keyof typeof CHECK_KINDS, key: string): Fi
 // The guides a response needs, once each
 export const guidesFor = (kinds: Array<string | null | undefined>): Record<string, IFixGuide> =>
     Object.fromEntries([...new Set(kinds.map((k) => guideFor(k).kind))].map((k) => [k, FIX_GUIDES[k]]))
+
+// What every surface needs to show guides: platform, the saved developer email and the guides for its kinds
+export const guideContext = async (
+    brand: { _id: unknown; developerEmail?: string | null; products?: Array<{ shopifyId?: string | null }> },
+    kinds: Array<string | null | undefined>
+) => {
+    const fromProducts = (brand.products || []).some((p) => !!p.shopifyId)
+    const audit = fromProducts ? null : await auditModel.findOne({ brandId: brand._id }).select('isShopify').lean()
+    return { isShopify: fromProducts || !!audit?.isShopify, developerEmail: brand.developerEmail || '', guides: guidesFor(kinds) }
+}
+
+type KindedCheck = { key: string; pass?: boolean | null; kind?: string }
+interface IAuditForKinds {
+    storeAudit?: { pages?: Array<{ kind?: string; checks?: KindedCheck[] }> } | null
+    aiView?: { pages?: Array<{ rows?: Array<{ key: string; missingForAi?: boolean; kind?: string }> }> } | null
+}
+// Sets a guide kind on every failing store audit check and AI view row (a plain copy of the audit); returns the kinds
+export const withAuditKinds = (audit: IAuditForKinds | null | undefined): FixKind[] => {
+    const kinds: FixKind[] = []
+    for (const page of audit?.storeAudit?.pages || [])
+        for (const c of page.checks || [])
+            if (c.pass === false) kinds.push((c.kind = kindForCheck(page.kind === 'collection' ? 'collection' : 'store-audit', c.key)))
+    for (const page of audit?.aiView?.pages || [])
+        for (const r of page.rows || []) if (r.missingForAi) kinds.push((r.kind = kindForCheck('ai-view', r.key)))
+    return kinds
+}
+
+// Same for the product feed: failing product checks and the summary of top gaps
+export const withFeedKinds = (
+    feed: { products?: Array<{ checks?: KindedCheck[] }>; summary?: Array<{ key: string; kind?: string }> } | null | undefined
+): FixKind[] => {
+    const kinds: FixKind[] = []
+    for (const p of feed?.products || []) for (const c of p.checks || []) if (c.pass === false) kinds.push((c.kind = kindForCheck('feed', c.key)))
+    for (const s of feed?.summary || []) kinds.push((s.kind = kindForCheck('feed', s.key)))
+    return kinds
+}

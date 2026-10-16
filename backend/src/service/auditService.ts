@@ -607,6 +607,8 @@ export const auditService = {
             }
         }
 
+        // Shopify store: the fix guides show Shopify steps
+        const isShopify = !!htmlContent && (await import('./aiViewService')).isShopifyHtml(htmlContent)
         // Update or recreate audit in database
         const existingAudit = await auditModel.findOne({ brandId })
         if (existingAudit) {
@@ -615,6 +617,7 @@ export const auditService = {
             if (feedHealth !== undefined && !keepSaved?.(existingAudit.feedHealth as IFeedHealth | null, feedHealth))
                 existingAudit.feedHealth = feedHealth
             existingAudit.healthScore = healthScore
+            existingAudit.isShopify = isShopify
             existingAudit.holdingBack = holdingBack
             existingAudit.crawlerAccess = crawlerAccess
             existingAudit.structuredData = structuredData
@@ -628,6 +631,7 @@ export const auditService = {
             (await auditModel.create({
                 brandId,
                 healthScore,
+                isShopify,
                 holdingBack,
                 crawlerAccess,
                 structuredData,

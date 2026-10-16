@@ -26,6 +26,7 @@ import { aiReadyFor, type IStoreAudit } from '../service/storeAuditService'
 import { feedScoreFor, feedScores, keepSavedFeed, runFeedHealth, type IFeedHealth } from '../service/feedHealthService'
 import costLogModel from '../model/costLogModel'
 import { IBrandProduct } from '../types/brandTypes'
+import { guideContext, withFeedKinds } from '../service/fixGuide'
 
 const AI_NAMES_PER_DAY = 10
 const FEED_EVERY_MS = 10 * 60 * 1000
@@ -154,7 +155,9 @@ export default {
             const saved = (await auditModel.findOne({ brandId: found.brand._id }).select('feedHealth').lean()) as {
                 feedHealth?: IFeedHealth | null
             } | null
-            httpResponse(req, res, 200, responceseMessage.SUCCESS, { feedHealth: saved?.feedHealth ?? null })
+            const feedHealth = saved?.feedHealth ?? null
+            const kinds = withFeedKinds(feedHealth)
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, { feedHealth, ...(await guideContext(found.brand, kinds)) })
         } catch (error) {
             httpError(next, error, req, 500)
         }

@@ -61,6 +61,7 @@ export interface IUpdateBrandRequestBody {
     queries?: IBrandQuery[]
     products?: IBrandProduct[]
     languages?: string[]
+    developerEmail?: string
 }
 
 export interface IBrand {
@@ -76,6 +77,9 @@ export interface IBrand {
     competitors: ICompetitor[]
     queries: IBrandQuery[]
     products?: IBrandProduct[]
+    developerEmail?: string
+    devSendDay?: string | null
+    devSendCount?: number
     languages: string[]
     lastScanId?: string | null
     lastScannedAt?: Date | null

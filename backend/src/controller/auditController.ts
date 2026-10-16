@@ -13,6 +13,7 @@ import auditModel from '../model/auditModel'
 import { productCheckGate, rememberProductCheck, runAiView, type IAiView } from '../service/aiViewService'
 import { storeAuditForBrand } from '../service/storeAuditService'
 import { auditService } from '../service/auditService'
+import { guideContext, withAuditKinds } from '../service/fixGuide'
 
 export default {
     getBrandAudit: async (req: Request, res: Response, next: NextFunction) => {
@@ -30,13 +31,17 @@ export default {
                 return httpError(next, new Error(responceseMessage.NOT_FOUND('Brand')), req, 404)
             }
 
-            const audit = await databseService.findAuditByBrandId(brandId)
+            const found = await databseService.findAuditByBrandId(brandId)
+            // Plain copy so failing checks can carry their fix guide kind
+            const audit = found && typeof found.toObject === 'function' ? found.toObject() : found
+            const kinds = withAuditKinds(audit as Parameters<typeof withAuditKinds>[0])
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 brandId,
                 brandName: brand.name,
                 website: brand.website,
-                audit
+                audit,
+                ...(await guideContext(brand, kinds))
             })
         } catch (error) {
             httpError(next, error, req, 500)

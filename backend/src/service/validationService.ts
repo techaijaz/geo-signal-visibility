@@ -78,6 +78,13 @@ export const validationCreateBrandBody = Joi.object<ICreateBrandRequestBody>({
 
 export const validationUpdateBrandBody = Joi.object<IUpdateBrandRequestBody>({
     name: Joi.string().min(2).max(100).optional().trim(),
+    developerEmail: Joi.string()
+        .trim()
+        .lowercase()
+        .email()
+        .allow('')
+        .optional()
+        .messages({ 'string.email': "Enter your developer's email, like dev@agency.in" }),
     website: publicWebsite().optional().trim(),
     category: Joi.string().optional().trim(),
     businessType: Joi.string()

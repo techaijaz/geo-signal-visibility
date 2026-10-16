@@ -108,6 +108,10 @@ const brandSchema = new mongoose.Schema<IBrand>(
             type: [productSchema],
             default: []
         },
+        // Where "Send to developer" emails go (fix guide); '' = not set
+        developerEmail: { type: String, default: '' },
+        devSendDay: { type: String, default: null },
+        devSendCount: { type: Number, default: 0 },
         languages: {
             type: [String],
             default: ['en', 'hi-en']

@@ -19,6 +19,7 @@ export interface IAuditData {
     aiView?: unknown
     storeAudit?: unknown
     feedHealth?: unknown
+    isShopify?: boolean
 }
 
 export interface IAuditDocument extends IAuditData, Document {}

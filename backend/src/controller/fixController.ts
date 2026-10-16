@@ -19,6 +19,7 @@ import { enqueueFixJob } from '../service/queueService'
 import type { IGeneratedFix, IFixItem } from '../types/fixTypes'
 import type { IBrandProduct } from '../types/brandTypes'
 import type { IMention } from '../types/mentionTypes'
+import { guideContext } from '../service/fixGuide'
 
 const TYPES = ['faq', 'comparison']
 const LANGUAGES = ['en', 'hi-en', 'hi']
@@ -40,7 +41,13 @@ const loadBrand = async (req: Request, next: NextFunction) => {
     return { org, brand, plan, userId: authenticatedUser._id.toString() }
 }
 
-const view = (fix: IGeneratedFix) => ({ ...fix, outputs: fix.status === 'done' ? fixOutputs(fix) : null })
+// guideKind: the fix guide for publishing it (kind is the product kind the FAQ is about)
+const view = (fix: IGeneratedFix) => ({
+    ...fix,
+    outputs: fix.status === 'done' ? fixOutputs(fix) : null,
+    guideKind: fix.type === 'faq' ? 'faq-page' : 'comparison-page'
+})
+const FIX_GUIDE_KINDS = ['faq-page', 'comparison-page']
 
 const loadFix = (req: Request, brandId: string) =>
     mongoose.isValidObjectId(req.params.fixId) ? generatedFixModel.findOne({ _id: req.params.fixId, brandId }).lean() : null
@@ -94,7 +101,8 @@ export default {
                     resetsOn: nextResetLabel(new Date())
                 },
                 kinds: kindsOf((brand.products || []) as IBrandProduct[]),
-                competitors: rankCompetitors(named, tracked)
+                competitors: rankCompetitors(named, tracked),
+                ...(await guideContext(brand, FIX_GUIDE_KINDS))
             })
         } catch (error) {
             httpError(next, error, req, 500)
@@ -139,7 +147,10 @@ export default {
             if (!found) return
             const fix = await loadFix(req, String(found.brand._id))
             if (!fix) return httpError(next, new Error(responceseMessage.NOT_FOUND('Fix')), req, 404)
-            httpResponse(req, res, 200, responceseMessage.SUCCESS, view(fix as IGeneratedFix))
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, {
+                ...view(fix as IGeneratedFix),
+                ...(await guideContext(found.brand, FIX_GUIDE_KINDS))
+            })
         } catch (error) {
             httpError(next, error, req, 500)
         }

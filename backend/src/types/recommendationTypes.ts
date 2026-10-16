@@ -11,6 +11,7 @@ export interface IRecommendationData {
     snippet?: string
     isCompleted: boolean
     source?: string
+    kind?: string | null
     createdAt?: Date
     updatedAt?: Date
 }

@@ -41,6 +41,11 @@ const recommendationSchema = new mongoose.Schema<IRecommendationDocument>(
             type: String,
             default: 'ai-generated'
         },
+        // Fix guide kind (fixGuide.ts); old rows have none and get one from their text when read
+        kind: {
+            type: String,
+            default: null
+        },
         isCompleted: {
             type: Boolean,
             default: false

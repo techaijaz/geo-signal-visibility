@@ -5,6 +5,7 @@ import { IMention } from '../types/mentionTypes'
 import { IRecommendationData } from '../types/recommendationTypes'
 import aiService from './aiService'
 import logger from '../util/loger'
+import { FIX_GUIDES, kindFromText, type FixKind } from './fixGuide'
 
 const buildAuditSummary = (audit: IAuditData): string => {
     if (!audit) return 'Audit data unavailable'
@@ -45,6 +46,12 @@ const safelyParseJSON = (str: string): unknown => {
         return null
     }
 }
+
+// A kind the library knows, else one from the text
+export const withKind = <T extends { text: string; kind?: string | null }>(rec: T): Omit<T, 'kind'> & { kind: FixKind } => ({
+    ...rec,
+    kind: rec.kind && rec.kind in FIX_GUIDES ? (rec.kind as FixKind) : kindFromText(rec.text)
+})
 
 export const generateRecommendations = async (
     brand: IBrand,
@@ -94,7 +101,10 @@ export const generateRecommendations = async (
       "effort": "Low effort" | "Medium effort" | "High effort",
       "impact": "Low impact" | "Medium impact" | "High impact",
       "reasoning": string,
-      "fixSnippet": string
+      "fixSnippet": string,
+      "kind": ${Object.keys(FIX_GUIDES)
+          .filter((k) => k !== 'other')
+          .join(' | ')} (the closest type of task)
     }
   `
 
@@ -117,7 +127,8 @@ export const generateRecommendations = async (
                 reasoning: rec.reasoning || 'Actionable recommendation for improving AI crawler indexability and mention frequency.',
                 snippet: rec.fixSnippet || rec.snippet || '',
                 isCompleted: false,
-                source: 'ai-generated'
+                source: 'ai-generated',
+                kind: withKind({ text: rec.text, kind: rec.kind }).kind
             }))
         }
     } catch (err) {

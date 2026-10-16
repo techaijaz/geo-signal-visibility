@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/axios';
 import ScanProgress from './ScanProgress';
+import FixGuide from './FixGuide';
+import type { GuideContext } from '../utils/fixGuide';
 import { timeAgo } from '../utils/timeAgo';
 
-interface Row { key: string; label: string; ai: string | null; shopper: string | null; missingForAi: boolean; tip?: string }
+interface Row { key: string; label: string; ai: string | null; shopper: string | null; missingForAi: boolean; tip?: string; kind?: string }
 // score: facts the shopper sees (total, null if the shopper view failed) and how many the AI sees too; absent on old results
 interface Score { seen: number; total: number | null; level: 'good' | 'warn' | 'bad' | null }
 interface AiViewPage { url: string; label: string; rows: Row[]; aiPreview: string; score?: Score; error?: string }
@@ -39,7 +41,7 @@ const ScoreLine = ({ score }: { score: Score }) => {
 };
 
 // productUrl: from the Products page ("Check this page"), checks that product page instead of the first one found
-export default function AiViewPanel({ brandId, initial, productUrl }: { brandId?: string; initial?: AiView | null; productUrl?: string }) {
+export default function AiViewPanel({ brandId, initial, productUrl, ctx, onEmailSaved }: { brandId?: string; initial?: AiView | null; productUrl?: string; ctx?: GuideContext | null; onEmailSaved?: (email: string) => void }) {
   const [view, setView] = useState<AiView | null>(initial ?? null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +90,13 @@ export default function AiViewPanel({ brandId, initial, productUrl }: { brandId?
                 {tips.map((r) => <li key={r.key} style={{ marginBottom: '4px', overflowWrap: 'anywhere' }}><strong style={{ color: 'var(--bad)' }}>✗ {r.label}:</strong> {r.tip}</li>)}
               </ul>
             )}
+            {/* One guide per kind of fix on this page (name, price and rating are all "put it in the HTML") */}
+            {ctx && brandId && [...new Map(missingRows.filter((r) => r.kind).map((r) => [r.kind, r])).values()].map((r) => (
+              <FixGuide key={`g-${r.key}`} compact brandId={brandId} ctx={ctx} kind={r.kind}
+                task={{ type: 'ai-view', key: r.key, url: p.url }}
+                onEmailSaved={onEmailSaved}
+                what={`${p.url}: AI crawlers can't see ${missingRows.filter((m) => m.kind === r.kind).map((m) => m.label.toLowerCase()).join(', ')}. ${r.tip ?? ''}`.trim()} />
+            ))}
             {p.error && <p style={{ color: 'var(--text-dim)', fontSize: '13px' }}>{p.error}</p>}
             {!p.error && (missing.length
               ? <p style={{ color: 'var(--bad)', fontSize: '13.5px' }}>AI can't see the {missing.join(', ')} on this page: they load with JavaScript. <Link to="/recommendations">What to do →</Link></p>

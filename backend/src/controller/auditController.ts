@@ -13,7 +13,13 @@ import auditModel from '../model/auditModel'
 import { productCheckGate, rememberProductCheck, runAiView, type IAiView } from '../service/aiViewService'
 import { storeAuditForBrand } from '../service/storeAuditService'
 import { auditService } from '../service/auditService'
-import { guideContext, withAuditKinds } from '../service/fixGuide'
+import { ALL_FIX_KINDS, guideContext, withAuditKinds } from '../service/fixGuide'
+
+// Response copy with fix guide kinds on failing checks (set after the DB write, so they are not stored)
+const withKinds = <T extends object>(o: T): T => {
+    withAuditKinds(o as Parameters<typeof withAuditKinds>[0])
+    return o
+}
 
 export default {
     getBrandAudit: async (req: Request, res: Response, next: NextFunction) => {
@@ -41,7 +47,8 @@ export default {
                 brandName: brand.name,
                 website: brand.website,
                 audit,
-                ...(await guideContext(brand, kinds))
+                // Every guide: the panels re-run in place and may show checks that were passing on load
+                ...(await guideContext(brand, [...kinds, ...ALL_FIX_KINDS]))
             })
         } catch (error) {
             httpError(next, error, req, 500)
@@ -76,19 +83,19 @@ export default {
                 if (gate.action === 'wait') return httpError(next, new Error('A page check just ran. Try again in 30 seconds.'), req, 429)
                 const view = await runAiView(brand.website, productUrl)
                 rememberProductCheck(brandId, productUrl, view)
-                return httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: view })
+                return httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: withKinds({ aiView: view }).aiView })
             }
             // Each run opens Chrome twice: a result under 5 minutes old is returned as is
             const existing = (await auditModel.findOne({ brandId }).select('aiView').lean())?.aiView as IAiView | null | undefined
             // ...but only for the same website: after the brand's website changes, check the new one
             const sameSite = existing?.pages?.some((p) => p.label === 'Homepage' && p.url === auditService.cleanUrl(brand.website))
             if (existing?.checkedAt && sameSite && Date.now() - new Date(existing.checkedAt).getTime() < 5 * 60 * 1000) {
-                return httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: existing })
+                return httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: withKinds({ aiView: existing }).aiView })
             }
             const aiView = await runAiView(brand.website)
             // No upsert: a bare audit document would stop the brand's first real audit from running
             await auditModel.updateOne({ brandId }, { $set: { aiView } })
-            httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView })
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: withKinds({ aiView }).aiView })
         } catch (error) {
             httpError(next, error, req, 500)
         }
@@ -125,7 +132,7 @@ export default {
             }
             // No upsert: a bare audit document would stop the brand's first real audit from running
             await auditModel.updateOne({ brandId }, { $set: { storeAudit } })
-            httpResponse(req, res, 200, responceseMessage.SUCCESS, { storeAudit })
+            httpResponse(req, res, 200, responceseMessage.SUCCESS, { storeAudit: withKinds({ storeAudit }).storeAudit })
         } catch (error) {
             httpError(next, error, req, 500)
         }

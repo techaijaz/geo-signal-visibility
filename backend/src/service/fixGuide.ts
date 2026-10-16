@@ -368,6 +368,8 @@ export const FIX_GUIDES: Record<FixKind, IFixGuide> = {
     )
 }
 
+export const ALL_FIX_KINDS = Object.keys(FIX_GUIDES) as FixKind[]
+
 export const guideFor = (kind?: string | null): IFixGuide => FIX_GUIDES[(kind || '') as FixKind] ?? FIX_GUIDES.other
 
 // Old saved recommendations have no kind; the first rule that matches wins (order matters)

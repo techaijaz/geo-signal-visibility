@@ -82,6 +82,7 @@ interface BrandData {
   website: string;
   category: string;
   businessType?: string;
+  developerEmail?: string;
   region: string;
   role?: string;
   competitors: Competitor[];
@@ -131,6 +132,7 @@ export default function Settings() {
   const [selectedBrandId, setSelectedBrandId] = useState<string>(outletCtx?.currentBrand?._id || (initialBrands[0]?._id || ''));
   const [brandName, setBrandName] = useState('');
   const [brandWebsite, setBrandWebsite] = useState('');
+  const [brandDeveloperEmail, setBrandDeveloperEmail] = useState('');
   const [brandCategory, setBrandCategory] = useState('Skincare & Personal Care');
   const [brandBusinessType, setBrandBusinessType] = useState('ecommerce');
   const [brandRegion, setBrandRegion] = useState('India');
@@ -228,6 +230,7 @@ export default function Settings() {
     setSelectedBrandId(b._id);
     setBrandName(b.name || '');
     setBrandWebsite(b.website || '');
+    setBrandDeveloperEmail(b.developerEmail || '');
     setBrandCategory(b.category || 'Skincare & Personal Care');
     setBrandBusinessType(b.businessType || 'ecommerce');
     setBrandRegion(b.region || 'India');
@@ -510,6 +513,7 @@ export default function Settings() {
       const res = await api.patch(`/brands/${selectedBrandId}`, {
         name: brandName.trim(),
         website: brandWebsite.trim(),
+        developerEmail: brandDeveloperEmail.trim(),
         category: brandCategory,
         businessType: brandBusinessType,
         region: brandRegion,
@@ -862,6 +866,16 @@ export default function Settings() {
                     value={brandWebsite}
                     onChange={(e) => setBrandWebsite(e.target.value)}
                   />
+                </div>
+                <div className="field">
+                  <label>Developer email</label>
+                  <input
+                    type="email"
+                    value={brandDeveloperEmail}
+                    placeholder="dev@agency.in"
+                    onChange={(e) => setBrandDeveloperEmail(e.target.value)}
+                  />
+                  <p className="sub" style={{ margin: '4px 0 0' }}>"Send to developer" emails tasks here. Leave it empty to be asked the first time.</p>
                 </div>
                 <div className="field">
                   <label>Category</label>

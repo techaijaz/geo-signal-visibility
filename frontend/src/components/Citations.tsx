@@ -47,9 +47,19 @@ export function CitationsSection({ brandId }: { brandId?: string }) {
   const { hash } = useLocation();
   const loaded = !!data;
 
-  // Overview's "See all" links here; scroll once the section has its content
+  // Overview's "See all" links here. The panels above load after this one and push it down, so scroll again
+  // while they settle; the user's own scroll, touch or key stops it
   useEffect(() => {
-    if (loaded && hash === '#where-ai-reads') document.getElementById('where-ai-reads')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!loaded || hash !== '#where-ai-reads') return;
+    const go = () => document.getElementById('where-ai-reads')?.scrollIntoView({ block: 'start' });
+    const timers = [0, 300, 800, 1500, 2500].map((ms) => setTimeout(go, ms));
+    const stop = () => timers.forEach(clearTimeout);
+    const events = ['wheel', 'touchstart', 'keydown'] as const;
+    events.forEach((e) => window.addEventListener(e, stop, { once: true, passive: true }));
+    return () => {
+      stop();
+      events.forEach((e) => window.removeEventListener(e, stop));
+    };
   }, [loaded, hash]);
 
   const body = () => {

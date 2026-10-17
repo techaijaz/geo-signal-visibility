@@ -67,6 +67,9 @@ const cases: Array<[string, FixKind]> = [
     ['Add descriptive alt text to every product image', 'alt-text'],
     ['Expand product descriptions to 150+ words', 'description'],
     ['Add Product JSON-LD schema with offers and brand', 'product-schema'],
+    ['Start a blog series about choosing attar', 'outreach'],
+    ['Use a standard size chart on product pages', 'other'],
+    ['Show star ratings in search results', 'rating-schema'],
     ['Something we have never seen before', 'other']
 ]
 for (const [text, kind] of cases) assert.equal(kindFromText(text), kind, text)
@@ -80,6 +83,8 @@ for (const k of ['description', 'title', 'brand', 'image', 'images', 'price', 's
 assert.equal(kindForCheck('feed', 'unknown-key'), 'other')
 
 // guidesFor returns each needed guide once, unknowns as other
+// The other guide always comes along, so a task whose kind the page did not expect still has one
+assert.deepEqual(Object.keys(guidesFor(['reviews'])).sort(), ['other', 'reviews'])
 const g = guidesFor(['reviews', undefined, 'reviews', 'xyz'])
 assert.deepEqual(Object.keys(g).sort(), ['other', 'reviews'])
 

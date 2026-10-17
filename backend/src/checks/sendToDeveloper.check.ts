@@ -40,6 +40,17 @@ type Sent = { to: string[]; subject: string; text: string; html: string; cc?: st
     const task = { type: 'recommendation' as const, id: String(rec._id) }
     const fresh = () => brandModel.findById(brand._id)
 
+    // An email the Settings page would refuse is refused here too (one validator)
+    await assert.rejects(
+        sendToDeveloper((await fresh())!, founder, task, 'dev@agency.notarealtld', mailer),
+        (e: { status?: number }) => e.status === 422
+    )
+    // A send that fails does not save the email
+    await assert.rejects(
+        sendToDeveloper((await fresh())!, founder, { type: 'recommendation', id: String(otherRec._id) }, 'first@agency.in', mailer),
+        (e: { status?: number }) => e.status === 404
+    )
+    assert.equal((await fresh())!.developerEmail || '', '', 'not saved after a failed send')
     // 422 without an email
     await assert.rejects(sendToDeveloper((await fresh())!, founder, task, undefined, mailer), (e: { status?: number }) => e.status === 422)
     // disposable refused
@@ -114,7 +125,8 @@ type Sent = { to: string[]; subject: string; text: string; html: string; cc?: st
 
     // Responses carry the last send per task, for "Sent to x · 2 days ago"
     const ctx = await guideContext((await fresh())!, [])
-    assert.equal(ctx.lastSent[`recommendation:${rec._id}`]?.to, 'dev@agency.in')
+    // Keyed by the text, so the line survives a recommendations re-scan (new ids, same text)
+    assert.equal(ctx.lastSent[`recommendation-text:${rec.text.trim().toLowerCase()}`]?.to, 'dev@agency.in')
     assert.ok(ctx.lastSent['store-audit:alt:https://hasanoud.com/products/silk'])
 
     await recommendationModel.deleteMany({ _id: { $in: [rec._id, otherRec._id] } })

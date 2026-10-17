@@ -422,6 +422,7 @@ const Recommendations: React.FC = () => {
                     <FixGuide
                       brandId={activeBrandId}
                       task={{ type: 'recommendation', id: rec._id }}
+                      sentKey={`recommendation-text:${rec.text.trim().toLowerCase()}`}
                       kind={rec.kind}
                       ctx={guideCtx}
                       what={rec.text}

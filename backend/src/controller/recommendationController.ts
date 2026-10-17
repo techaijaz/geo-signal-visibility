@@ -12,6 +12,8 @@ import { DAILY_RESCAN_LIMITS, PLAN_LIMITS, rescanLimitMessage, type PlanName } f
 import { recordDone, recordUndone } from '../service/fixEventService'
 import { getFixImpact, pickOverviewGroup } from '../service/fixImpactService'
 import { guideContext } from '../service/fixGuide'
+import { withKind } from '../service/recommendationService'
+import type { IRecommendationData } from '../types/recommendationTypes'
 
 export default {
     getBrandRecommendations: async (req: Request, res: Response, next: NextFunction) => {
@@ -143,7 +145,11 @@ export default {
                     brandName: brand.name,
                     status: 'queued',
                     jobId: job.id,
-                    recommendations: currentRecs
+                    recommendations: currentRecs,
+                    ...(await guideContext(
+                        brand,
+                        currentRecs.map((r) => r.kind)
+                    ))
                 })
             }
 
@@ -154,13 +160,19 @@ export default {
 
             // Development only: run inline when Redis / BullMQ is unavailable
             logger.warn(`[Recommendation Controller] Queue unavailable, falling back to inline generation for brand ${brandId}`)
-            const freshRecommendations = await databseService.rescanBrandRecommendations(brandId)
+            const freshRecommendations = (await databseService.rescanBrandRecommendations(brandId)).map((r) =>
+                withKind(r.toObject() as IRecommendationData)
+            )
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 brandId,
                 brandName: brand.name,
                 status: 'completed',
-                recommendations: freshRecommendations
+                recommendations: freshRecommendations,
+                ...(await guideContext(
+                    brand,
+                    freshRecommendations.map((r) => r.kind)
+                ))
             })
         } catch (error) {
             httpError(next, error, req, 500)

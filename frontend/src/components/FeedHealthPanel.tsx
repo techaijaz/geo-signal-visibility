@@ -172,7 +172,7 @@ export default function FeedHealthPanel({ brandId, onChecked }: { brandId?: stri
                                     <div style={{ marginLeft: '16px' }}>
                                       <FixGuide compact brandId={brandId} ctx={guideCtx} kind={c.kind}
                                         task={{ type: 'feed', key: c.key, url: p.url }}
-                                        what={`${p.name} (${p.url}): ${c.label}, ${c.detail}. ${TIP[c.key]}`.trim()}
+                                        what={[`${p.name} (${p.url}): ${c.label}, ${c.detail}.`, TIP[c.key]].filter(Boolean).join(' ')}
                                         onEmailSaved={(email) => setGuideCtx((g) => (g ? { ...g, developerEmail: email } : g))} />
                                     </div>
                                   )}

@@ -76,15 +76,17 @@ export const validationCreateBrandBody = Joi.object<ICreateBrandRequestBody>({
     languages: Joi.array().items(Joi.string().trim()).optional().default(['en', 'hi-en'])
 })
 
+// One rule for the developer email, in Settings and in "Send to developer"
+export function developerEmailSchema() {
+    return Joi.string().trim().lowercase().email().messages({
+        'string.email': "Enter your developer's email, like dev@agency.in",
+        'string.empty': "Enter your developer's email, like dev@agency.in"
+    })
+}
+
 export const validationUpdateBrandBody = Joi.object<IUpdateBrandRequestBody>({
     name: Joi.string().min(2).max(100).optional().trim(),
-    developerEmail: Joi.string()
-        .trim()
-        .lowercase()
-        .email()
-        .allow('')
-        .optional()
-        .messages({ 'string.email': "Enter your developer's email, like dev@agency.in" }),
+    developerEmail: developerEmailSchema().allow('').optional(),
     website: publicWebsite().optional().trim(),
     category: Joi.string().optional().trim(),
     businessType: Joi.string()

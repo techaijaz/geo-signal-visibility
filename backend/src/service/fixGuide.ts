@@ -379,7 +379,8 @@ const TEXT_RULES: Array<[RegExp, FixKind]> = [
     [/robots\.txt|crawler|gptbot|claudebot|google-extended|perplexitybot|unblock/i, 'crawler-access'],
     [/llms\.txt/i, 'llms-txt'],
     [/faq\s*page\s*schema|faqpage|faq.*schema|schema.*faq/i, 'faq-schema'],
-    [/rating|aggregaterating|star/i, 'rating-schema'],
+    // "star", not "start" or "standard"
+    [/rating|\bstars?\b/i, 'rating-schema'],
     [/\bvs\.?\b|versus|comparison/i, 'comparison-page'],
     [/\bfaq\b/i, 'faq-page'],
     [/review/i, 'reviews'],
@@ -427,7 +428,7 @@ export const kindForCheck = (surface: keyof typeof CHECK_KINDS, key: string): Fi
 
 // The guides a response needs, once each
 export const guidesFor = (kinds: Array<string | null | undefined>): Record<string, IFixGuide> =>
-    Object.fromEntries([...new Set(kinds.map((k) => guideFor(k).kind))].map((k) => [k, FIX_GUIDES[k]]))
+    Object.fromEntries([...new Set(['other', ...kinds.map((k) => guideFor(k).kind)])].map((k) => [k, FIX_GUIDES[k as FixKind]]))
 
 // What every surface needs to show guides: platform, the saved developer email and the guides for its kinds
 export const guideContext = async (

@@ -9,6 +9,7 @@ import { fixOutputs } from './fix/output'
 import { guideFor, guideContext, kindForCheck, type FixKind } from './fixGuide'
 import { withKind } from './recommendationService'
 import { isDisposableEmail } from './freeCheck/helpers'
+import { developerEmailSchema } from './validationService'
 import type { IGeneratedFix } from '../types/fixTypes'
 
 export const DEV_SENDS_PER_DAY = 20
@@ -32,6 +33,7 @@ interface IResolved {
     what: string
     url: string
     code: string
+    sentKey?: string
 }
 
 // The task, from what we saved; nothing from the request is put in the email
@@ -57,7 +59,14 @@ const resolveTask = async (brandId: string, website: string, t: DeveloperTaskRef
         const rec = await recommendationModel.findOne({ _id: t.id, brandId }).lean()
         if (!rec) throw httpErr(404, 'Task not found')
         const r = withKind(rec as { text: string; kind?: string | null; snippet?: string; reasoning?: string })
-        return { kind: r.kind, what: [r.text, r.reasoning].filter(Boolean).join('\n\n'), url: '', code: r.snippet || '' }
+        return {
+            kind: r.kind,
+            what: [r.text, r.reasoning].filter(Boolean).join('\n\n'),
+            url: '',
+            code: r.snippet || '',
+            // A re-scan saves the list again with new ids; the text stays, so the send is remembered by it
+            sentKey: `recommendation-text:${r.text.trim().toLowerCase()}`
+        }
     }
     if (t.type === 'fix') {
         if (!mongoose.isValidObjectId(t.id)) throw httpErr(404, 'Task not found')
@@ -147,12 +156,13 @@ export const sendToDeveloper = async (
 ) => {
     const brandId = String(brand._id)
     let to = (brand.developerEmail || '').trim().toLowerCase()
+    // A new email is checked now and saved only once the email has gone out
+    let newEmail = ''
     if (email !== undefined) {
-        const e = email.trim().toLowerCase()
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) throw httpErr(422, "Enter your developer's email, like dev@agency.in")
-        if (isDisposableEmail(e)) throw httpErr(422, 'Use a real email address for your developer.')
-        to = e
-        await brandModel.updateOne({ _id: brandId }, { $set: { developerEmail: e } })
+        const checked = developerEmailSchema().validate(email)
+        if (checked.error) throw httpErr(422, checked.error.message)
+        if (isDisposableEmail(checked.value)) throw httpErr(422, 'Use a real email address for your developer.')
+        to = newEmail = checked.value
     }
     if (!to) throw httpErr(422, "Add your developer's email first.")
     const resolved = await resolveTask(brandId, brand.website || '', task)
@@ -165,7 +175,8 @@ export const sendToDeveloper = async (
         await brandModel.updateOne({ _id: brandId, devSendCount: { $gt: 0 } }, { $inc: { devSendCount: -1 } })
         throw httpErr(502, "Couldn't send. Use Copy text instead.")
     }
+    if (newEmail) await brandModel.updateOne({ _id: brandId }, { $set: { developerEmail: newEmail } })
     const sentAt = new Date()
-    await developerSendModel.create({ brandId, userId: founder._id, to, taskKey: taskKey(task), kind: resolved.kind, sentAt })
+    await developerSendModel.create({ brandId, userId: founder._id, to, taskKey: resolved.sentKey ?? taskKey(task), kind: resolved.kind, sentAt })
     return { sentTo: to, sentAt }
 }

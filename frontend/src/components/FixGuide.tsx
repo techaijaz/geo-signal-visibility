@@ -11,10 +11,12 @@ interface Props {
   what: string; // the task text shown in Copy text
   code?: string;
   compact?: boolean;
+  // How the server remembers this task's sends, when it isn't taskKey(task) (recommendations: by text)
+  sentKey?: string;
   onEmailSaved?: (email: string) => void;
 }
 
-export default function FixGuide({ brandId, task, kind, ctx, what, code, compact, onEmailSaved }: Props) {
+export default function FixGuide({ brandId, task, kind, ctx, what, code, compact, sentKey, onEmailSaved }: Props) {
   const guide = ctx.guides[kind || ''] ?? ctx.guides.other;
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -22,7 +24,7 @@ export default function FixGuide({ brandId, task, kind, ctx, what, code, compact
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
-  const last = ctx.lastSent?.[taskKey(task)];
+  const last = ctx.lastSent?.[sentKey ?? taskKey(task)];
   if (!guide) return null;
 
   const send = async (withEmail?: string) => {
@@ -35,6 +37,11 @@ export default function FixGuide({ brandId, task, kind, ctx, what, code, compact
       setAsking(false);
       if (withEmail) onEmailSaved?.(to);
     } catch (err: any) {
+      // The saved email was cleared meanwhile (another tab): ask for it here
+      if (err.response?.status === 422 && !withEmail && /email first/i.test(err.response?.data?.message || '')) {
+        setAsking(true);
+        return;
+      }
       setMsg({ ok: false, text: err.response?.data?.message || "Couldn't send. Use Copy text instead." });
     } finally {
       setBusy(false);

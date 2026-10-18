@@ -9,6 +9,7 @@ import {
 } from '../types/userTypes'
 import { EBrandRole, EBusinessType, ICreateBrandRequestBody, IUpdateBrandRequestBody } from '../types/brandTypes'
 import { isPrivateAddress } from '../util/publicUrl'
+import { CITY_RE } from './siteProfile'
 
 export const validationRegisterBody = Joi.object<IRegisterRequestBody>({
     name: Joi.string().required().min(3).max(72).trim(),
@@ -58,6 +59,15 @@ const queryJoiSchema = Joi.object({
     enabled: Joi.boolean().optional()
 })
 
+// City or area for service and local businesses; plain words only
+export function citySchema() {
+    const msg = 'Use letters and spaces only, like Mumbai or Andheri West'
+    return Joi.string().trim().max(60).allow('').pattern(CITY_RE).messages({
+        'string.pattern.base': msg,
+        'string.max': 'Keep the city or area under 60 characters'
+    })
+}
+
 export const validationCreateBrandBody = Joi.object<ICreateBrandRequestBody>({
     name: Joi.string().required().min(2).max(100).trim(),
     website: publicWebsite().required().trim(),
@@ -66,6 +76,8 @@ export const validationCreateBrandBody = Joi.object<ICreateBrandRequestBody>({
         .valid(...Object.values(EBusinessType))
         .optional()
         .default(EBusinessType.ECOMMERCE),
+    sellsProducts: Joi.boolean().allow(null).optional(),
+    city: citySchema().optional(),
     region: Joi.string().optional().default('India').trim(),
     role: Joi.string()
         .valid(...Object.values(EBrandRole))
@@ -92,6 +104,8 @@ export const validationUpdateBrandBody = Joi.object<IUpdateBrandRequestBody>({
     businessType: Joi.string()
         .valid(...Object.values(EBusinessType))
         .optional(),
+    sellsProducts: Joi.boolean().allow(null).optional(),
+    city: citySchema().optional(),
     region: Joi.string().optional().trim(),
     role: Joi.string()
         .valid(...Object.values(EBrandRole))

@@ -145,6 +145,8 @@ export default {
                 website: value.website,
                 category: value.category,
                 businessType: value.businessType,
+                sellsProducts: value.sellsProducts ?? null,
+                city: value.city || '',
                 region: value.region || 'India',
                 role: value.role || EBrandRole.OWNER,
                 competitors: value.competitors || [],

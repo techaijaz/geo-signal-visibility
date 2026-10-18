@@ -162,8 +162,10 @@ export const siteProfile = (brand: { businessType?: string | null; sellsProducts
     - "{noun} near me with good reviews"
     - "Affordable {noun} in {place} for families"
 
-    `{noun}` is the category lowercased, with "& …" and "Tech" parts trimmed. "HealthTech & Healthcare" gives
-    "healthcare service", and a single-word category gives "{word} service".
+    `{noun}` is the first part of the category (split on "&" and ",") that doesn't end in "tech", lowercased, plus
+    " service" unless it already ends in service(s), agency, clinic or studio. "HealthTech & Healthcare" gives
+    "healthcare service", "Professional & Business Services" gives "professional service", and a category with no
+    such part gives "local service".
   - saas: "Best {noun} software for small business in India", "{noun} software ka free alternative kaunsa hai",
     "Which {noun} tool is easiest for a small team", "{noun} software pricing comparison India".
   - media: "Best {noun} websites in India", "{noun} news ke liye sabse bharosemand source kaunsa hai",

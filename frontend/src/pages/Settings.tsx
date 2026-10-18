@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useOutletContext, Link } from 'react-router-dom';
 import ProductsSettings from '../components/ProductsSettings';
-import { hasCity, queryExample, siteTypeOf } from '../utils/siteType';
+import { hasCity, queryExample, sellsAfterTypeChange, sellsPayload, siteTypeOf } from '../utils/siteType';
 import api from '../utils/axios';
 import { useAuth } from '../context/AuthContext';
 import { usePlanLimits } from '../hooks/usePlanLimits';
@@ -526,7 +526,7 @@ export default function Settings() {
         businessType: brandBusinessType,
         region: brandRegion,
         // Matching the type's default saves null, so a later type change still decides
-        sellsProducts: brandSellsProducts === (brandBusinessType === 'ecommerce') ? null : brandSellsProducts,
+        sellsProducts: sellsPayload(brandBusinessType, brandSellsProducts),
         city: hasCity(brandBusinessType) ? brandCity.trim() : '',
         competitors,
         queries
@@ -906,7 +906,11 @@ export default function Settings() {
                   <label>Business Niche / Type</label>
                   <select
                     value={brandBusinessType}
-                    onChange={(e) => setBrandBusinessType(e.target.value)}
+                    onChange={(e) => {
+                      // A switch left at the old type's default moves to the new type's default
+                      setBrandSellsProducts((s) => sellsAfterTypeChange(brandBusinessType, e.target.value, s));
+                      setBrandBusinessType(e.target.value);
+                    }}
                   >
                     <option value="saas">💼 B2B / SaaS / Software</option>
                     <option value="ecommerce">🛒 E-Commerce & Retail Store</option>

@@ -4,6 +4,15 @@ const TYPES: Record<string, SiteType> = { service: 'service', local_business: 'l
 export const siteTypeOf = (businessType?: string): SiteType => TYPES[businessType || ''] || 'shop';
 export const hasCity = (businessType?: string) => businessType === 'service' || businessType === 'local_business';
 
+// Only shops sell products by default; a switch left at the default follows the type
+const sellsByDefault = (businessType?: string) => (businessType || 'ecommerce') === 'ecommerce';
+export const sellsAfterTypeChange = (prevType: string, nextType: string, sells: boolean) =>
+  sells === sellsByDefault(prevType) ? sellsByDefault(nextType) : sells;
+export const sellsPayload = (businessType: string, sells: boolean): boolean | null => (sells === sellsByDefault(businessType) ? null : sells);
+
+// The pages we read, in copy: product pages only for sites that sell products
+export const pagesWord = (sellsProducts?: boolean) => (sellsProducts === false ? 'main pages' : 'product pages');
+
 export const listingsCopy = (t: SiteType) => {
   if (t === 'shop')
     return {

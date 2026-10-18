@@ -24,6 +24,9 @@ export type FixKind =
     | 'marketplace'
     | 'outreach'
     | 'forums'
+    | 'service-schema'
+    | 'local-listing'
+    | 'service-pages'
     | 'other'
 
 export interface IFixGuide {
@@ -43,6 +46,26 @@ const g = (kind: FixKind, who: IFixGuide['who'], title: string, shopify: string[
 })
 
 const TEST_RICH = 'Test a page at search.google.com/test/rich-results to check it worked.'
+
+const SERVICE_SCHEMA_STEPS = [
+    'Ask your developer to add LocalBusiness or ProfessionalService schema (JSON-LD) to your homepage.',
+    'Give them your business name, address, phone, opening hours and main services.',
+    'Use the same name, address and phone as on your Google Business Profile.',
+    TEST_RICH
+]
+const LOCAL_LISTING_STEPS = [
+    'Create or claim your free Google Business Profile at business.google.com.',
+    'Use the same business name, address and phone everywhere you are listed.',
+    'Add photos, opening hours and the services you offer.',
+    'List on one or two directories people use for your kind of business, like Justdial, Practo or Sulekha.',
+    'Ask happy clients to leave a review there.'
+]
+const SERVICE_PAGES_STEPS = [
+    'Make one page for each main service you offer.',
+    'Say what it is, who it is for, and the price or price range.',
+    'Add 3 to 5 questions clients ask, with short answers.',
+    'Link each page from your menu or homepage.'
+]
 
 export const FIX_GUIDES: Record<FixKind, IFixGuide> = {
     'crawler-access': g(
@@ -69,12 +92,12 @@ export const FIX_GUIDES: Record<FixKind, IFixGuide> = {
         [
             'Shopify does not let you add a file at yourstore.com/llms.txt from the admin.',
             'Search the Shopify App Store for "llms.txt" and install an app that publishes it, or ask your developer.',
-            'Keep it short: who you are, what you sell, your main product pages and policies.',
+            'Keep it short: who you are, what you offer, your main pages and policies.',
             'Open yourstore.com/llms.txt to check it shows.'
         ],
         [
             'Ask your developer or host to add a plain text file named llms.txt at the root of your site.',
-            'Keep it short: who you are, what you sell, your main product pages and policies.',
+            'Keep it short: who you are, what you offer, your main pages and policies.',
             'Open yoursite.com/llms.txt to check it shows.'
         ],
         'Serve a text/markdown file at /llms.txt (spec: llmstxt.org): a title, a one-line summary, then links to key pages. On Shopify use an app or an app proxy; root files cannot be uploaded directly.'
@@ -97,13 +120,13 @@ export const FIX_GUIDES: Record<FixKind, IFixGuide> = {
         'developer',
         'Add FAQPage schema',
         [
-            'Write 3 to 5 questions buyers ask, with short answers (the Fixes page can write them for you).',
+            'Write 3 to 5 questions customers ask, with short answers (the Fixes page can write them for you).',
             'In Online Store → Themes → Customize, open a product page and add a Collapsible row or FAQ block.',
             'An FAQ block does not always add FAQPage schema. Send the schema code to your developer, or use an FAQ app that adds it.',
             TEST_RICH
         ],
         [
-            'Write 3 to 5 questions buyers ask, with short answers.',
+            'Write 3 to 5 questions customers ask, with short answers.',
             'Add them to the page as an FAQ section.',
             'Send the FAQPage schema code to your developer to add.',
             TEST_RICH
@@ -158,13 +181,13 @@ export const FIX_GUIDES: Record<FixKind, IFixGuide> = {
         'Collect more customer reviews',
         [
             'Install a review app from the Shopify App Store (Judge.me has a free plan).',
-            'Turn on review request emails a few days after delivery.',
+            'Turn on review request emails a few days after the order arrives.',
             'Email or WhatsApp your recent customers and ask for an honest review.',
             'Reply to reviews, good and bad.'
         ],
         [
             'Pick one place for reviews: your site, Google Business Profile or Trustpilot.',
-            'Ask every customer for a review a few days after delivery.',
+            'Ask every customer for a review a few days after the order or visit.',
             'Reply to reviews, good and bad.'
         ],
         'If the store uses a review app, make sure reviews render in the product page HTML and in Product schema (aggregateRating).'
@@ -323,13 +346,13 @@ export const FIX_GUIDES: Record<FixKind, IFixGuide> = {
         [
             'Open Competitors → Where AI reads and pick a page that names a competitor but not you.',
             'Find the writer or site contact on that page.',
-            'Send a short, polite email: who you are, why your product fits, and offer a sample.',
+            'Send a short, polite email: who you are, why you fit, and offer a sample or a free visit.',
             'Keep a list of who you contacted and follow up once after a week.'
         ],
         [
             'Open Competitors → Where AI reads and pick a page that names a competitor but not you.',
             'Find the writer or site contact on that page.',
-            'Send a short, polite email and offer a sample. Follow up once after a week.'
+            'Send a short, polite email and offer a sample or a free visit. Follow up once after a week.'
         ],
         'No code needed. If the page links to stores, make sure your product page URL is stable and fast.'
     ),
@@ -349,6 +372,30 @@ export const FIX_GUIDES: Record<FixKind, IFixGuide> = {
             'Do not post the same text in many places.'
         ],
         'No code needed: this is community work, not a website change.'
+    ),
+    'service-schema': g(
+        'service-schema',
+        'developer',
+        'Add LocalBusiness schema',
+        SERVICE_SCHEMA_STEPS,
+        SERVICE_SCHEMA_STEPS,
+        'Add JSON-LD with @type LocalBusiness or a subtype (Dentist, MedicalClinic, LegalService, ProfessionalService) on the homepage: name, address (PostalAddress), telephone, openingHours, url and the services offered. Check it at search.google.com/test/rich-results.'
+    ),
+    'local-listing': g(
+        'local-listing',
+        'you',
+        'Get listed on Google and local directories',
+        LOCAL_LISTING_STEPS,
+        LOCAL_LISTING_STEPS,
+        'No code needed. If you can, add the Google Business Profile and directory links as sameAs in the Organization or LocalBusiness schema.'
+    ),
+    'service-pages': g(
+        'service-pages',
+        'you',
+        'Give each service its own page',
+        SERVICE_PAGES_STEPS,
+        SERVICE_PAGES_STEPS,
+        'Each service page should be server-rendered HTML with its own title and meta description, FAQPage schema for its questions, and a link from the navigation.'
     ),
     other: g(
         'other',
@@ -379,11 +426,15 @@ const TEXT_RULES: Array<[RegExp, FixKind]> = [
     [/robots\.txt|crawler|gptbot|claudebot|google-extended|perplexitybot|unblock/i, 'crawler-access'],
     [/llms\.txt/i, 'llms-txt'],
     [/faq\s*page\s*schema|faqpage|faq.*schema|schema.*faq/i, 'faq-schema'],
+    [/localbusiness|professionalservice/i, 'service-schema'],
     // "star", not "start" or "standard"
     [/rating|\bstars?\b/i, 'rating-schema'],
     [/\bvs\.?\b|versus|comparison/i, 'comparison-page'],
     [/\bfaq\b/i, 'faq-page'],
+    [/service pages?/i, 'service-pages'],
     [/review/i, 'reviews'],
+    // After reviews: "reviews on Google Business Profile" is a review task
+    [/google business|justdial|practo|sulekha|director(y|ies)/i, 'local-listing'],
     [/amazon|flipkart|nykaa|myntra|meesho|marketplace/i, 'marketplace'],
     [/reddit|subreddit|forum|quora/i, 'forums'],
     [/blog|outreach|press|\bpr\b|featured|influencer|listicle/i, 'outreach'],

@@ -11,6 +11,7 @@ import { EUserRole } from '../constent/userConstent'
 import { DAILY_RESCAN_LIMITS, rescanLimitMessage, type PlanName } from '../config/planLimits'
 import auditModel from '../model/auditModel'
 import { productCheckGate, rememberProductCheck, runAiView, type IAiView } from '../service/aiViewService'
+import { siteProfile } from '../service/siteProfile'
 import { storeAuditForBrand } from '../service/storeAuditService'
 import { auditService } from '../service/auditService'
 import { ALL_FIX_KINDS, guideContext, withAuditKinds } from '../service/fixGuide'
@@ -92,7 +93,7 @@ export default {
             if (existing?.checkedAt && sameSite && Date.now() - new Date(existing.checkedAt).getTime() < 5 * 60 * 1000) {
                 return httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: withKinds({ aiView: existing }).aiView })
             }
-            const aiView = await runAiView(brand.website)
+            const aiView = await runAiView(brand.website, undefined, siteProfile(brand).sellsProducts)
             // No upsert: a bare audit document would stop the brand's first real audit from running
             await auditModel.updateOne({ brandId }, { $set: { aiView } })
             httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: withKinds({ aiView }).aiView })

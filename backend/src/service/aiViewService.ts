@@ -133,7 +133,7 @@ export const fixTipFor = (key: IFactRow['key'], shopify = false): string => {
     return shopify && t.shopify ? `${t.tip} ${t.shopify}` : t.tip
 }
 
-export const compareFacts = (ai: IPageFacts, shopper: IPageFacts | null, shopify = false): IFactRow[] => {
+export const compareFacts = (ai: IPageFacts, shopper: IPageFacts | null, shopify = false, products = true): IFactRow[] => {
     const row = (key: IFactRow['key'], label: string, a: string | null, s: string | null, missing: boolean): IFactRow => ({
         key,
         label,
@@ -143,6 +143,21 @@ export const compareFacts = (ai: IPageFacts, shopper: IPageFacts | null, shopify
         ...(shopper && missing ? { tip: fixTipFor(key, shopify) } : {})
     })
     const hasProduct = (f: IPageFacts) => (f.schemaTypes.includes('product') ? 'Found' : null)
+    // Sites without products: only the facts every page has; any schema counts
+    if (!products) {
+        const hasSchema = (f: IPageFacts) => (f.schemaTypes.length ? 'Found' : null)
+        return [
+            row('name', 'Name', ai.name, shopper?.name ?? null, !ai.name && !!shopper?.name),
+            row(
+                'description',
+                'Description',
+                `${ai.words} words`,
+                shopper ? `${shopper.words} words` : null,
+                !!shopper && shopper.words >= 50 && ai.words < shopper.words / 2
+            ),
+            row('schema', 'Schema markup', hasSchema(ai), shopper ? hasSchema(shopper) : null, !hasSchema(ai) && !!shopper && !!hasSchema(shopper))
+        ]
+    }
     return [
         row('name', 'Product name', ai.name, shopper?.name ?? null, !ai.name && !!shopper?.name),
         row('price', 'Price', ai.price, shopper?.price ?? null, !ai.price && !!shopper?.price),
@@ -167,13 +182,13 @@ export interface IAiViewScore {
 }
 
 // A description only counts at 50 words or more, the same bar compareFacts uses
-const hasFact = (f: IPageFacts, key: IFactRow['key']) =>
-    key === 'description' ? f.words >= 50 : key === 'schema' ? f.schemaTypes.includes('product') : !!f[key]
+const hasFact = (f: IPageFacts, key: IFactRow['key'], products = true) =>
+    key === 'description' ? f.words >= 50 : key === 'schema' ? (products ? f.schemaTypes.includes('product') : f.schemaTypes.length > 0) : !!f[key]
 
-export const scorePage = (ai: IPageFacts, shopper: IPageFacts | null): IAiViewScore => {
-    const rows = compareFacts(ai, shopper)
-    if (!shopper) return { seen: rows.filter((r) => hasFact(ai, r.key)).length, total: null, level: null }
-    const counted = rows.filter((r) => hasFact(shopper, r.key))
+export const scorePage = (ai: IPageFacts, shopper: IPageFacts | null, products = true): IAiViewScore => {
+    const rows = compareFacts(ai, shopper, false, products)
+    if (!shopper) return { seen: rows.filter((r) => hasFact(ai, r.key, products)).length, total: null, level: null }
+    const counted = rows.filter((r) => hasFact(shopper, r.key, products))
     const seen = counted.filter((r) => !r.missingForAi).length
     const total = counted.length
     const level = !total ? null : seen === total ? 'good' : total - seen > total / 2 ? 'bad' : 'warn'
@@ -237,7 +252,7 @@ export const openError = (err: unknown): string => {
     return msg || 'unknown error'
 }
 
-export const runAiView = async (website: string, productUrl?: string): Promise<IAiView> => {
+export const runAiView = async (website: string, productUrl?: string, products = true): Promise<IAiView> => {
     const home = auditService.cleanUrl(website)
     try {
         await assertPublicUrl(home)
@@ -248,7 +263,7 @@ export const runAiView = async (website: string, productUrl?: string): Promise<I
         }
     }
     const homeHtml = await fetchRaw(home).catch(() => '')
-    const product = productUrl || (homeHtml ? productLinksIn(homeHtml, home)[0] : undefined)
+    const product = productUrl || (products && homeHtml ? productLinksIn(homeHtml, home)[0] : undefined)
     const targets = [...(product ? [{ url: product, label: 'Product page' as const }] : []), { url: home, label: 'Homepage' as const }]
     const shopper = await renderAll(targets.map((t) => t.url))
     const pages: IAiView['pages'] = []
@@ -260,9 +275,9 @@ export const runAiView = async (website: string, productUrl?: string): Promise<I
             const shopperFacts = shopperHtml ? extractPageFacts(shopperHtml) : null
             pages.push({
                 ...t,
-                rows: compareFacts(ai, shopperFacts, isShopifyHtml(raw)),
+                rows: compareFacts(ai, shopperFacts, isShopifyHtml(raw), products),
                 aiPreview: ai.preview,
-                score: scorePage(ai, shopperFacts),
+                score: scorePage(ai, shopperFacts, products),
                 ...(shopperHtml ? {} : { error: "Couldn't load the page like a shopper" })
             })
         } catch (err) {

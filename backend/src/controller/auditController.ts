@@ -10,7 +10,7 @@ import responceseMessage from '../constent/responceseMessage'
 import { EUserRole } from '../constent/userConstent'
 import { DAILY_RESCAN_LIMITS, rescanLimitMessage, type PlanName } from '../config/planLimits'
 import auditModel from '../model/auditModel'
-import { productCheckGate, rememberProductCheck, runAiView, type IAiView } from '../service/aiViewService'
+import { productCheckGate, rememberProductCheck, runAiView, viewForProfile, viewMatches, type IAiView } from '../service/aiViewService'
 import { siteProfile } from '../service/siteProfile'
 import { storeAuditForBrand } from '../service/storeAuditService'
 import { auditService } from '../service/auditService'
@@ -41,6 +41,8 @@ export default {
             const found = await databseService.findAuditByBrandId(brandId)
             // Plain copy so failing checks can carry their fix guide kind
             const audit = found && typeof found.toObject === 'function' ? found.toObject() : found
+            // A view saved while the brand sold products drops its product rows for a brand that no longer does
+            if (audit?.aiView) audit.aiView = viewForProfile(audit.aiView as IAiView, siteProfile(brand).sellsProducts)
             const kinds = withAuditKinds(audit as Parameters<typeof withAuditKinds>[0])
 
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
@@ -90,10 +92,16 @@ export default {
             const existing = (await auditModel.findOne({ brandId }).select('aiView').lean())?.aiView as IAiView | null | undefined
             // ...but only for the same website: after the brand's website changes, check the new one
             const sameSite = existing?.pages?.some((p) => p.label === 'Homepage' && p.url === auditService.cleanUrl(brand.website))
-            if (existing?.checkedAt && sameSite && Date.now() - new Date(existing.checkedAt).getTime() < 5 * 60 * 1000) {
+            const products = siteProfile(brand).sellsProducts
+            if (
+                existing?.checkedAt &&
+                sameSite &&
+                viewMatches(existing, products) &&
+                Date.now() - new Date(existing.checkedAt).getTime() < 5 * 60 * 1000
+            ) {
                 return httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: withKinds({ aiView: existing }).aiView })
             }
-            const aiView = await runAiView(brand.website, undefined, siteProfile(brand).sellsProducts)
+            const aiView = await runAiView(brand.website, undefined, products)
             // No upsert: a bare audit document would stop the brand's first real audit from running
             await auditModel.updateOne({ brandId }, { $set: { aiView } })
             httpResponse(req, res, 200, responceseMessage.SUCCESS, { aiView: withKinds({ aiView }).aiView })

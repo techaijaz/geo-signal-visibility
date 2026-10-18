@@ -208,6 +208,26 @@ export interface IAiView {
     }>
 }
 
+// True when a saved view was made for this kind of site (product views have a Price row); errored views match anything
+export const viewMatches = (view: IAiView, products: boolean) => {
+    const withRows = view.pages.filter((p) => p.rows.length)
+    return !withRows.length || withRows.some((p) => p.rows.some((r) => r.key === 'price')) === products
+}
+// A view saved while the brand sold products, shown to a brand that doesn't: no product page, no price, rating or
+// Product schema rows (that row measured Product schema), and no score built from them
+export const viewForProfile = (view: IAiView, products: boolean): IAiView => {
+    if (products || viewMatches(view, products)) return view
+    return {
+        ...view,
+        pages: view.pages
+            .filter((p) => p.label !== 'Product page')
+            .map(({ score: _score, ...p }) => ({
+                ...p,
+                rows: p.rows.filter((r) => r.key === 'name' || r.key === 'description').map((r) => (r.key === 'name' ? { ...r, label: 'Name' } : r))
+            }))
+    }
+}
+
 const GPTBOT_UA = 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.1; +https://openai.com/gptbot)'
 
 const fetchRaw = (url: string) => fetchPublicText(url, { 'User-Agent': GPTBOT_UA })

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import api from '../utils/axios';
+import { pagesWord } from '../utils/siteType';
 import FixGuide from '../components/FixGuide';
 import type { GuideContext } from '../utils/fixGuide';
 
@@ -45,6 +46,7 @@ interface FixesData {
 
 interface OutletContextType {
   currentBrand: { _id?: string; name: string };
+  brands?: Array<{ _id?: string; sellsProducts?: boolean }>;
 }
 
 const LANGUAGES: Array<{ value: FixLanguage; label: string }> = [
@@ -199,6 +201,7 @@ const Fixes: React.FC = () => {
   const used = usage.used >= usage.limit;
   const dirty = shown ? JSON.stringify(shown.items) !== JSON.stringify(draft) : false;
   const brandName = context.currentBrand.name;
+  const pages = pagesWord(context.brands?.find((b) => b._id === context.currentBrand._id)?.sellsProducts);
 
   return (
     <div>
@@ -206,7 +209,7 @@ const Fixes: React.FC = () => {
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 600, margin: 0 }}>Fixes for {brandName}</h2>
           <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-faint)' }}>
-            FAQ and comparison pages written from your own product pages, ready to paste into your store.
+            FAQ and comparison pages written from your own {pages}, ready to paste into your site.
           </p>
         </div>
         <span className={`badge ${used ? 'badge-warn' : 'badge-ok'}`}>
@@ -216,7 +219,7 @@ const Fixes: React.FC = () => {
 
       <div className="panel">
         <h3>Write a new one</h3>
-        <p className="sub">We read your product pages, then write. Anything we can't find on them is marked [confirm] for you to fill in.</p>
+        <p className="sub">We read your {pages}, then write. Anything we can't find on them is marked [confirm] for you to fill in.</p>
 
         <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }} role="radiogroup" aria-label="What to write">
           {(['faq', 'comparison'] as FixType[]).map((t) => (

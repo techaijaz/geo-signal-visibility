@@ -41,7 +41,7 @@ const ScoreLine = ({ score }: { score: Score }) => {
 };
 
 // productUrl: from the Products page ("Check this page"), checks that product page instead of the first one found
-export default function AiViewPanel({ brandId, initial, productUrl, ctx, onEmailSaved }: { brandId?: string; initial?: AiView | null; productUrl?: string; ctx?: GuideContext | null; onEmailSaved?: (email: string) => void }) {
+export default function AiViewPanel({ brandId, initial, productUrl, ctx, onEmailSaved, sellsProducts = true }: { brandId?: string; initial?: AiView | null; productUrl?: string; ctx?: GuideContext | null; onEmailSaved?: (email: string) => void; sellsProducts?: boolean }) {
   const [view, setView] = useState<AiView | null>(initial ?? null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +65,7 @@ export default function AiViewPanel({ brandId, initial, productUrl, ctx, onEmail
       <h3>What AI crawlers see</h3>
       {productUrl && <p style={{ fontSize: '12.5px', margin: '0 0 8px', overflowWrap: 'anywhere' }}>Checking <span className="mono">{productUrl}</span></p>}
       <p className="sub">ChatGPT's and Claude's crawlers read your page's raw HTML and don't run JavaScript. Anything that only appears after JavaScript is invisible to them.</p>
-      {running && <ScanProgress title="Comparing AI and shopper views" hint="Opening your product page and homepage as GPTBot and as a shopper. This takes up to a minute." />}
+      {running && <ScanProgress title="Comparing AI and shopper views" hint={`Opening your ${sellsProducts || productUrl ? 'product page and homepage' : 'homepage'} as GPTBot and as a visitor. This takes up to a minute.`} />}
       {error && <p style={{ color: 'var(--bad)', fontSize: '13px' }}>{error}</p>}
       {!running && view?.pages.map((p) => {
         const missingRows = p.rows.filter((r) => r.missingForAi);

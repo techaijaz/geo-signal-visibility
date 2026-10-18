@@ -4,7 +4,7 @@ import api from '../utils/axios';
 import ScanProgress from '../components/ScanProgress';
 import AiViewPanel, { type AiView } from '../components/AiViewPanel';
 import StoreAuditPanel, { type StoreAudit } from '../components/StoreAuditPanel';
-import { listingsCopy, siteTypeOf } from '../utils/siteType';
+import { listingsCopy, pagesWord, siteTypeOf } from '../utils/siteType';
 import type { GuideContext } from '../utils/fixGuide';
 
 interface AuditGridItem {
@@ -321,7 +321,7 @@ export default function WebsiteAudit() {
         </button>
       </div>
 
-      {isRescanning && <ScanProgress title="Auditing your website" hint="Reading your homepage, product pages and robots.txt. This takes under a minute." />}
+      {isRescanning && <ScanProgress title="Auditing your website" hint={`Reading your homepage, ${pagesWord(sellsProducts)} and robots.txt. This takes under a minute.`} />}
 
       {/* Top Cards Row */}
       <div className="cards-row" style={{ gridTemplateColumns: '1fr 3fr' }}>
@@ -365,6 +365,7 @@ export default function WebsiteAudit() {
       </div>
 
       <AiViewPanel
+        sellsProducts={sellsProducts}
         key={`${activeBrandId}-${productUrl}`}
         brandId={activeBrandId}
         initial={productUrl ? null : auditData?.aiView}

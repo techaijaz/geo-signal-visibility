@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useOutletContext } from 'react-router-dom';
 import api from '../utils/axios';
+import { pagesWord } from '../utils/siteType';
 
 // Where AI reads (feature #9): the pages Gemini with Google Search cites for the brand's questions, and the
 // pages that name competitors but not the brand. One engine's view, checked weekly.
@@ -42,6 +43,8 @@ function useCitations(brandId?: string) {
 
 export function CitationsSection({ brandId }: { brandId?: string }) {
   const { data, error } = useCitations(brandId);
+  const outlet = useOutletContext<{ brands?: Array<{ _id?: string; sellsProducts?: boolean }> } | undefined>();
+  const pages = pagesWord(outlet?.brands?.find((b) => b._id === brandId)?.sellsProducts);
   const [shown, setShown] = useState(PAGE);
   const [open, setOpen] = useState<string | null>(null);
   const { hash } = useLocation();
@@ -140,7 +143,7 @@ export function CitationsSection({ brandId }: { brandId?: string }) {
           Your site was cited in {ownSite.own} of {ownSite.questions} answers
           {ownSite.topCompetitor && `; ${ownSite.topCompetitor.name}'s site: ${ownSite.topCompetitor.count}`}.
           {ownSite.own === 0 && ownSite.topCompetitor && (
-            <> AI reads competitors' product pages — <Link to="/audit">improve yours</Link>.</>
+            <> AI reads competitors' {pages} — <Link to="/audit">improve yours</Link>.</>
           )}
         </p>
       </>

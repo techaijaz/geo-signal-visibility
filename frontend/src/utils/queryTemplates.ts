@@ -18,8 +18,10 @@ export interface QueryItem extends SuggestedQuery {
 export const toQueryItems = (items: SuggestedQuery[]): QueryItem[] =>
   items.map((q, idx) => ({ ...q, id: `q-${Date.now()}-${idx}`, enabled: true }));
 
-export async function fetchQueryTemplates(category: string, brandName?: string): Promise<SuggestedQuery[]> {
-  const res = await api.get('/queries/templates', { params: { category, brand: brandName || '' } });
+export async function fetchQueryTemplates(category: string, brandName?: string, businessType?: string, city?: string): Promise<SuggestedQuery[]> {
+  const res = await api.get('/queries/templates', {
+    params: { category, brand: brandName || '', businessType: businessType || '', city: city || '' },
+  });
   return res.data?.data?.queries || [];
 }
 

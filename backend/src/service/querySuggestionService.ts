@@ -2,6 +2,7 @@
 // Curated per-vertical templates (no AI), plus AI suggestions that are validated before anyone sees them.
 import aiService from './aiService'
 import logger from '../util/loger'
+import type { ISiteProfile } from './siteProfile'
 
 export type QueryLang = 'EN' | 'HI-EN'
 export type QueryIntent = 'Best-of' | 'Price' | 'Occasion' | 'Comparison' | 'Direct' | 'How-to'
@@ -323,12 +324,62 @@ const nicheTemplates = (category: string, vertical: Exclude<Vertical, 'generic'>
     ]
 }
 
-export const templateQueries = (category: string, brandName?: string): ISuggestedQuery[] => {
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+// The first part of the category that isn't a "...Tech" word: "HealthTech & Healthcare" → "healthcare"
+const firstPart = (category: string, skip: RegExp) =>
+    category
+        .split(/[&,/]/)
+        .map((p) => p.trim().toLowerCase())
+        .find((p) => p && !skip.test(p))
+export const serviceNoun = (category: string): string => {
+    const base = firstPart(category, /tech$/) || 'local'
+    return /(services?|agency|clinic|studio)$/.test(base) ? base : `${base} service`
+}
+
+// Questions clients ask before choosing a service, a tool or a source (no shopping words)
+const nonShopTemplates = (category: string, profile: Pick<ISiteProfile, 'type' | 'place'>): ISuggestedQuery[] => {
+    const place = profile.place
+    if (profile.type === 'saas') {
+        const n = firstPart(category, /tech$|^saas$|^software$/) || 'business'
+        return [
+            q(`Best ${n} software for small business in India`, 'EN', 'Best-of'),
+            q(`${cap(n)} software ka free alternative kaunsa hai`, 'HI-EN', 'Price'),
+            q(`Which ${n} tool is easiest for a small team`, 'EN', 'Comparison'),
+            q(`${cap(n)} software pricing comparison India`, 'EN', 'Price')
+        ]
+    }
+    if (profile.type === 'media') {
+        const n = firstPart(category, /tech$/) || 'news'
+        return [
+            q(`Best ${n} websites in India`, 'EN', 'Best-of'),
+            q(`${cap(n)} news ke liye sabse bharosemand source kaunsa hai`, 'HI-EN', 'Best-of'),
+            q(`Where to read reliable ${n} updates`, 'EN', 'Direct')
+        ]
+    }
+    const n = serviceNoun(category)
+    return [
+        q(`Best ${n} in ${place}`, 'EN', 'Best-of'),
+        q(`${place} me accha aur trusted ${n} kaun sa hai`, 'HI-EN', 'Best-of'),
+        q(`${cap(n)} ka kharcha kitna hota hai`, 'HI-EN', 'Price'),
+        q(`${cap(n)} near me with good reviews`, 'EN', 'Direct'),
+        q(`Affordable ${n} in ${place} for families`, 'EN', 'Price')
+    ]
+}
+
+export const templateQueries = (category: string, brandName?: string, profile?: Pick<ISiteProfile, 'type' | 'place'>): ISuggestedQuery[] => {
+    const shop = !profile || profile.type === 'shop'
     const vertical = detectVertical(category)
-    const list = vertical === 'generic' ? genericTemplates(category) : [...nicheTemplates(category, vertical), ...TEMPLATES[vertical]]
+    let list: ISuggestedQuery[]
+    if (!shop) list = nonShopTemplates(category, profile)
+    else list = vertical === 'generic' ? genericTemplates(category) : [...nicheTemplates(category, vertical), ...TEMPLATES[vertical]]
     const brand = (brandName || '').trim()
     // One branded question, last, so small plans keep the unbranded discovery questions
-    if (brand) list.push(q(`${brand} reviews: original aur value for money hai ya nahi?`, 'HI-EN', 'Direct'))
+    if (brand)
+        list.push(
+            shop
+                ? q(`${brand} reviews: original aur value for money hai ya nahi?`, 'HI-EN', 'Direct')
+                : q(`${brand} reviews: kaisa hai, bharosa kar sakte hain?`, 'HI-EN', 'Direct')
+        )
     return list
 }
 
@@ -401,7 +452,33 @@ const parseJsonArray = (s: string | null): unknown => {
     }
 }
 
-const promptFor = (brand: { name: string; website?: string; category: string; region?: string }) => {
+type PromptBrand = { name: string; website?: string; category: string; region?: string; profile?: Pick<ISiteProfile, 'type' | 'city' | 'place'> }
+export const promptFor = (brand: PromptBrand) => {
+    const profile = brand.profile
+    if (profile && profile.type !== 'shop') {
+        const examples = templateQueries(brand.category, undefined, profile)
+            .slice(0, 3)
+            .map((t) => `- ${t.text}`)
+            .join('\n')
+        const what = { service: 'a service provider', local: 'a local business', saas: 'a software tool', media: 'a news or content source' }[
+            profile.type
+        ]
+        const inCity = profile.city ? ` in ${profile.city}` : ''
+        return `You help an Indian business find the questions its clients ask ChatGPT, Gemini and Perplexity before choosing ${what}.
+Brand: ${brand.name}${brand.website ? ` (${brand.website})` : ''}
+Category: ${brand.category}
+Market: ${brand.region || 'India'}${profile.city ? `\nCity: ${profile.city}` : ''}
+
+Write ${MAX_SUGGESTIONS} questions real Indian clients would type when looking for a service like this brand offers${inCity}.
+- Do NOT include the brand name ${brand.name}; these are discovery questions.
+- Mix Hinglish (Hindi in Roman script, e.g. "ke liye", "sabse accha", "kaun sa") and simple English, about half each.
+- Cover cost ("kharcha kitna", "fees"), "near me", trust and reviews, and urgency ("aaj hi", "emergency").
+- Short, the way people type: 4 to 14 words. No numbering, no quotes.
+Examples of the style:
+${examples}
+
+Reply with JSON only: [{"text": "...", "lang": "EN" | "HI-EN", "intent": "Best-of" | "Price" | "Occasion" | "Comparison" | "Direct" | "How-to"}]`
+    }
     const examples = templateQueries(brand.category)
         .slice(0, 3)
         .map((t) => `- ${t.text}`)
@@ -423,10 +500,7 @@ Reply with JSON only: [{"text": "...", "lang": "EN" | "HI-EN", "intent": "Best-o
 }
 
 // Never throws: no AI key or a junk reply gives []. The caller sets withAiCallContext for cost logs.
-export const suggestQueries = async (
-    brand: { name: string; website?: string; category: string; region?: string },
-    existing: string[]
-): Promise<ISuggestedQuery[]> => {
+export const suggestQueries = async (brand: PromptBrand, existing: string[]): Promise<ISuggestedQuery[]> => {
     try {
         const reply = await aiService.callAnyAvailableAi(promptFor(brand), 1200)
         const suggestions = cleanSuggestions(parseJsonArray(reply), brand.name, existing)

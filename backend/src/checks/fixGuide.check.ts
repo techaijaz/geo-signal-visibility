@@ -29,7 +29,9 @@ const you: FixKind[] = [
     'comparison-page',
     'marketplace',
     'outreach',
-    'forums'
+    'forums',
+    'local-listing',
+    'service-pages'
 ]
 for (const k of you) assert.equal(FIX_GUIDES[k].who, 'you', k)
 for (const k of [
@@ -40,6 +42,7 @@ for (const k of [
     'rating-schema',
     'js-content',
     'collection-schema',
+    'service-schema',
     'other'
 ] as FixKind[])
     assert.equal(FIX_GUIDES[k].who, 'developer', k)
@@ -70,6 +73,12 @@ const cases: Array<[string, FixKind]> = [
     ['Start a blog series about choosing attar', 'outreach'],
     ['Use a standard size chart on product pages', 'other'],
     ['Show star ratings in search results', 'rating-schema'],
+    ['Add LocalBusiness schema with your address, phone and hours for Sabka Dentist', 'service-schema'],
+    ['Add ProfessionalService JSON-LD to the homepage', 'service-schema'],
+    ['Get Sabka Dentist listed on Google Business Profile, Justdial and directories like Practo in Mumbai', 'local-listing'],
+    ['Collect 20+ verified reviews for Sabka Dentist on Google Business Profile in Mumbai', 'reviews'],
+    ['Create separate service pages for root canal and implants', 'service-pages'],
+    ['Add FAQPage schema to your main service pages for Sabka Dentist', 'faq-schema'],
     ['Something we have never seen before', 'other']
 ]
 for (const [text, kind] of cases) assert.equal(kindFromText(text), kind, text)
@@ -87,6 +96,26 @@ assert.equal(kindForCheck('feed', 'unknown-key'), 'other')
 assert.deepEqual(Object.keys(guidesFor(['reviews'])).sort(), ['other', 'reviews'])
 const g = guidesFor(['reviews', undefined, 'reviews', 'xyz'])
 assert.deepEqual(Object.keys(g).sort(), ['other', 'reviews'])
+
+// 23 kinds, and words that only fit shops stay out of the guides every brand sees
+assert.equal(Object.keys(FIX_GUIDES).length, 23)
+const PRODUCT_ONLY: FixKind[] = [
+    'product-schema',
+    'rating-schema',
+    'description',
+    'alt-text',
+    'price-stock',
+    'product-ids',
+    'images',
+    'marketplace',
+    'collection-schema'
+]
+for (const [kind, gd] of Object.entries(FIX_GUIDES)) {
+    if (PRODUCT_ONLY.includes(kind as FixKind)) continue
+    const all = [gd.forDeveloper, ...gd.steps.shopify, ...gd.steps.other].join(' ')
+    assert.ok(!/\bbuyers?\b|after delivery|what you sell|offer a sample\.|offer a sample$/i.test(all), `${kind} has shop-only words: ${all}`)
+}
+assert.ok(FIX_GUIDES['outreach'].steps.other.join(' ').includes('offer a sample or a free visit'))
 
 console.log('fixGuide checks: PASS')
 process.exit(0)

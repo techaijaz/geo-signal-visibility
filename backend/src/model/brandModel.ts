@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import { EBrandRole, EBusinessType, IBrand } from '../types/brandTypes'
+import { siteProfile } from '../service/siteProfile'
 
 const competitorSchema = new mongoose.Schema(
     {
@@ -86,6 +87,17 @@ const brandSchema = new mongoose.Schema<IBrand>(
             enum: Object.values(EBusinessType),
             default: EBusinessType.ECOMMERCE
         },
+        // The "I sell products" switch; null follows businessType (see siteProfile)
+        sellsProducts: {
+            type: Boolean,
+            default: null
+        },
+        city: {
+            type: String,
+            trim: true,
+            maxlength: 60,
+            default: ''
+        },
         region: {
             type: String,
             default: 'India',
@@ -171,7 +183,14 @@ const brandSchema = new mongoose.Schema<IBrand>(
         }
     },
     {
-        timestamps: true
+        timestamps: true,
+        // The API sends the computed answer, so the app never repeats the rule
+        toJSON: {
+            transform: (_doc, ret) => {
+                ret.sellsProducts = siteProfile(ret).sellsProducts
+                return ret
+            }
+        }
     }
 )
 

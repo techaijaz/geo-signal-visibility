@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useOutletContext, Link } from 'react-router-dom';
 import ProductsSettings from '../components/ProductsSettings';
+import { hasCity, queryExample, sellsAfterTypeChange, sellsPayload, siteTypeOf } from '../utils/siteType';
 import api from '../utils/axios';
 import { useAuth } from '../context/AuthContext';
 import { usePlanLimits } from '../hooks/usePlanLimits';
@@ -83,6 +84,8 @@ interface BrandData {
   category: string;
   businessType?: string;
   developerEmail?: string;
+  sellsProducts?: boolean;
+  city?: string;
   region: string;
   role?: string;
   competitors: Competitor[];
@@ -93,6 +96,7 @@ interface OutletContextType {
   currentBrand?: { _id?: string; name?: string; role?: string };
   brands?: BrandData[];
   setCurrentBrand?: (b: { _id?: string; name: string; role: string }) => void;
+  updateBrand?: (brandId: string, patch: { sellsProducts?: boolean; businessType?: string; city?: string }) => void;
 }
 
 export default function Settings() {
@@ -136,6 +140,8 @@ export default function Settings() {
   const [brandCategory, setBrandCategory] = useState('Skincare & Personal Care');
   const [brandBusinessType, setBrandBusinessType] = useState('ecommerce');
   const [brandRegion, setBrandRegion] = useState('India');
+  const [brandSellsProducts, setBrandSellsProducts] = useState(true);
+  const [brandCity, setBrandCity] = useState('');
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [competitorInput, setCompetitorInput] = useState('');
   const [competitorError, setCompetitorError] = useState('');
@@ -234,6 +240,8 @@ export default function Settings() {
     setBrandCategory(b.category || 'Skincare & Personal Care');
     setBrandBusinessType(b.businessType || 'ecommerce');
     setBrandRegion(b.region || 'India');
+    setBrandSellsProducts(b.sellsProducts !== false);
+    setBrandCity(b.city || '');
     setCompetitors(b.competitors || []);
     setQueries(b.queries || []);
     setAiSuggestions([]);
@@ -517,12 +525,16 @@ export default function Settings() {
         category: brandCategory,
         businessType: brandBusinessType,
         region: brandRegion,
+        // Matching the type's default saves null, so a later type change still decides
+        sellsProducts: sellsPayload(brandBusinessType, brandSellsProducts),
+        city: hasCity(brandBusinessType) ? brandCity.trim() : '',
         competitors,
         queries
       });
 
       const updatedBrand = res.data?.data;
       setBrands((prev) => prev.map((b) => (b._id === selectedBrandId ? updatedBrand : b)));
+      outletCtx?.updateBrand?.(selectedBrandId, { sellsProducts: updatedBrand?.sellsProducts, businessType: updatedBrand?.businessType, city: updatedBrand?.city });
       setBrandMessage({ type: 'success', text: 'Brand profile updated successfully!' });
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || 'Failed to save brand settings.';
@@ -894,7 +906,11 @@ export default function Settings() {
                   <label>Business Niche / Type</label>
                   <select
                     value={brandBusinessType}
-                    onChange={(e) => setBrandBusinessType(e.target.value)}
+                    onChange={(e) => {
+                      // A switch left at the old type's default moves to the new type's default
+                      setBrandSellsProducts((s) => sellsAfterTypeChange(brandBusinessType, e.target.value, s));
+                      setBrandBusinessType(e.target.value);
+                    }}
                   >
                     <option value="saas">💼 B2B / SaaS / Software</option>
                     <option value="ecommerce">🛒 E-Commerce & Retail Store</option>
@@ -914,6 +930,19 @@ export default function Settings() {
                     <option value="United States">United States</option>
                     <option value="Global">Global</option>
                   </select>
+                </div>
+                {hasCity(brandBusinessType) && (
+                  <div className="field">
+                    <label>City or area (optional)</label>
+                    <input type="text" maxLength={60} placeholder="e.g. Mumbai or Andheri West" value={brandCity} onChange={(e) => setBrandCity(e.target.value)} />
+                  </div>
+                )}
+                <div className="field">
+                  <label style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input type="checkbox" checked={brandSellsProducts} onChange={(e) => setBrandSellsProducts(e.target.checked)} />
+                    I sell products on this website
+                  </label>
+                  <p className="sub" style={{ fontSize: '12.5px', margin: '4px 0 0' }}>Turn off to hide Products and product page checks.</p>
                 </div>
               </div>
               <div className="onb-actions" style={{ borderTop: 'none', paddingTop: '6px', marginTop: '6px', justifyContent: 'flex-end' }}>
@@ -1177,7 +1206,7 @@ export default function Settings() {
                 placeholder={
                   queries.length >= maxQueries
                     ? `Query limit reached (${maxQueries}/${maxQueries}). Upgrade plan to add more.`
-                    : "Add a custom query (e.g. Best skincare product for dry skin)..."
+                    : `Add a custom query (e.g. ${queryExample(siteTypeOf(brandBusinessType))})...`
                 }
                 value={queryInput}
                 disabled={queries.length >= maxQueries}
@@ -1207,7 +1236,9 @@ export default function Settings() {
             {queriesUnsaved && unsavedNote}
           </div>
 
-          <ProductsSettings brandId={selectedBrandId} key={selectedBrandId} />
+          {brands.find((b) => b._id === selectedBrandId)?.sellsProducts !== false && (
+            <ProductsSettings brandId={selectedBrandId} key={selectedBrandId} />
+          )}
 
           {/* MODELS & PLATFORMS TRACKED PANEL */}
           <div className="panel">

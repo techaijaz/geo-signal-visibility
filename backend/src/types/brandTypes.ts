@@ -42,6 +42,8 @@ export interface ICreateBrandRequestBody {
     website: string
     category: string
     businessType?: EBusinessType
+    sellsProducts?: boolean | null
+    city?: string
     region?: string
     role?: EBrandRole
     competitors?: ICompetitor[]
@@ -55,6 +57,8 @@ export interface IUpdateBrandRequestBody {
     website?: string
     category?: string
     businessType?: EBusinessType
+    sellsProducts?: boolean | null
+    city?: string
     region?: string
     role?: EBrandRole
     competitors?: ICompetitor[]
@@ -72,6 +76,8 @@ export interface IBrand {
     website: string
     category: string
     businessType?: EBusinessType
+    sellsProducts?: boolean | null
+    city?: string
     region: string
     role: EBrandRole
     competitors: ICompetitor[]

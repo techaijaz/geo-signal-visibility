@@ -18,6 +18,7 @@ import citationRunModel from '../model/citationRunModel'
 import { CITATION_QUESTIONS, citationView } from '../service/citationService'
 import type { ICitationRun } from '../types/citationTypes'
 import { detectVertical, suggestQueries as suggestQueriesWithAi, templateQueries } from '../service/querySuggestionService'
+import { CITY_RE, siteProfile } from '../service/siteProfile'
 import { resolvesToPrivate } from '../util/publicUrl'
 import { isDisposableEmail } from '../service/freeCheck/helpers'
 
@@ -145,6 +146,8 @@ export default {
                 website: value.website,
                 category: value.category,
                 businessType: value.businessType,
+                sellsProducts: value.sellsProducts ?? null,
+                city: value.city || '',
                 region: value.region || 'India',
                 role: value.role || EBrandRole.OWNER,
                 competitors: value.competitors || [],
@@ -349,9 +352,11 @@ export default {
         try {
             const category = typeof req.query.category === 'string' ? req.query.category.slice(0, 100) : ''
             const brand = typeof req.query.brand === 'string' ? req.query.brand.slice(0, 100) : ''
+            const businessType = typeof req.query.businessType === 'string' ? req.query.businessType.slice(0, 40) : ''
+            const city = typeof req.query.city === 'string' && CITY_RE.test(req.query.city) ? req.query.city : ''
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 vertical: detectVertical(category),
-                queries: templateQueries(category, brand)
+                queries: templateQueries(category, brand, siteProfile({ businessType, city }))
             })
         } catch (error) {
             httpError(next, error, req, 500)
@@ -382,7 +387,10 @@ export default {
             const unsaved = Array.isArray(body.existing) ? body.existing.filter((t): t is string => typeof t === 'string').slice(0, 200) : []
             const existing = [...(brand.queries || []).map((q) => q.text), ...unsaved]
             const queries = await withAiCallContext({ brandId: id, purpose: 'queries' }, () =>
-                suggestQueriesWithAi({ name: brand.name, website: brand.website, category: brand.category, region: brand.region }, existing)
+                suggestQueriesWithAi(
+                    { name: brand.name, website: brand.website, category: brand.category, region: brand.region, profile: siteProfile(brand) },
+                    existing
+                )
             )
             httpResponse(req, res, 200, responceseMessage.SUCCESS, {
                 queries,

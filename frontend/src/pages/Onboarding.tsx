@@ -4,6 +4,7 @@ import api from '../utils/axios';
 import { useAuth } from '../context/AuthContext';
 import { usePlanLimits } from '../hooks/usePlanLimits';
 import { fetchQueryTemplates, queryLang, toQueryItems, type QueryItem } from '../utils/queryTemplates';
+import { hasCity } from '../utils/siteType';
 import { clearFreeCheck, loadFreeCheck, type FreeCheckHandoff } from '../utils/freeCheckHandoff';
 
 const FALLBACK_CATEGORIES = [
@@ -71,6 +72,7 @@ export default function Onboarding() {
   const [businessType, setBusinessType] = useState<'ecommerce' | 'saas' | 'service' | 'local_business' | 'content_media'>('ecommerce');
   const [categoriesList, setCategoriesList] = useState<string[]>(FALLBACK_CATEGORIES);
   const [region, setRegion] = useState('India');
+  const [city, setCity] = useState('');
   const [step1Error, setStep1Error] = useState('');
 
   // Exit setup and Cancel go to / , which sends a user without a brand straight back here.
@@ -138,7 +140,7 @@ export default function Onboarding() {
     setTemplatesLoading(true);
     setTemplatesError('');
     try {
-      const items = await fetchQueryTemplates(category, brandName.trim());
+      const items = await fetchQueryTemplates(category, brandName.trim(), businessType, hasCity(businessType) ? city.trim() : '');
       const fc = freeCheck.current;
       const list = toQueryItems(items).map((q) => (fc ? { ...q, enabled: fc.questions.includes(q.text) } : q));
       if (!cancelled()) setQueries(queriesWithinPlan(list));
@@ -161,7 +163,7 @@ export default function Onboarding() {
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, brandName, maxQueries]);
+  }, [category, brandName, maxQueries, businessType, city]);
 
   const activeQueriesCount = queries.filter((q) => q.enabled).length;
 
@@ -339,6 +341,7 @@ export default function Onboarding() {
         category: category,
         businessType: businessType,
         region: region,
+        city: hasCity(businessType) ? city.trim() : '',
         competitors: competitors,
         queries: activeQueries.map((q) => ({
           text: q.text,
@@ -471,6 +474,12 @@ export default function Onboarding() {
                   <option value="Global">Global</option>
                 </select>
               </div>
+              {hasCity(businessType) && (
+                <div className="field">
+                  <label htmlFor="city">City or area (optional)</label>
+                  <input id="city" type="text" maxLength={60} placeholder="e.g. Mumbai or Andheri West" value={city} onChange={(e) => setCity(e.target.value)} />
+                </div>
+              )}
             </div>
 
             {step1Error && <p className="error-text" style={{ marginBottom: '16px' }}>{step1Error}</p>}

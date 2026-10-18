@@ -48,12 +48,13 @@ interface OverviewData {
 
 interface OutletContextType {
   currentBrand: { _id?: string; name: string; role?: string };
-  brands: Array<{ _id?: string; name: string; role?: string }>;
+  brands: Array<{ _id?: string; name: string; role?: string; sellsProducts?: boolean }>;
 }
 
 const Overview: React.FC = () => {
   const context = useOutletContext<OutletContextType>();
   const activeBrandId = context?.currentBrand?._id;
+  const sellsProducts = context?.brands?.find((b) => b._id === activeBrandId)?.sellsProducts !== false;
 
   const [data, setData] = useState<OverviewData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -142,7 +143,7 @@ const Overview: React.FC = () => {
 
       <LostToCard brandId={activeBrandId} brandName={data?.brandName} />
 
-      <ProductsCard brandId={activeBrandId} key={activeBrandId} />
+      {sellsProducts && <ProductsCard brandId={activeBrandId} key={activeBrandId} />}
 
       <FixImpactCard brandId={activeBrandId} key={`fix-${activeBrandId}`} />
 

@@ -10,6 +10,65 @@ import { assertPublicUrl, publicAxiosOptions } from '../util/publicUrl'
 import { IAuditGridItem } from '../types/auditTypes'
 import logger from '../util/loger'
 import type { IFeedHealth, keepSavedFeed } from './feedHealthService'
+import { siteProfile, type ISiteProfile } from './siteProfile'
+
+export const faqIssueText = (profile: ISiteProfile) =>
+    `FAQPage schema missing on homepage and ${profile.pagesWord} (Limits direct AI answers and search snippet citations)`
+// Product page audit and feed check: only for sites that sell products, and only when the homepage opened
+export const shouldRunProductChecks = (fetchSuccess: boolean, profile: ISiteProfile) => fetchSuccess && profile.sellsProducts
+export const entitySchemaLabel = (profile: ISiteProfile) =>
+    ({
+        shop: 'Product / Brand schema',
+        service: 'Service / ProfessionalService schema',
+        local: 'LocalBusiness schema',
+        saas: 'SoftwareApplication schema',
+        media: 'Article / NewsArticle schema'
+    })[profile.type]
+// LocalBusiness and its common subtypes (Dentist, MedicalClinic, LegalService…) are the business schema for service
+// and local sites; a stray Product schema there is not
+const LOCAL_SCHEMA =
+    /service|localbusiness|dentist|medical|clinic|physician|hospital|legal|attorney|accounting|realestate|store|restaurant|lodging|beauty/
+export const hasEntitySchema = (types: string[], profile: ISiteProfile) =>
+    profile.type === 'service' || profile.type === 'local'
+        ? types.some((s) => LOCAL_SCHEMA.test(s))
+        : types.some(
+              (s) =>
+                  s.includes('product') ||
+                  s.includes('softwareapplication') ||
+                  s.includes('service') ||
+                  s.includes('article') ||
+                  s.includes('localbusiness')
+          )
+export const listingsEmptyName = (profile: ISiteProfile) => (profile.sellsProducts ? 'Marketplace & Sales Channels' : 'Listings & directories')
+
+// Sales channels, B2B listings, software and local directories linked from the homepage (first matches kept in order)
+const PLATFORM_LINKS: Array<[RegExp, string]> = [
+    [/indiamart\.com/, 'IndiaMART B2B Listing'],
+    [/tradeindia\.com/, 'TradeIndia B2B Listing'],
+    [/exportersindia\.com/, 'ExportersIndia Profile'],
+    [/amazon\./, 'Amazon Store'],
+    [/flipkart\./, 'Flipkart Store'],
+    [/meesho\./, 'Meesho Store'],
+    [/jiomart\.com/, 'JioMart Store'],
+    [/nykaa\./, 'Nykaa Store'],
+    [/myntra\./, 'Myntra Store'],
+    [/shopify\./, 'Shopify Store'],
+    [/etsy\./, 'Etsy Store'],
+    [/blinkit\.com/, 'Blinkit Listing'],
+    [/zepto/, 'Zepto Listing'],
+    [/g2\.com/, 'G2 Directory Profile'],
+    [/capterra\.com/, 'Capterra Profile'],
+    [/trustpilot\.com/, 'Trustpilot Profile'],
+    [/producthunt\.com/, 'ProductHunt Profile'],
+    [/justdial\.com/, 'Justdial Listing'],
+    [/practo\.com/, 'Practo Profile'],
+    [/sulekha\.com/, 'Sulekha Listing'],
+    [/g\.page\/|maps\.app\.goo\.gl|google\.[a-z.]+\/maps/, 'Google Business Profile']
+]
+export const platformsIn = (href: string): string[] => {
+    const h = href.toLowerCase()
+    return PLATFORM_LINKS.filter(([re]) => re.test(h)).map(([, name]) => name)
+}
 
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) GEOAudit/1.0'
 const PRODUCT_PAGES_TO_CHECK = 3
@@ -133,6 +192,7 @@ export const auditService = {
         if (!brand) {
             throw new Error(`Brand not found with ID: ${brandId}`)
         }
+        const profile = siteProfile(brand)
 
         const rawUrl = brand.website
         const targetUrl = auditService.cleanUrl(rawUrl)
@@ -201,7 +261,7 @@ export const auditService = {
 
             const blockedStructuredData: IAuditGridItem[] = [
                 { name: 'Organization schema', status: 'Scan Aborted', badgeType: 'badge-bad' },
-                { name: 'Product / App schema', status: 'Scan Aborted', badgeType: 'badge-bad' },
+                { name: entitySchemaLabel(profile), status: 'Scan Aborted', badgeType: 'badge-bad' },
                 { name: 'FAQPage schema', status: 'Scan Aborted', badgeType: 'badge-bad' },
                 { name: 'Review / Rating schema', status: 'Scan Aborted', badgeType: 'badge-bad' }
             ]
@@ -350,19 +410,11 @@ export const auditService = {
             const hasWebSiteSchema = foundSchemas.some(
                 (s) => s.includes('website') || s.includes('sitenavigationelement') || s.includes('breadcrumblist')
             )
-            const hasProductOrServiceSchema = foundSchemas.some(
-                (s) => s.includes('product') || s.includes('softwareapplication') || s.includes('service') || s.includes('article')
-            )
+            const hasProductOrServiceSchema = hasEntitySchema(foundSchemas, profile)
             const hasFaqSchema = foundSchemas.some((s) => s.includes('faqpage') || s.includes('question'))
             const hasReviewSchema = foundSchemas.some((s) => s.includes('review') || s.includes('aggregaterating'))
 
-            const bType = brand.businessType || 'ecommerce'
-            let entitySchemaLabel = 'Product / Service schema'
-            if (bType === 'saas') entitySchemaLabel = 'SoftwareApplication schema'
-            else if (bType === 'service') entitySchemaLabel = 'Service / ProfessionalService schema'
-            else if (bType === 'local_business') entitySchemaLabel = 'LocalBusiness schema'
-            else if (bType === 'content_media') entitySchemaLabel = 'Article / NewsArticle schema'
-            else entitySchemaLabel = 'Product / Brand schema'
+            const schemaLabel = entitySchemaLabel(profile)
 
             structuredData.push({
                 name: 'Organization / Brand schema',
@@ -375,7 +427,7 @@ export const auditService = {
                 badgeType: hasWebSiteSchema ? 'badge-ok' : 'badge-warn'
             })
             structuredData.push({
-                name: entitySchemaLabel,
+                name: schemaLabel,
                 status: hasProductOrServiceSchema ? 'Found' : 'Missing',
                 badgeType: hasProductOrServiceSchema ? 'badge-ok' : 'badge-warn'
             })
@@ -394,10 +446,10 @@ export const auditService = {
                 htmlIssues.push('Organization/Brand JSON-LD schema missing (AI models cannot verify official brand identity)')
             }
             if (!hasFaqSchema) {
-                htmlIssues.push('FAQPage schema missing on homepage and product pages (Limits direct AI answers and search snippet citations)')
+                htmlIssues.push(faqIssueText(profile))
             }
             if (!hasProductOrServiceSchema && !hasWebSiteSchema) {
-                htmlIssues.push(`No ${entitySchemaLabel} or WebSite Schema.org markup detected`)
+                htmlIssues.push(`No ${schemaLabel} or WebSite Schema.org markup detected`)
             }
 
             // Extract social, brand, and marketplace/directory links
@@ -429,23 +481,7 @@ export const auditService = {
                 }
 
                 // Detect external sales, B2B & review platforms
-                if (lowerHref.includes('indiamart.com')) detectedPlatforms.push({ name: 'IndiaMART B2B Listing', url: href })
-                if (lowerHref.includes('tradeindia.com')) detectedPlatforms.push({ name: 'TradeIndia B2B Listing', url: href })
-                if (lowerHref.includes('exportersindia.com')) detectedPlatforms.push({ name: 'ExportersIndia Profile', url: href })
-                if (lowerHref.includes('amazon.')) detectedPlatforms.push({ name: 'Amazon Store', url: href })
-                if (lowerHref.includes('flipkart.')) detectedPlatforms.push({ name: 'Flipkart Store', url: href })
-                if (lowerHref.includes('meesho.')) detectedPlatforms.push({ name: 'Meesho Store', url: href })
-                if (lowerHref.includes('jiomart.com')) detectedPlatforms.push({ name: 'JioMart Store', url: href })
-                if (lowerHref.includes('nykaa.')) detectedPlatforms.push({ name: 'Nykaa Store', url: href })
-                if (lowerHref.includes('myntra.')) detectedPlatforms.push({ name: 'Myntra Store', url: href })
-                if (lowerHref.includes('shopify.')) detectedPlatforms.push({ name: 'Shopify Store', url: href })
-                if (lowerHref.includes('etsy.')) detectedPlatforms.push({ name: 'Etsy Store', url: href })
-                if (lowerHref.includes('blinkit.com')) detectedPlatforms.push({ name: 'Blinkit Listing', url: href })
-                if (lowerHref.includes('zepto')) detectedPlatforms.push({ name: 'Zepto Listing', url: href })
-                if (lowerHref.includes('g2.com')) detectedPlatforms.push({ name: 'G2 Directory Profile', url: href })
-                if (lowerHref.includes('capterra.com')) detectedPlatforms.push({ name: 'Capterra Profile', url: href })
-                if (lowerHref.includes('trustpilot.com')) detectedPlatforms.push({ name: 'Trustpilot Profile', url: href })
-                if (lowerHref.includes('producthunt.com')) detectedPlatforms.push({ name: 'ProductHunt Profile', url: href })
+                for (const name of platformsIn(href)) detectedPlatforms.push({ name, url: href })
             })
             const uniqueSocials = Array.from(new Set(socialLinksFound))
 
@@ -470,7 +506,7 @@ export const auditService = {
             // Default structure if site unreachable
             structuredData.push(
                 { name: 'Organization schema', status: 'Unchecked', badgeType: 'badge-bad' },
-                { name: 'Product / App schema', status: 'Unchecked', badgeType: 'badge-warn' },
+                { name: entitySchemaLabel(profile), status: 'Unchecked', badgeType: 'badge-warn' },
                 { name: 'FAQPage schema', status: 'Unchecked', badgeType: 'badge-bad' },
                 { name: 'Review / Rating schema', status: 'Unchecked', badgeType: 'badge-warn' }
             )
@@ -533,7 +569,7 @@ export const auditService = {
                 })
             })
             marketplaceReadability.push({
-                name: 'Structured Product Schema',
+                name: profile.sellsProducts ? 'Structured Product Schema' : 'Structured data for listings',
                 status: fetchSuccess ? 'Available for Crawlers' : 'Check Meta Tags',
                 badgeType: fetchSuccess ? 'badge-ok' : 'badge-warn'
             })
@@ -557,7 +593,7 @@ export const auditService = {
 
         if (marketplaceReadability.length === 0) {
             marketplaceReadability.push({
-                name: 'Marketplace & Sales Channels',
+                name: listingsEmptyName(profile),
                 status: 'No External Platforms Linked',
                 badgeType: 'badge-warn'
             })
@@ -591,7 +627,7 @@ export const auditService = {
         // Product feed health (catalogue data); also never fails the audit
         let feedHealth: IFeedHealth | undefined = undefined
         let keepSaved: typeof keepSavedFeed | undefined = undefined
-        if (fetchSuccess) {
+        if (shouldRunProductChecks(fetchSuccess, profile)) {
             try {
                 const { storeAuditForBrand } = await import('./storeAuditService')
                 storeAudit = await storeAuditForBrand(brand)

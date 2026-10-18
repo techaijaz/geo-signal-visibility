@@ -1,8 +1,8 @@
 /* eslint-disable no-console */
 // Run: NODE_ENV=development DATABASE_URL=mongodb://127.0.0.1:1/none npx ts-node --transpile-only src/checks/serviceAudit.check.ts
 import assert from 'assert'
-import { faqIssueText, platformsIn, shouldRunProductChecks, listingsEmptyName } from '../service/auditService'
-import { compareFacts, scorePage, extractPageFacts } from '../service/aiViewService'
+import { entitySchemaLabel, faqIssueText, hasEntitySchema, platformsIn, shouldRunProductChecks, listingsEmptyName } from '../service/auditService'
+import { compareFacts, scorePage, extractPageFacts, viewForProfile, viewMatches } from '../service/aiViewService'
 import { siteProfile } from '../service/siteProfile'
 
 const shop = siteProfile({ businessType: 'ecommerce' })
@@ -48,6 +48,54 @@ assert.equal(rows[2].label, 'Schema markup')
 assert.equal(rows[2].ai, 'Found')
 const s = scorePage(f, f, false)
 assert.ok(s.total !== null && s.total <= 3)
+
+// LocalBusiness and its subtypes count as the business schema, so a clinic with Dentist schema is not told to add it
+const local = siteProfile({ businessType: 'local_business' })
+assert.equal(hasEntitySchema(['dentist'], svc), true)
+assert.equal(hasEntitySchema(['localbusiness'], local), true)
+assert.equal(hasEntitySchema(['medicalclinic'], svc), true)
+assert.equal(hasEntitySchema(['professionalservice'], svc), true)
+assert.equal(hasEntitySchema(['website', 'organization'], svc), false)
+// A stray Product schema is not a business schema for a service site
+assert.equal(hasEntitySchema(['product'], svc), false)
+// Shops: as before
+assert.equal(hasEntitySchema(['product'], shop), true)
+assert.equal(hasEntitySchema(['website'], shop), false)
+// One label per type, also on the rows shown when the site can't be read
+assert.equal(entitySchemaLabel(shop), 'Product / Brand schema')
+assert.equal(entitySchemaLabel(svc), 'Service / ProfessionalService schema')
+assert.equal(entitySchemaLabel(local), 'LocalBusiness schema')
+assert.equal(entitySchemaLabel(siteProfile({ businessType: 'saas' })), 'SoftwareApplication schema')
+
+// A view saved while the brand was a shop: shown without product rows or the product page, and not reused as the cache
+const oldView = {
+    checkedAt: new Date(),
+    pages: [
+        { url: 'https://x.com/products/a', label: 'Product page' as const, rows: compareFacts(f, f), aiPreview: '' },
+        { url: 'https://x.com', label: 'Homepage' as const, rows: compareFacts(f, f), aiPreview: '' }
+    ]
+}
+assert.equal(viewMatches(oldView, true), true)
+assert.equal(viewMatches(oldView, false), false)
+const shown = viewForProfile(oldView, false)
+assert.deepEqual(
+    shown.pages.map((p) => p.label),
+    ['Homepage']
+)
+assert.deepEqual(
+    shown.pages[0].rows.map((r) => r.key),
+    ['name', 'description']
+)
+assert.equal(shown.pages[0].rows[0].label, 'Name')
+assert.equal(viewForProfile(oldView, true), oldView)
+// A view made for a site without products matches it; an errored view (no rows) matches anything
+const newView = { checkedAt: new Date(), pages: [{ url: 'https://x.com', label: 'Homepage' as const, rows: rows, aiPreview: '' }] }
+assert.equal(viewMatches(newView, false), true)
+assert.equal(viewMatches(newView, true), false)
+assert.equal(
+    viewMatches({ checkedAt: new Date(), pages: [{ url: 'https://x.com', label: 'Homepage' as const, rows: [], aiPreview: '', error: 'x' }] }, false),
+    true
+)
 
 console.log('serviceAudit checks: PASS')
 process.exit(0)

@@ -16,6 +16,29 @@ export const faqIssueText = (profile: ISiteProfile) =>
     `FAQPage schema missing on homepage and ${profile.pagesWord} (Limits direct AI answers and search snippet citations)`
 // Product page audit and feed check: only for sites that sell products, and only when the homepage opened
 export const shouldRunProductChecks = (fetchSuccess: boolean, profile: ISiteProfile) => fetchSuccess && profile.sellsProducts
+export const entitySchemaLabel = (profile: ISiteProfile) =>
+    ({
+        shop: 'Product / Brand schema',
+        service: 'Service / ProfessionalService schema',
+        local: 'LocalBusiness schema',
+        saas: 'SoftwareApplication schema',
+        media: 'Article / NewsArticle schema'
+    })[profile.type]
+// LocalBusiness and its common subtypes (Dentist, MedicalClinic, LegalService…) are the business schema for service
+// and local sites; a stray Product schema there is not
+const LOCAL_SCHEMA =
+    /service|localbusiness|dentist|medical|clinic|physician|hospital|legal|attorney|accounting|realestate|store|restaurant|lodging|beauty/
+export const hasEntitySchema = (types: string[], profile: ISiteProfile) =>
+    profile.type === 'service' || profile.type === 'local'
+        ? types.some((s) => LOCAL_SCHEMA.test(s))
+        : types.some(
+              (s) =>
+                  s.includes('product') ||
+                  s.includes('softwareapplication') ||
+                  s.includes('service') ||
+                  s.includes('article') ||
+                  s.includes('localbusiness')
+          )
 export const listingsEmptyName = (profile: ISiteProfile) => (profile.sellsProducts ? 'Marketplace & Sales Channels' : 'Listings & directories')
 
 // Sales channels, B2B listings, software and local directories linked from the homepage (first matches kept in order)
@@ -238,7 +261,7 @@ export const auditService = {
 
             const blockedStructuredData: IAuditGridItem[] = [
                 { name: 'Organization schema', status: 'Scan Aborted', badgeType: 'badge-bad' },
-                { name: 'Product / App schema', status: 'Scan Aborted', badgeType: 'badge-bad' },
+                { name: entitySchemaLabel(profile), status: 'Scan Aborted', badgeType: 'badge-bad' },
                 { name: 'FAQPage schema', status: 'Scan Aborted', badgeType: 'badge-bad' },
                 { name: 'Review / Rating schema', status: 'Scan Aborted', badgeType: 'badge-bad' }
             ]
@@ -387,19 +410,11 @@ export const auditService = {
             const hasWebSiteSchema = foundSchemas.some(
                 (s) => s.includes('website') || s.includes('sitenavigationelement') || s.includes('breadcrumblist')
             )
-            const hasProductOrServiceSchema = foundSchemas.some(
-                (s) => s.includes('product') || s.includes('softwareapplication') || s.includes('service') || s.includes('article')
-            )
+            const hasProductOrServiceSchema = hasEntitySchema(foundSchemas, profile)
             const hasFaqSchema = foundSchemas.some((s) => s.includes('faqpage') || s.includes('question'))
             const hasReviewSchema = foundSchemas.some((s) => s.includes('review') || s.includes('aggregaterating'))
 
-            const bType = brand.businessType || 'ecommerce'
-            let entitySchemaLabel = 'Product / Service schema'
-            if (bType === 'saas') entitySchemaLabel = 'SoftwareApplication schema'
-            else if (bType === 'service') entitySchemaLabel = 'Service / ProfessionalService schema'
-            else if (bType === 'local_business') entitySchemaLabel = 'LocalBusiness schema'
-            else if (bType === 'content_media') entitySchemaLabel = 'Article / NewsArticle schema'
-            else entitySchemaLabel = 'Product / Brand schema'
+            const schemaLabel = entitySchemaLabel(profile)
 
             structuredData.push({
                 name: 'Organization / Brand schema',
@@ -412,7 +427,7 @@ export const auditService = {
                 badgeType: hasWebSiteSchema ? 'badge-ok' : 'badge-warn'
             })
             structuredData.push({
-                name: entitySchemaLabel,
+                name: schemaLabel,
                 status: hasProductOrServiceSchema ? 'Found' : 'Missing',
                 badgeType: hasProductOrServiceSchema ? 'badge-ok' : 'badge-warn'
             })
@@ -434,7 +449,7 @@ export const auditService = {
                 htmlIssues.push(faqIssueText(profile))
             }
             if (!hasProductOrServiceSchema && !hasWebSiteSchema) {
-                htmlIssues.push(`No ${entitySchemaLabel} or WebSite Schema.org markup detected`)
+                htmlIssues.push(`No ${schemaLabel} or WebSite Schema.org markup detected`)
             }
 
             // Extract social, brand, and marketplace/directory links
@@ -491,7 +506,7 @@ export const auditService = {
             // Default structure if site unreachable
             structuredData.push(
                 { name: 'Organization schema', status: 'Unchecked', badgeType: 'badge-bad' },
-                { name: 'Product / App schema', status: 'Unchecked', badgeType: 'badge-warn' },
+                { name: entitySchemaLabel(profile), status: 'Unchecked', badgeType: 'badge-warn' },
                 { name: 'FAQPage schema', status: 'Unchecked', badgeType: 'badge-bad' },
                 { name: 'Review / Rating schema', status: 'Unchecked', badgeType: 'badge-warn' }
             )

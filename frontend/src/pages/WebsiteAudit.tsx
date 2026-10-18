@@ -4,6 +4,7 @@ import api from '../utils/axios';
 import ScanProgress from '../components/ScanProgress';
 import AiViewPanel, { type AiView } from '../components/AiViewPanel';
 import StoreAuditPanel, { type StoreAudit } from '../components/StoreAuditPanel';
+import { listingsCopy, siteTypeOf } from '../utils/siteType';
 import type { GuideContext } from '../utils/fixGuide';
 
 interface AuditGridItem {
@@ -27,7 +28,7 @@ interface AuditData {
 
 interface OutletContextType {
   currentBrand: { _id?: string; name: string; role: string };
-  brands: Array<{ _id?: string; name: string; role?: string }>;
+  brands: Array<{ _id?: string; name: string; role?: string; sellsProducts?: boolean; businessType?: string }>;
 }
 
 interface InfoTooltipProps {
@@ -126,6 +127,9 @@ export default function WebsiteAudit() {
   const [searchParams] = useSearchParams();
   const productUrl = searchParams.get('product') || '';
   const activeBrandId = context?.currentBrand?._id;
+  const activeBrand = context?.brands?.find((b) => b._id === activeBrandId);
+  const sellsProducts = activeBrand?.sellsProducts !== false;
+  const listings = listingsCopy(siteTypeOf(activeBrand?.businessType));
 
   const [auditData, setAuditData] = useState<AuditData | null>(null);
   const [guideCtx, setGuideCtx] = useState<GuideContext | null>(null);
@@ -369,11 +373,15 @@ export default function WebsiteAudit() {
         onEmailSaved={(email) => setGuideCtx((g) => (g ? { ...g, developerEmail: email } : g))}
       />
 
+      {sellsProducts && (
+        <>
       <StoreAuditPanel key={`store-${activeBrandId}-${auditData?.lastAuditedAt ?? ''}`} brandId={activeBrandId} initial={auditData?.storeAudit} ctx={guideCtx} onEmailSaved={(email) => setGuideCtx((g) => (g ? { ...g, developerEmail: email } : g))} />
       {auditData?.feedHealth?.shopify && auditData.feedHealth.score != null && (
         <p style={{ fontSize: '13px', margin: '-6px 0 18px' }}>
           Product feed: <strong>{auditData.feedHealth.score}/100</strong> across {auditData.feedHealth.total} products. <Link to="/products">See Products →</Link>
         </p>
+      )}
+        </>
       )}
 
       {/* 1. Crawler Access Panel */}
@@ -454,15 +462,15 @@ export default function WebsiteAudit() {
       {/* 4. Marketplace & Sales Channels Panel */}
       <div className="panel">
         <h3 style={{ display: 'flex', alignItems: 'center' }}>
-          <span>Marketplace & Sales Channels</span>
+          <span>{listings.title}</span>
           <InfoTooltip
-            title="Marketplace & Sales Channels"
-            description="Verifies linked sales platforms (IndiaMART, Amazon, Flipkart, Shopify, G2, etc.)."
-            geoImpact="AI shopping assistants fetch product specs and reviews directly from these linked marketplaces to recommend your products."
+            title={listings.title}
+            description={listings.tip}
+            geoImpact={listings.impact}
           />
         </h3>
         <p className="sub">
-          AI engines (ChatGPT, Gemini, Perplexity) fetch product listings and reviews directly from platforms linked on your website (IndiaMART, Amazon, Shopify, G2, etc.)
+          {listings.sub}
         </p>
         <div className="audit-grid">
           {marketplaceReadability.length > 0 ? (

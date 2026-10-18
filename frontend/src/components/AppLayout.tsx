@@ -6,7 +6,7 @@ import Footer from './Footer';
 import api from '../utils/axios';
 
 export default function AppLayout() {
-  const [brands, setBrands] = useState<Array<{ _id?: string; name: string; role?: string; lastScannedAt?: string | null }>>([]);
+  const [brands, setBrands] = useState<Array<{ _id?: string; name: string; role?: string; lastScannedAt?: string | null; sellsProducts?: boolean; businessType?: string; city?: string }>>([]);
   const [currentBrand, setCurrentBrand] = useState<{ _id?: string; name: string; role: string }>({ _id: '', name: '', role: 'Owner' });
   const [loadingBrands, setLoadingBrands] = useState(true);
   const [shouldRedirectToOnboarding, setShouldRedirectToOnboarding] = useState(false);
@@ -17,12 +17,17 @@ export default function AppLayout() {
     setBrands((prev) => prev.map((b) => (b._id === brandId && b.lastScannedAt !== at ? { ...b, lastScannedAt: at } : b)));
   }, []);
 
+  // Settings passes saved brand changes up, so the menu follows without a reload
+  const updateBrand = useCallback((brandId: string, patch: { sellsProducts?: boolean; businessType?: string; city?: string }) => {
+    setBrands((prev) => prev.map((b) => (b._id === brandId ? { ...b, ...patch } : b)));
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
     const fetchBrands = async () => {
       try {
         const res = await api.get('/orgs/brands');
-        const fetchedBrands: Array<{ _id?: string; name: string; role?: string; lastScannedAt?: string | null }> = res.data?.data?.brands || [];
+        const fetchedBrands: Array<{ _id?: string; name: string; role?: string; lastScannedAt?: string | null; sellsProducts?: boolean; businessType?: string; city?: string }> = res.data?.data?.brands || [];
         if (isMounted) {
           if (fetchedBrands.length === 0) {
             setShouldRedirectToOnboarding(true);
@@ -64,6 +69,7 @@ export default function AppLayout() {
     return () => { isMounted = false; };
   }, []);
 
+  const sellsProducts = brands.find((b) => b._id === currentBrand._id)?.sellsProducts !== false;
   const navItems = [
     { path: '/', label: 'Overview', icon: '◆' },
     { path: '/mentions', label: 'Mentions', icon: '▤' },
@@ -75,7 +81,7 @@ export default function AppLayout() {
     { path: '/reports', label: 'Reports', icon: '▥' },
     { path: '/settings', label: 'Settings', icon: '⚙' },
     { path: '/billing', label: 'Billing & Plans', icon: '💳' },
-  ];
+  ].filter((item) => item.path !== '/products' || sellsProducts);
 
   const getPageTitle = () => {
     const activeItem = navItems.find(item => item.path === location.pathname);
@@ -130,7 +136,7 @@ export default function AppLayout() {
         />
 
         {/* Page Content */}
-        <Outlet context={{ currentBrand, brands, setCurrentBrand, setScannedAt }} />
+        <Outlet context={{ currentBrand, brands, setCurrentBrand, setScannedAt, updateBrand }} />
 
         {/* Footer Component */}
         <Footer />

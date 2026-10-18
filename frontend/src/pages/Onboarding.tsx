@@ -578,19 +578,28 @@ export default function Onboarding() {
 
           {step2Error && <p className="error-text" style={{ marginBottom: '12px', color: '#ef4444' }}>{step2Error}</p>}
 
-          <div className="suggested-label">Suggested for {category}</div>
-          <div className="chip-row">
-            {SUGGESTED_COMPETITORS.map((name) => (
-              <button
-                key={name}
-                type="button"
-                className="suggest-chip"
-                onClick={() => handleAddSuggestedCompetitor(name)}
-              >
-                + {name}
-              </button>
-            ))}
-          </div>
+          {SUGGESTED_COMPETITORS.length > 0 ? (
+            <>
+              <div className="suggested-label">Suggested for {category}</div>
+              <div className="chip-row">
+                {SUGGESTED_COMPETITORS.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className="suggest-chip"
+                    onClick={() => handleAddSuggestedCompetitor(name)}
+                  >
+                    + {name}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            // No list to suggest from before the first scan: say where competitors come from instead of an empty heading
+            <p className="sub" style={{ fontSize: '12.5px' }}>
+              Not sure? Skip this. After your first scan we show who AI recommends instead of you, and you can track them in one click.
+            </p>
+          )}
 
           <div className="onb-actions">
             <button type="button" className="btn btn-ghost" onClick={() => setStep(1)}>

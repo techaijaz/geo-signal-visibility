@@ -30,10 +30,12 @@ import AdminCostLogs from './pages/admin/AdminCostLogs';
 import AdminFreeChecker from './pages/admin/AdminFreeChecker';
 import AdminApiKeys from './pages/admin/AdminApiKeys';
 import AdminBilling from './pages/admin/AdminBilling';
+import NotFound from './pages/NotFound';
 
 export const router = createBrowserRouter([
   {
     element: <ProtectedRoute />,
+    errorElement: <NotFound />,
     children: [
       {
         path: '/workspace',
@@ -140,6 +142,7 @@ export const router = createBrowserRouter([
   },
   {
     element: <PublicRoute />,
+    errorElement: <NotFound />,
     children: [
       {
         path: '/login',
@@ -167,5 +170,9 @@ export const router = createBrowserRouter([
       },
     ],
   },
+  // Any other address
+  {
+    path: '*',
+    element: <NotFound />,
+  },
 ]);
-

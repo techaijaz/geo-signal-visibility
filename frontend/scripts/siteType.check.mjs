@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // Run: node frontend/scripts/siteType.check.mjs (Node 22.18+ strips the TypeScript types)
 import assert from 'node:assert';
 import { pagesWord, sellsAfterTypeChange, sellsPayload } from '../src/utils/siteType.ts';

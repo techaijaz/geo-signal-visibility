@@ -25,8 +25,10 @@ import { IInvoice } from '../types/billingTypes'
 import { IRecommendationData } from '../types/recommendationTypes'
 import { EUserRole } from '../constent/userConstent'
 import aiService from './aiService'
-import { generateRecommendations, isResolvedByAudit, withKind } from './recommendationService'
+import { generateRecommendations, withKind } from './recommendationService'
 import { withAiCallContext } from './costLogService'
+import { defaultRecommendations } from './defaultRecommendations'
+import { siteProfile } from './siteProfile'
 import type { RescanKind } from '../config/planLimits'
 
 const RESCAN_QUOTA_FIELDS: Record<RescanKind, [string, string]> = {
@@ -314,74 +316,7 @@ const databseService = {
             logger.error('Failed to generate AI recommendations, falling back to smart defaults:', { meta: err })
         }
 
-        const defaultList: IRecommendationData[] = [
-            {
-                brandId,
-                text: `Unblock Google-Extended in robots.txt so Gemini can crawl ${brandName}`,
-                kind: 'crawler-access',
-                category: 'Technical',
-                effort: 'Low effort',
-                impact: 'High impact',
-                reasoning: 'AI search crawlers (Google-Extended, GPTBot, ClaudeBot) need explicit robots.txt permissions to index your domain.',
-                snippet: `User-agent: Google-Extended\nAllow: /\n\nUser-agent: GPTBot\nAllow: /\n\nUser-agent: ClaudeBot\nAllow: /`,
-                isCompleted: false
-            },
-            {
-                brandId,
-                text: `Publish an llms.txt with a clear, structured summary of what ${brandName} sells`,
-                kind: 'llms-txt',
-                category: 'Technical',
-                effort: 'Low effort',
-                impact: 'Medium impact',
-                reasoning: 'llms.txt acts as a standardized machine-readable summary that AI LLMs ingest during live retrieval.',
-                snippet: `# ${brandName}\n> ${category} brand specializing in high-quality products.\n\n## Key facts\n- Quality tested & certified\n- Direct to consumer shipping\n- Founded with sustainable practices`,
-                isCompleted: false
-            },
-            {
-                brandId,
-                text: `Add FAQPage schema to your top 10 product pages for ${brandName}`,
-                kind: 'faq-schema',
-                category: 'Content',
-                effort: 'Medium effort',
-                impact: 'High impact',
-                reasoning: 'Structured JSON-LD FAQ schemas provide direct question-and-answer pairs that LLMs extract for user queries.',
-                snippet: `<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "FAQPage",\n  "mainEntity": [{\n    "@type": "Question",\n    "name": "Is ${brandName} suitable for daily use?",\n    "acceptedAnswer": {\n      "@type": "Answer",\n      "text": "Yes, ${brandName} products are formulated for safe daily routines."\n    }\n  }]\n}\n</script>`,
-                isCompleted: false
-            },
-            {
-                brandId,
-                text: `Publish a direct "${brandName} vs. ${comp1}" comparison page`,
-                kind: 'comparison-page',
-                category: 'Content',
-                effort: 'Medium effort',
-                impact: 'High impact',
-                reasoning: 'AI users frequently ask comparative queries ("X vs Y"). High-ranking comparison pages train LLM sentiment.',
-                snippet: `# ${brandName} vs ${comp1}: Complete Comparison Guide\n\n- Key Ingredients & Benefits\n- Pricing & Value Comparison\n- Customer Ratings & Verified Reviews`,
-                isCompleted: false
-            },
-            {
-                brandId,
-                text: `Collect 20+ verified customer reviews for ${brandName} on your primary sales channel or Google/Trustpilot`,
-                kind: 'reviews',
-                category: 'Off-site',
-                effort: 'High effort',
-                impact: 'High impact',
-                reasoning: 'Off-site review volume on verified customer channels serves as a strong trust signal for generative AI answer engines.',
-                isCompleted: false
-            },
-            {
-                brandId,
-                text: `Build a genuine presence in relevant ${category} subreddits & online forums`,
-                kind: 'forums',
-                category: 'Off-site',
-                effort: 'High effort',
-                impact: 'Medium impact',
-                reasoning: 'Community forums like Reddit and Quora are primary sources for AI search indexing and user citations.',
-                isCompleted: false
-            }
-        ]
-
-        return defaultList.filter((r) => !isResolvedByAudit(r.text, audit))
+        return defaultRecommendations({ brandId, brandName, comp1, category, profile: siteProfile(brand), audit })
     },
     // Scoped to the brand: a recommendation of another brand is never touched (null → 404)
     toggleRecommendationCompleted: async (recId: string, brandId: string, isCompleted: boolean) => {

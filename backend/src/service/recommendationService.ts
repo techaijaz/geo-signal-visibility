@@ -6,6 +6,7 @@ import { IRecommendationData } from '../types/recommendationTypes'
 import aiService from './aiService'
 import logger from '../util/loger'
 import { FIX_GUIDES, isFixKind, kindFromText, type FixKind } from './fixGuide'
+import { siteProfile } from './siteProfile'
 
 const buildAuditSummary = (audit: IAuditData): string => {
     if (!audit) return 'Audit data unavailable'
@@ -24,6 +25,8 @@ const isOk = (items: IAuditGridItem[] | undefined, name: RegExp) => !!items?.som
 // schema found), so we never tell a brand to fix something the audit page says is fine
 export const isResolvedByAudit = (text: string, audit: IAuditData | null | undefined): boolean => {
     if (!audit) return false
+    if (/localbusiness|professionalservice/i.test(text) && /schema/i.test(text))
+        return isOk(audit.structuredData, /LocalBusiness|ProfessionalService/i)
     const crawlers = (audit.crawlerAccess || []).filter((c) => !/llms\.txt|SSL/i.test(c.name))
     if (/llms\.txt/i.test(text)) return isOk(audit.crawlerAccess, /llms\.txt/i)
     if (/unblock|robots\.txt/i.test(text)) return crawlers.length > 0 && crawlers.every((c) => c.badgeType === 'badge-ok')
@@ -66,6 +69,16 @@ export const generateRecommendations = async (
         .map((m) => `Query: "${m.queryText}" — ${m.rawText?.slice(0, 500)}`)
         .join('\n\n')
 
+    const profile = siteProfile(brand)
+    const extra = [
+        profile.sellsProducts
+            ? ''
+            : '8. This brand does not sell products. Do not suggest product pages, Product schema, product feeds or marketplaces like Amazon or Flipkart.',
+        profile.city ? `9. The business is in ${profile.city}; use the city in local tasks.` : ''
+    ]
+        .filter(Boolean)
+        .join('\n    ')
+
     const prompt = `
     You are an expert GEO (Generative Engine Optimization) consultant.
     
@@ -92,6 +105,7 @@ export const generateRecommendations = async (
     5. For Content/Media: Focus on Article/NewsArticle schema, author entity verification, and citation authority.
     6. Suggest review sources or citations appropriate for their business type.
     7. Do not recommend anything the audit already shows as found or allowed.
+    ${extra}
 
     Based on this data, generate 6-8 specific, actionable recommendations ranked by impact.
     Return JSON array with:

@@ -39,6 +39,19 @@ export const hasEntitySchema = (types: string[], profile: ISiteProfile) =>
                   s.includes('article') ||
                   s.includes('localbusiness')
           )
+// The homepage couldn't be read: a refusal (401/403/429) means a firewall blocked us, not that the site is down
+export const fetchFail = (status: number | undefined, host: string, message: string) =>
+    status === 401 || status === 403 || status === 429
+        ? {
+              issue: `${host} blocked our checker (HTTP ${status}), so we couldn't read your pages. Firewalls like Cloudflare often block AI crawlers the same way. Ask your developer or host to allow GPTBot, ClaudeBot and PerplexityBot.`,
+              indexStatus: `Blocked our checker (HTTP ${status})`,
+              badge: 'badge-warn' as const
+          }
+        : {
+              issue: `Unable to fetch website content directly from ${host} (${message})`,
+              indexStatus: 'Unreachable Domain',
+              badge: 'badge-bad' as const
+          }
 export const listingsEmptyName = (profile: ISiteProfile) => (profile.sellsProducts ? 'Marketplace & Sales Channels' : 'Listings & directories')
 
 // Sales channels, B2B listings, software and local directories linked from the homepage (first matches kept in order)
@@ -373,6 +386,7 @@ export const auditService = {
         let hasApiLink = false
         const detectedPlatforms: { name: string; url: string }[] = []
 
+        let failed: ReturnType<typeof fetchFail> | null = null
         try {
             const htmlRes = await axios.get(targetUrl, {
                 ...publicAxiosOptions,
@@ -384,9 +398,10 @@ export const auditService = {
                 fetchSuccess = true
             }
         } catch (err: unknown) {
-            const error = err as Error
+            const error = err as Error & { response?: { status?: number } }
             logger.error(`Failed to fetch HTML for ${targetUrl}: ${error.message}`)
-            htmlIssues.push(`Unable to fetch website content directly from ${domainHost} (${error.message})`)
+            failed = fetchFail(error.response?.status, domainHost, error.message)
+            htmlIssues.push(failed.issue)
         }
 
         if (fetchSuccess && htmlContent) {
@@ -541,8 +556,8 @@ export const auditService = {
         const offSiteFootprint: IAuditGridItem[] = [
             {
                 name: 'Search Indexing Status',
-                status: fetchSuccess ? 'Indexed (HTTP 200)' : 'Unreachable Domain',
-                badgeType: fetchSuccess ? 'badge-ok' : 'badge-bad'
+                status: fetchSuccess ? 'Indexed (HTTP 200)' : failed?.indexStatus || 'Unreachable Domain',
+                badgeType: fetchSuccess ? 'badge-ok' : failed?.badge || 'badge-bad'
             },
             {
                 name: 'AI Mentions Footprint',

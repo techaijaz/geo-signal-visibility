@@ -59,10 +59,16 @@ export const homepageLinks = async (home: string, fetch: (url: string) => Promis
 // Pages that aren't content: accounts, carts, search, product pages (read separately) and files
 const SKIP_PATH =
     /^\/(account|login|signin|sign-in|register|signup|cart|checkout|search|wishlist|products?)(\/|$)|\.(pdf|jpe?g|png|gif|webp|svg|zip|mp4|docx?|xlsx?)$/i
+// A language switch (/en, /hi-in) is the same site again
+const LOCALE_PATH = /^\/[a-z]{2}(-[a-z]{2})?$/i
+// Pages an llms.txt should link first; category and blog lists last, so the footer isn't crowded out by the menu
+const KEY_PATH = /about|contact|polic|shipping|delivery|refund|return|terms|privacy|service|faq|treatment|pricing/i
+const LIST_PATH = /^\/(collections|blogs?|category|tag)(\/|$)/i
+const rank = (path: string) => (KEY_PATH.test(path) ? 0 : LIST_PATH.test(path) ? 2 : 1)
 const LLMS_SITE_PAGES = 6
 const LLMS_PRODUCTS = 3
 
-// Menu and footer pages on the brand's own site (about, services, policies, contact), in page order
+// Menu and footer pages on the brand's own site: about, services, policies and contact first, then page order
 export const siteLinks = (html: string, home: string): string[] => {
     const bare = (h: string) => h.replace(/^www\./, '')
     const host = bare(new URL(home).hostname)
@@ -73,13 +79,13 @@ export const siteLinks = (html: string, home: string): string[] => {
             const url = new URL($(el).attr('href') || '', home)
             if (!/^https?:$/.test(url.protocol) || bare(url.hostname) !== host) return
             const path = url.pathname.replace(/\/$/, '')
-            if (!path || SKIP_PATH.test(path)) return
+            if (!path || SKIP_PATH.test(path) || LOCALE_PATH.test(path)) return
             links.add(url.origin + path)
         } catch {
             // malformed href
         }
     })
-    return [...links]
+    return [...links].sort((x, y) => rank(new URL(x).pathname) - rank(new URL(y).pathname))
 }
 
 // For an llms.txt: the homepage, its main site pages, and a few products when the brand sells them

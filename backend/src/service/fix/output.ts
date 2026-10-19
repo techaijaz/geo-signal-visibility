@@ -14,15 +14,42 @@ export const FIX_GUIDE = {
     llms: { kind: 'llms-txt', what: 'llms.txt file' }
 } as const
 
+// Text from the model or the owner on one line, so it can't add its own headings or links to the file
+const oneLine = (s?: string) => (s || '').replace(/\s+/g, ' ').trim()
+export const isLlmsSummary = (i: IFixItem) => /^summary$/i.test(oneLine(i.heading))
+const linkUrl = (src?: string) => {
+    if (!/^https?:\/\//i.test(src || '')) return ''
+    let url = src!.trim()
+    try {
+        url = encodeURI(decodeURI(url))
+    } catch {
+        url = encodeURI(url)
+    }
+    return url.replace(/\(/g, '%28').replace(/\)/g, '%29')
+}
+
 // The llms.txt file (llmstxt.org): title, summary as a quote, then a section of links per heading, in first-seen order
 const llmsText = (title: string, items: IFixItem[]) => {
-    const [first, ...more] = items.filter((i) => !i.label).map((i) => i.body || '')
+    const [first, ...more] = items
+        .filter(isLlmsSummary)
+        .map((i) => oneLine(i.body))
+        .filter(Boolean)
     const sections = new Map<string, string[]>()
-    for (const i of items.filter((i) => i.label)) {
-        const link = `- [${i.label!.replace(/[[\]]/g, '')}](${(i.source || '').replace(/\)/g, '%29')})${i.body ? `: ${i.body}` : ''}`
-        sections.set(i.heading || 'Pages', [...(sections.get(i.heading || 'Pages') ?? []), link])
+    for (const i of items.filter((i) => !isLlmsSummary(i))) {
+        const url = linkUrl(i.source)
+        if (!url) continue
+        // A link whose name was cleared still links, by its address
+        const label = (oneLine(i.label) || oneLine(i.source)).replace(/[[\]]/g, '')
+        const heading = oneLine(i.heading).replace(/^[#>\-\s]+/, '') || 'Pages'
+        const body = oneLine(i.body)
+        sections.set(heading, [...(sections.get(heading) ?? []), `- [${label}](${url})${body ? `: ${body}` : ''}`])
     }
-    const blocks = [`# ${title}`, ...(first ? [`> ${first}`] : []), ...more, ...[...sections].map(([h, links]) => `## ${h}\n\n${links.join('\n')}`)]
+    const blocks = [
+        `# ${oneLine(title)}`,
+        ...(first ? [`> ${first}`] : []),
+        ...more,
+        ...[...sections].map(([h, links]) => `## ${h}\n\n${links.join('\n')}`)
+    ]
     return `${blocks.join('\n\n')}\n`
 }
 

@@ -345,7 +345,7 @@ const Fixes: React.FC = () => {
           {draft.map((it, i) => (
             <div key={i} style={{ borderTop: '1px solid var(--line-soft)', padding: '12px 0' }}>
               {shown.type === 'llms' ? (
-                it.label === undefined ? (
+                /^summary$/i.test((it.heading || '').trim()) ? (
                   <textarea
                     aria-label={`Summary ${i + 1}`}
                     rows={2}

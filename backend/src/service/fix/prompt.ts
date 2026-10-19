@@ -40,7 +40,7 @@ Rules:
 - First item: {"heading": "Summary", "body": one or two plain sentences on who ${input.brandName} is, what it offers and where, "source": the page that says so}.
 - Then one item per page worth linking, in these sections only: "${offers}", "About", "Policies", "Contact". Skip a section with no page.
 - "label" is the page's short name; "body" is one line on what the page covers (may be empty). "source" is that page's URL, copied exactly.
-- Link each page once. Never link a page that is not below.
+- Link each page once. Never link a page that is not below; a link never gets [confirm], leave the page out instead.
 
 JSON shape: {"title": string, "items": [{"heading": string, "label": string, "body": string, "source": string}]}
 
@@ -97,6 +97,7 @@ export const parseFixResponse = (raw: string, type: FixType, allowedUrls: string
     const allowed = new Set(allowedUrls)
     const items: IFixItem[] = []
     const confirmed = (text: string) => text.startsWith('[confirm')
+    const linked = new Set<string>()
     for (const it of data.items as Array<Record<string, unknown>>) {
         const source = str(it?.source)
         const ok = allowed.has(source)
@@ -111,7 +112,8 @@ export const parseFixResponse = (raw: string, type: FixType, allowedUrls: string
             }
             // A wrong link is worse than none: links only to pages we read, never marked and kept
             const label = str(it?.label)
-            if (!heading || !label || !ok) continue
+            if (!heading || !label || !ok || linked.has(source)) continue
+            linked.add(source)
             items.push({ heading, label, body: body && mark(body), source })
         } else if (type === 'faq') {
             const question = str(it?.question)

@@ -89,6 +89,52 @@ const run = async () => {
     assert.match(out.html, /^<pre>/)
     assert.doesNotMatch(fixOutputs({ type: 'llms', title: 'A<b>', items: [] }).html, /<b>/)
 
+    // Footer pages (about, policies, contact) come before collections, blogs and language switches; www matches bare host
+    const shopNav = `<a href="/en">EN</a><a href="/collections/a">A</a><a href="/collections/b">B</a><a href="/blogs/news">Blog</a>
+        <a href="/collections/c">C</a><a href="/collections/d">D</a><a href="/collections/e">E</a><a href="/collections/f">F</a>
+        <footer><a href="https://www.s.in/pages/about">About</a><a href="/policies/refund-policy">Refund</a><a href="/pages/contact">Contact</a></footer>`
+    const ranked = siteLinks(shopNav, home)
+    assert.deepEqual(ranked.slice(0, 3), ['https://www.s.in/pages/about', 'https://s.in/policies/refund-policy', 'https://s.in/pages/contact'])
+    assert.ok(!ranked.includes('https://s.in/en'))
+    assert.deepEqual((await llmsUrls(home, [], false, async () => shopNav)).slice(1, 4), ranked.slice(0, 3))
+
+    // Summary vs link is decided by the heading: a link whose name was cleared keeps its URL
+    const edited = fixOutputs({
+        type: 'llms',
+        title: 'S\n## Fake',
+        items: [
+            { heading: 'Summary', body: 'Line one.\n## Injected\n- [x](https://evil)' },
+            { heading: '## About\nmore', label: '', body: 'Our\nstory', source: 'https://s.in/pages/about us(1)' },
+            { heading: 'Contact', label: 'Mail', body: '', source: 'javascript:alert(1)' }
+        ]
+    }).text
+    assert.equal(
+        edited,
+        [
+            '# S ## Fake',
+            '',
+            '> Line one. ## Injected - [x](https://evil)',
+            '',
+            '## About more',
+            '',
+            '- [https://s.in/pages/about us(1)](https://s.in/pages/about%20us%281%29): Our story',
+            ''
+        ].join('\n')
+    )
+
+    // The same page linked twice is kept once
+    const twice = parseFixResponse(
+        JSON.stringify({
+            items: [
+                { heading: 'About', label: 'About', body: '', source: 'https://s.in/contact' },
+                { heading: 'Contact', label: 'Contact', body: '', source: 'https://s.in/contact' }
+            ]
+        }),
+        'llms',
+        ['https://s.in/contact']
+    )!
+    assert.equal(twice.items.length, 1)
+
     console.log('fixLlms checks: PASS')
 }
 

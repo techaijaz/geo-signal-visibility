@@ -1,12 +1,14 @@
-export type FixType = 'faq' | 'comparison'
+export type FixType = 'faq' | 'comparison' | 'llms'
 export type FixLanguage = 'en' | 'hi-en' | 'hi'
 export type FixStatus = 'pending' | 'done' | 'failed'
 
-// FAQ items use question/answer; comparison items use heading/body, and the difference table uses rows
+// FAQ items use question/answer; comparison items use heading/body, and the difference table uses rows;
+// llms.txt items use heading (the section), label (the link text), body (one line) and source (the link)
 export interface IFixItem {
     question?: string
     answer?: string
     heading?: string
+    label?: string
     body?: string
     rows?: Array<{ label: string; brand: string; competitor: string }>
     source?: string

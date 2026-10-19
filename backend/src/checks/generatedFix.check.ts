@@ -357,6 +357,36 @@ const run = async () => {
     })
     assert.equal(wholeSeen[0], 'https://s.in')
 
+    // llms.txt: homepage and its site pages, plus a few products for a shop; links only to pages read
+    const llmsHtml = `<a href="/pages/about">About</a><a href="/contact">Contact</a>`
+    const llmsRun = async () => {
+        const seen: string[] = []
+        const prompts: string[] = []
+        const fix = await mk({ type: 'llms', language: 'hi' })
+        await runFix(String(fix._id), {
+            fetch: async (u) => (seen.push(u), llmsHtml),
+            ai: async (pr) => (
+                prompts.push(pr),
+                '{"title":"Hasan Oud","items":[{"heading":"Summary","body":"Attars.","source":"https://s.in"},{"heading":"About","label":"About","body":"Story.","source":"https://s.in/pages/about"}]}'
+            ),
+            byQuestion: noLost,
+            aiSaid: noSaid
+        })
+        return { seen, prompt: prompts[0], saved: (await generatedFixModel.findById(fix._id).lean())! }
+    }
+    const shopLlms = await llmsRun()
+    assert.equal(shopLlms.saved.status, 'done')
+    assert.deepEqual(shopLlms.seen.slice(0, 4), ['https://s.in', 'https://s.in', 'https://s.in/pages/about', 'https://s.in/contact'])
+    assert.equal(shopLlms.seen.filter((u) => /\/(a|b|g)\d$/.test(u)).length, 3)
+    assert.match(shopLlms.prompt, /"Products"/)
+    assert.match(shopLlms.prompt, /Write in English/)
+    assert.equal(shopLlms.saved.items[1].label, 'About')
+    await brandModel.updateOne({ _id: brand._id }, { businessType: 'service' })
+    const svcLlms = await llmsRun()
+    assert.deepEqual(svcLlms.seen, ['https://s.in', 'https://s.in', 'https://s.in/pages/about', 'https://s.in/contact'])
+    assert.match(svcLlms.prompt, /"Services"/)
+    await brandModel.updateOne({ _id: brand._id }, { $unset: { businessType: 1 } })
+
     // The fix writer: a long, slow answer gets 2 minutes and no paid retries, with room for 12 Hindi answers
     const keyOwner = (await import('../service/databseService')).default as unknown as { getDecryptedApiKey: (k: string) => Promise<string> }
     const realKey = keyOwner.getDecryptedApiKey
@@ -434,6 +464,13 @@ const run = async () => {
     const down = await createFix({ ...req, orgId: org4 }, async () => null, now)
     assert.equal(down.ok, false)
     assert.equal(await countFixUsage(org4, now), 0)
+    // An llms.txt is saved in English whatever language was sent, and counts like any other generation
+    const org5 = String(new mongoose.Types.ObjectId())
+    const llms = await createFix({ ...req, orgId: org5, type: 'llms', language: 'hi' }, enq, now)
+    assert.ok(llms.ok)
+    const savedLlms = (await generatedFixModel.findById(llms.ok ? llms.fixId : null).lean())!
+    assert.deepEqual([savedLlms.type, savedLlms.language, savedLlms.kind], ['llms', 'en', null])
+    assert.equal(await countFixUsage(org5, now), 1)
 
     await mongoose.connection.dropDatabase()
     await mongoose.disconnect()

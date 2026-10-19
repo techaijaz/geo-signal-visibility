@@ -431,11 +431,11 @@ const Recommendations: React.FC = () => {
                     />
                   )}
 
-                  {/faq|comparison|\bvs\b|versus/i.test(rec.text) && (
+                  {/faq|comparison|\bvs\b|versus|llms\.txt/i.test(rec.text) && (
                     <div className="rec-actions">
                       <button
                         className="btn"
-                        onClick={() => navigate(`/fixes?type=${/faq/i.test(rec.text) ? 'faq' : 'comparison'}`)}
+                        onClick={() => navigate(`/fixes?type=${/llms\.txt/i.test(rec.text) ? 'llms' : /faq/i.test(rec.text) ? 'faq' : 'comparison'}`)}
                       >
                         Write it with your pages
                       </button>

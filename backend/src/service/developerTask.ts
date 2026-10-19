@@ -5,7 +5,7 @@ import generatedFixModel from '../model/generatedFixModel'
 import developerSendModel from '../model/developerSendModel'
 import emailService from './emailService'
 import { layout } from './emailTemplates'
-import { fixOutputs } from './fix/output'
+import { FIX_GUIDE, fixOutputs } from './fix/output'
 import { guideFor, guideContext, kindForCheck, type FixKind } from './fixGuide'
 import { withKind } from './recommendationService'
 import { isDisposableEmail } from './freeCheck/helpers'
@@ -73,12 +73,13 @@ const resolveTask = async (brandId: string, website: string, t: DeveloperTaskRef
         const fix = await generatedFixModel.findOne({ _id: t.id, brandId, status: 'done' }).lean()
         if (!fix) throw httpErr(404, 'Task not found')
         const out = fixOutputs(fix as unknown as IGeneratedFix)
-        const kind: FixKind = fix.type === 'faq' ? 'faq-page' : 'comparison-page'
+        const guide = FIX_GUIDE[fix.type]
         return {
-            kind,
-            what: `Publish this ${fix.type === 'faq' ? 'FAQ' : 'comparison'} page: ${fix.title || ''}`.trim(),
+            kind: guide.kind as FixKind,
+            what: `Publish this ${guide.what}: ${fix.title || ''}`.trim(),
             url: '',
-            code: [out.html, out.jsonLd].filter(Boolean).join('\n\n')
+            // An llms.txt is sent as the file itself, not as HTML
+            code: fix.type === 'llms' ? out.text : [out.html, out.jsonLd].filter(Boolean).join('\n\n')
         }
     }
     const kind = kindForCheck(t.type, t.key)

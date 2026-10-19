@@ -20,15 +20,33 @@ export const buildFixPrompt = (input: {
     pages: IPageText[]
     competitorPages?: IPageText[]
     aiSaid?: string[]
+    sellsProducts?: boolean
 }) => {
+    // An llms.txt is read by AI crawlers, so it is always English
+    const language = input.type === 'llms' ? 'en' : input.language
     const rules = [
         `Use ONLY the page text below. Never invent facts, prices, ingredients, delivery times or claims.`,
         `If a fact a shopper would want is not in the text, write it as [confirm: <what the owner must check>].`,
         `Every item has "source": one URL copied exactly from the pages below that supports it. If none supports it, leave "source" empty and use [confirm: ...].`,
-        `Write in ${LANGUAGE[input.language]}. Keep brand and product names as they are.`,
+        `Write in ${LANGUAGE[language]}. Keep brand and product names as they are.`,
         `Reply with JSON only, no other text.`
     ]
     const own = input.pages.map(pageBlock).join('\n\n---\n\n')
+    if (input.type === 'llms') {
+        const offers = input.sellsProducts === false ? 'Services' : 'Products'
+        return `You write the llms.txt file (llmstxt.org) for ${input.brandName}'s website: a short guide that tells AI assistants who the brand is and which pages to read.
+Rules:
+- ${rules.join('\n- ')}
+- First item: {"heading": "Summary", "body": one or two plain sentences on who ${input.brandName} is, what it offers and where, "source": the page that says so}.
+- Then one item per page worth linking, in these sections only: "${offers}", "About", "Policies", "Contact". Skip a section with no page.
+- "label" is the page's short name; "body" is one line on what the page covers (may be empty). "source" is that page's URL, copied exactly.
+- Link each page once. Never link a page that is not below.
+
+JSON shape: {"title": string, "items": [{"heading": string, "label": string, "body": string, "source": string}]}
+
+PAGES:
+${own}`
+    }
     if (input.type === 'faq') {
         return `You write FAQ content for ${input.brandName}'s website${input.kind ? ` about its ${input.kind} products` : ''}.
 Rules:
@@ -84,7 +102,18 @@ export const parseFixResponse = (raw: string, type: FixType, allowedUrls: string
         const ok = allowed.has(source)
         // Text without a source we read is something the owner must check before it goes live
         const mark = (text: string) => (ok || confirmed(text) ? text : `${source ? '[confirm: source not found]' : '[confirm: no source]'} ${text}`)
-        if (type === 'faq') {
+        if (type === 'llms') {
+            const heading = str(it?.heading)
+            const body = str(it?.body)
+            if (/^summary$/i.test(heading)) {
+                if (body) items.push({ heading: 'Summary', body: mark(body), ...(ok && source ? { source } : {}) })
+                continue
+            }
+            // A wrong link is worse than none: links only to pages we read, never marked and kept
+            const label = str(it?.label)
+            if (!heading || !label || !ok) continue
+            items.push({ heading, label, body: body && mark(body), source })
+        } else if (type === 'faq') {
             const question = str(it?.question)
             const answer = str(it?.answer)
             if (!question || !answer) continue
@@ -106,5 +135,7 @@ export const parseFixResponse = (raw: string, type: FixType, allowedUrls: string
             items.push({ heading, body: mark(body), ...(ok && source ? { source } : {}) })
         }
     }
-    return items.length ? { title: str(data.title) || (type === 'faq' ? 'FAQ' : 'Comparison'), items } : null
+    // An llms.txt with no page links is just a summary, not worth a generation
+    if (type === 'llms' && !items.some((i) => i.label)) return null
+    return items.length ? { title: str(data.title) || (type === 'faq' ? 'FAQ' : type === 'llms' ? 'llms.txt' : 'Comparison'), items } : null
 }

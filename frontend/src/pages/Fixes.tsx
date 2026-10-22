@@ -8,13 +8,15 @@ import type { GuideContext } from '../utils/fixGuide';
 // Feature #13: FAQ and "Brand vs Competitor" pages written from the brand's own product pages,
 // with sources and [confirm] marks the owner fills in before publishing
 
-type FixType = 'faq' | 'comparison';
+type FixType = 'faq' | 'comparison' | 'llms';
 type FixLanguage = 'en' | 'hi-en' | 'hi';
 
 interface FixItem {
   question?: string;
   answer?: string;
   heading?: string;
+  // llms.txt links: label is the link text, source the page
+  label?: string;
   body?: string;
   rows?: Array<{ label: string; brand: string; competitor: string }>;
   source?: string;
@@ -58,7 +60,10 @@ const POLL_MS = 3000;
 const POLL_GIVE_UP_MS = 3 * 60 * 1000;
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const fixLabel = (f: Fix) => (f.type === 'faq' ? `${f.kind ? cap(f.kind) : 'Whole brand'} FAQ` : `vs ${f.competitor}`);
+const fixLabel = (f: Fix) =>
+  f.type === 'llms' ? 'llms.txt' : f.type === 'faq' ? `${f.kind ? cap(f.kind) : 'Whole brand'} FAQ` : `vs ${f.competitor}`;
+const TYPE_LABEL: Record<FixType, string> = { faq: 'FAQ', comparison: 'Comparison page', llms: 'llms.txt' };
+const typeFrom = (t: string | null): FixType => (t === 'comparison' || t === 'llms' ? t : 'faq');
 const hasConfirm = (s?: string) => !!s && s.includes('[confirm');
 
 const inputStyle: React.CSSProperties = {
@@ -80,7 +85,7 @@ const Fixes: React.FC = () => {
   const [data, setData] = useState<FixesData | null>(null);
   const [guideCtx, setGuideCtx] = useState<GuideContext | null>(null);
   const [loadError, setLoadError] = useState('');
-  const [type, setType] = useState<FixType>(params.get('type') === 'comparison' ? 'comparison' : 'faq');
+  const [type, setType] = useState<FixType>(typeFrom(params.get('type')));
   const [kind, setKind] = useState('');
   const [competitor, setCompetitor] = useState('');
   const [language, setLanguage] = useState<FixLanguage>('en');
@@ -150,8 +155,9 @@ const Fixes: React.FC = () => {
     try {
       const res = await api.post(`/brands/${brandId}/fixes`, {
         type,
-        language,
-        ...(type === 'faq' ? { kind: kind || null } : { competitor }),
+        // An llms.txt is for AI crawlers, so it is always English
+        language: type === 'llms' ? 'en' : language,
+        ...(type === 'faq' ? { kind: kind || null } : type === 'comparison' ? { competitor } : {}),
       });
       poll(res.data.data.fixId, Date.now());
     } catch (err: unknown) {
@@ -184,6 +190,14 @@ const Fixes: React.FC = () => {
     window.setTimeout(() => setCopied(''), 1500);
   };
 
+  // The file the owner uploads to their site root
+  const download = (text: string) => {
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: 'llms.txt' });
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   const editItem = (index: number, patch: Partial<FixItem>) =>
     setDraft((items) => items.map((it, i) => (i === index ? { ...it, ...patch } : it)));
   const editRow = (index: number, r: number, patch: Partial<{ label: string; brand: string; competitor: string }>) =>
@@ -209,7 +223,7 @@ const Fixes: React.FC = () => {
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 600, margin: 0 }}>Fixes for {brandName}</h2>
           <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-faint)' }}>
-            FAQ and comparison pages written from your own {pages}, ready to paste into your site.
+            FAQ pages, comparison pages and an llms.txt file written from your own {pages}, ready to paste into your site.
           </p>
         </div>
         <span className={`badge ${used ? 'badge-warn' : 'badge-ok'}`}>
@@ -221,8 +235,8 @@ const Fixes: React.FC = () => {
         <h3>Write a new one</h3>
         <p className="sub">We read your {pages}, then write. Anything we can't find on them is marked [confirm] for you to fill in.</p>
 
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }} role="radiogroup" aria-label="What to write">
-          {(['faq', 'comparison'] as FixType[]).map((t) => (
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }} role="radiogroup" aria-label="What to write">
+          {(['faq', 'comparison', 'llms'] as FixType[]).map((t) => (
             <button
               key={t}
               type="button"
@@ -231,50 +245,57 @@ const Fixes: React.FC = () => {
               className={`btn ${type === t ? 'btn-primary' : ''}`}
               onClick={() => setType(t)}
             >
-              {t === 'faq' ? 'FAQ' : 'Comparison page'}
+              {TYPE_LABEL[t]}
             </button>
           ))}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0 16px' }}>
-          {type === 'faq' ? (
+        {type === 'llms' ? (
+          <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: '0 0 12px' }}>
+            A short file at yoursite.com/llms.txt that tells AI assistants who you are and which pages to read. We read your homepage and
+            its main pages, and link only pages we could open. Written in English.
+          </p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0 16px' }}>
+            {type === 'faq' ? (
+              <div className="field">
+                <label htmlFor="fix-kind">FAQ for</label>
+                <select id="fix-kind" value={kind} onChange={(e) => setKind(e.target.value)}>
+                  <option value="">Whole brand</option>
+                  {data.kinds.map((k) => (
+                    <option key={k.kind} value={k.kind}>
+                      {cap(k.kind)} ({k.count})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="field">
+                <label htmlFor="fix-competitor">Compare with</label>
+                <select id="fix-competitor" value={competitor} onChange={(e) => setCompetitor(e.target.value)}>
+                  {data.competitors.length === 0 && <option value="">Add a competitor in Settings first</option>}
+                  {data.competitors.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="field">
-              <label htmlFor="fix-kind">FAQ for</label>
-              <select id="fix-kind" value={kind} onChange={(e) => setKind(e.target.value)}>
-                <option value="">Whole brand</option>
-                {data.kinds.map((k) => (
-                  <option key={k.kind} value={k.kind}>
-                    {cap(k.kind)} ({k.count})
+              <label htmlFor="fix-language">Language</label>
+              <select id="fix-language" value={language} onChange={(e) => setLanguage(e.target.value as FixLanguage)}>
+                {LANGUAGES.map((l) => (
+                  <option key={l.value} value={l.value}>
+                    {l.label}
                   </option>
                 ))}
               </select>
             </div>
-          ) : (
-            <div className="field">
-              <label htmlFor="fix-competitor">Compare with</label>
-              <select id="fix-competitor" value={competitor} onChange={(e) => setCompetitor(e.target.value)}>
-                {data.competitors.length === 0 && <option value="">Add a competitor in Settings first</option>}
-                {data.competitors.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          <div className="field">
-            <label htmlFor="fix-language">Language</label>
-            <select id="fix-language" value={language} onChange={(e) => setLanguage(e.target.value as FixLanguage)}>
-              {LANGUAGES.map((l) => (
-                <option key={l.value} value={l.value}>
-                  {l.label}
-                </option>
-              ))}
-            </select>
           </div>
-        </div>
+        )}
 
-        {data.kinds.length === 0 && (
+        {data.kinds.length === 0 && type === 'faq' && (
           <p style={{ fontSize: '12.5px', color: 'var(--text-dim)', margin: '0 0 12px' }}>
             Tip: <Link to="/settings">add products in Settings → Products</Link> for a better FAQ. Without them we read your homepage.
           </p>
@@ -317,13 +338,40 @@ const Fixes: React.FC = () => {
 
           {draft.some((i) => hasConfirm(i.answer) || hasConfirm(i.body) || i.rows?.some((r) => hasConfirm(r.brand) || hasConfirm(r.competitor))) && (
             <p style={{ background: 'var(--amber-soft)', color: 'var(--amber)', padding: '8px 12px', borderRadius: '6px', fontSize: '12.5px' }}>
-              Fill the highlighted [confirm] parts before publishing. The FAQ schema leaves those answers out until you do.
+              Fill the highlighted [confirm] parts before publishing.{shown.type === 'faq' ? ' The FAQ schema leaves those answers out until you do.' : ''}
             </p>
           )}
 
           {draft.map((it, i) => (
             <div key={i} style={{ borderTop: '1px solid var(--line-soft)', padding: '12px 0' }}>
-              {shown.type === 'faq' ? (
+              {shown.type === 'llms' ? (
+                /^summary$/i.test((it.heading || '').trim()) ? (
+                  <textarea
+                    aria-label={`Summary ${i + 1}`}
+                    rows={2}
+                    style={{ ...inputStyle, background: hasConfirm(it.body) ? 'var(--amber-soft)' : inputStyle.background }}
+                    value={it.body || ''}
+                    onChange={(e) => editItem(i, { body: e.target.value })}
+                  />
+                ) : (
+                  <>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-faint)', marginBottom: '4px' }}>{it.heading}</div>
+                    <input
+                      aria-label={`Link ${i + 1} name`}
+                      style={{ ...inputStyle, fontWeight: 600, marginBottom: '6px' }}
+                      value={it.label}
+                      onChange={(e) => editItem(i, { label: e.target.value })}
+                    />
+                    <input
+                      aria-label={`Link ${i + 1} description`}
+                      placeholder="One line on what this page covers (optional)"
+                      style={{ ...inputStyle, background: hasConfirm(it.body) ? 'var(--amber-soft)' : inputStyle.background }}
+                      value={it.body || ''}
+                      onChange={(e) => editItem(i, { body: e.target.value })}
+                    />
+                  </>
+                )
+              ) : shown.type === 'faq' ? (
                 <>
                   <input
                     aria-label={`Question ${i + 1}`}
@@ -406,9 +454,15 @@ const Fixes: React.FC = () => {
                 <button className="btn" onClick={() => copy('text', shown.outputs!.text)} disabled={dirty} title={dirty ? 'Save first' : undefined}>
                   {copied === 'text' ? 'Copied ✓' : 'Copy text'}
                 </button>
-                <button className="btn" onClick={() => copy('html', shown.outputs!.html)} disabled={dirty} title={dirty ? 'Save first' : undefined}>
-                  {copied === 'html' ? 'Copied ✓' : 'Copy HTML'}
-                </button>
+                {shown.type === 'llms' ? (
+                  <button className="btn" onClick={() => download(shown.outputs!.text)} disabled={dirty} title={dirty ? 'Save first' : undefined}>
+                    Download llms.txt
+                  </button>
+                ) : (
+                  <button className="btn" onClick={() => copy('html', shown.outputs!.html)} disabled={dirty} title={dirty ? 'Save first' : undefined}>
+                    {copied === 'html' ? 'Copied ✓' : 'Copy HTML'}
+                  </button>
+                )}
                 {shown.outputs.jsonLd && (
                   <button className="btn" onClick={() => copy('schema', shown.outputs!.jsonLd!)} disabled={dirty} title={dirty ? 'Save first' : undefined}>
                     {copied === 'schema' ? 'Copied ✓' : 'Copy FAQ schema'}
@@ -423,8 +477,8 @@ const Fixes: React.FC = () => {
               <h4 style={{ margin: '16px 0 4px', fontSize: '14px' }}>How to add this to your store</h4>
               <FixGuide key={shown._id} brandId={brandId} ctx={guideCtx} kind={shown.guideKind}
                 task={{ type: 'fix', id: shown._id }}
-                what={shown.title || (shown.type === 'faq' ? 'FAQ page' : 'Comparison page')}
-                code={[shown.outputs.html, shown.outputs.jsonLd].filter(Boolean).join('\n\n')}
+                what={shown.type === 'llms' ? 'llms.txt file' : shown.title || (shown.type === 'faq' ? 'FAQ page' : 'Comparison page')}
+                code={shown.type === 'llms' ? shown.outputs.text : [shown.outputs.html, shown.outputs.jsonLd].filter(Boolean).join('\n\n')}
                 onEmailSaved={(email) => setGuideCtx((g) => (g ? { ...g, developerEmail: email } : g))} />
             </>
           )}

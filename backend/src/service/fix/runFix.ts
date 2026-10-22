@@ -8,8 +8,9 @@ import { auditService } from '../auditService'
 import { withAiCallContext } from '../costLogService'
 import { brandKey, computeLostTo, loadScanPair, nameMatcher, type ILostTo } from '../competitorService'
 import { pickOwnUrls, wonQueries } from './pickPages'
-import { homepageLinks, readPages } from './readPages'
+import { homepageLinks, llmsUrls, readPages } from './readPages'
 import { buildFixPrompt, parseFixResponse } from './prompt'
+import { siteProfile } from '../siteProfile'
 import type { IBrandProduct } from '../../types/brandTypes'
 import type { IMention } from '../../types/mentionTypes'
 
@@ -83,7 +84,11 @@ export const runFix = async (fixId: string, deps: Partial<IFixDeps> = {}) => {
                   )
                 : []
 
-        let ownUrls = pickOwnUrls({ type: fix.type, kind: fix.kind, competitor: fix.competitor, products, byQuestion })
+        const { sellsProducts } = siteProfile(brand as Parameters<typeof siteProfile>[0])
+        let ownUrls =
+            fix.type === 'llms'
+                ? await llmsUrls(home, products, sellsProducts, d.fetch)
+                : pickOwnUrls({ type: fix.type, kind: fix.kind, competitor: fix.competitor, products, byQuestion })
         if (!ownUrls.length) ownUrls = await homepageLinks(home, d.fetch)
         // A whole-brand FAQ also reads the homepage (shipping, returns, what the brand stands for)
         else if (fix.type === 'faq' && !fix.kind && home && !ownUrls.includes(home)) ownUrls = [home, ...ownUrls]
@@ -115,7 +120,8 @@ export const runFix = async (fixId: string, deps: Partial<IFixDeps> = {}) => {
             questions,
             pages: own.pages,
             competitorPages: theirs.pages,
-            aiSaid
+            aiSaid,
+            sellsProducts
         })
         const allowed = [...own.pages, ...theirs.pages].map((p) => p.url)
         let parsed = null

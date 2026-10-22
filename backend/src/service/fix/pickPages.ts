@@ -23,7 +23,7 @@ export const kindsOf = (products: IBrandProduct[]) => {
 }
 
 // 2 per kind, or more when there are few kinds (a store with one kind still fills the page budget)
-const wholeBrand = (products: IBrandProduct[], max: number) => {
+export const wholeBrand = (products: IBrandProduct[], max: number) => {
     const kinds = kindsOf(products)
     const perKind = Math.max(WHOLE_PER_KIND, Math.floor(max / Math.max(kinds.length, 1)))
     const urls: string[] = []

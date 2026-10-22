@@ -14,14 +14,14 @@ import { runFix } from '../service/fix/runFix'
 import { countFixUsage, expireStaleFixes, nextResetLabel } from '../service/fix/usage'
 import { kindsOf, rankCompetitors } from '../service/fix/pickPages'
 import { computeLostTo, loadScanPair } from '../service/competitorService'
-import { fixOutputs } from '../service/fix/output'
+import { FIX_GUIDE, fixOutputs } from '../service/fix/output'
 import { enqueueFixJob } from '../service/queueService'
 import type { IGeneratedFix, IFixItem } from '../types/fixTypes'
 import type { IBrandProduct } from '../types/brandTypes'
 import type { IMention } from '../types/mentionTypes'
 import { guideContext } from '../service/fixGuide'
 
-const TYPES = ['faq', 'comparison']
+const TYPES = ['faq', 'comparison', 'llms']
 const LANGUAGES = ['en', 'hi-en', 'hi']
 
 // The brand (in the user's own workspace) and its plan, or an error response
@@ -45,9 +45,9 @@ const loadBrand = async (req: Request, next: NextFunction) => {
 const view = (fix: IGeneratedFix) => ({
     ...fix,
     outputs: fix.status === 'done' ? fixOutputs(fix) : null,
-    guideKind: fix.type === 'faq' ? 'faq-page' : 'comparison-page'
+    guideKind: FIX_GUIDE[fix.type].kind
 })
-const FIX_GUIDE_KINDS = ['faq-page', 'comparison-page']
+const FIX_GUIDE_KINDS = Object.values(FIX_GUIDE).map((g) => g.kind)
 
 const loadFix = (req: Request, brandId: string) =>
     mongoose.isValidObjectId(req.params.fixId) ? generatedFixModel.findOne({ _id: req.params.fixId, brandId }).lean() : null
@@ -64,6 +64,7 @@ const cleanItem = (i: Record<string, unknown>): IFixItem => ({
     ...(typeof i.question === 'string' ? { question: i.question.slice(0, 500) } : {}),
     ...(typeof i.answer === 'string' ? { answer: i.answer.slice(0, 3000) } : {}),
     ...(typeof i.heading === 'string' ? { heading: i.heading.slice(0, 200) } : {}),
+    ...(typeof i.label === 'string' ? { label: i.label.slice(0, 200) } : {}),
     ...(typeof i.body === 'string' ? { body: i.body.slice(0, 5000) } : {}),
     ...(Array.isArray(i.rows)
         ? {
@@ -119,7 +120,7 @@ export default {
                 !LANGUAGES.includes(language as string) ||
                 (type === 'comparison' && (typeof competitor !== 'string' || !competitor.trim()))
             ) {
-                return httpError(next, new Error('Choose a FAQ or a comparison, and a language'), req, 422)
+                return httpError(next, new Error('Choose a FAQ, a comparison or an llms.txt, and a language'), req, 422)
             }
             const result = await createFix(
                 {

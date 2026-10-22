@@ -54,7 +54,8 @@ export const createFix = async (
             type: input.type,
             kind: input.type === 'faq' ? input.kind || null : null,
             competitor: input.type === 'comparison' ? input.competitor || null : null,
-            language: input.language,
+            // An llms.txt is for AI crawlers, so it is always English
+            language: input.type === 'llms' ? 'en' : input.language,
             status: 'pending',
             createdAt: now
         })

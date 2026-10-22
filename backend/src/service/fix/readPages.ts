@@ -88,6 +88,20 @@ export const siteLinks = (html: string, home: string): string[] => {
     return [...links].sort((x, y) => rank(new URL(x).pathname) - rank(new URL(y).pathname))
 }
 
+// One about, one contact and one policy page (the shortest address of each), so many service or category
+// pages can't crowd them out; the other slots go to the rest in rank order
+const INFO_GROUPS = [/about/i, /contact/i, /polic|privacy|terms|refund|return|shipping|delivery/i]
+const llmsSitePages = (links: string[]) => {
+    const pathOf = (u: string) => new URL(u).pathname
+    const info = INFO_GROUPS.map((re) =>
+        links.filter((u) => re.test(pathOf(u))).reduce<string | null>((best, u) => (!best || pathOf(u).length < pathOf(best).length ? u : best), null)
+    )
+    const chosen = new Set(info.filter((u): u is string => !!u))
+    const infoInOrder = links.filter((u) => chosen.has(u))
+    const rest = links.filter((u) => !chosen.has(u) && !INFO_GROUPS.some((re) => re.test(pathOf(u))))
+    return [...infoInOrder, ...rest].slice(0, LLMS_SITE_PAGES)
+}
+
 // For an llms.txt: the homepage, its main site pages, and a few products when the brand sells them
 export const llmsUrls = async (
     home: string,
@@ -96,6 +110,6 @@ export const llmsUrls = async (
     fetch: (url: string) => Promise<string> = fetchPage
 ) => {
     const html = await fetch(home).catch(() => '')
-    const site = html ? siteLinks(html, home).slice(0, LLMS_SITE_PAGES) : []
+    const site = html ? llmsSitePages(siteLinks(html, home)) : []
     return [home, ...site, ...(sellsProducts ? wholeBrand(products, LLMS_PRODUCTS) : [])]
 }

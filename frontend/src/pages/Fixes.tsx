@@ -474,7 +474,7 @@ const Fixes: React.FC = () => {
           {dirty && <p style={{ fontSize: '12px', color: 'var(--text-faint)', margin: '8px 0 0' }}>Save your changes to copy the updated version.</p>}
           {shown.outputs && guideCtx && brandId && (
             <>
-              <h4 style={{ margin: '16px 0 4px', fontSize: '14px' }}>How to add this to your store</h4>
+              <h4 style={{ margin: '16px 0 4px', fontSize: '14px' }}>How to add this to your site</h4>
               <FixGuide key={shown._id} brandId={brandId} ctx={guideCtx} kind={shown.guideKind}
                 task={{ type: 'fix', id: shown._id }}
                 what={shown.type === 'llms' ? 'llms.txt file' : shown.title || (shown.type === 'faq' ? 'FAQ page' : 'Comparison page')}

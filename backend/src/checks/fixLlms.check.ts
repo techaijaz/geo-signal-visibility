@@ -29,7 +29,13 @@ const run = async () => {
     assert.equal(shop.filter((u) => u.includes('/products/')).length, 3)
     assert.ok(shop.length <= 10)
     const service = await llmsUrls(home, prods as never, false, fetch)
-    assert.deepEqual(service, [home, ...siteLinks(html, home)])
+    assert.deepEqual(service, [
+        home,
+        'https://s.in/pages/about',
+        'https://s.in/policies/refund-policy',
+        'https://s.in/contact',
+        'https://s.in/services/root-canal'
+    ])
     // A homepage that can't be read still gives the homepage
     assert.deepEqual(await llmsUrls(home, [], false, async () => Promise.reject(new Error('x'))), [home])
 
@@ -97,6 +103,22 @@ const run = async () => {
     assert.deepEqual(ranked.slice(0, 3), ['https://www.s.in/pages/about', 'https://s.in/policies/refund-policy', 'https://s.in/pages/contact'])
     assert.ok(!ranked.includes('https://s.in/en'))
     assert.deepEqual((await llmsUrls(home, [], false, async () => shopNav)).slice(1, 4), ranked.slice(0, 3))
+
+    // A site with many service pages still gets one about, one contact and one policy page (the shortest of each, in page order)
+    const clinic = `${['root-canal', 'implants', 'braces', 'dentures', 'aligners', 'crowns', 'whitening']
+        .map((t) => `<a href="/dental-treatments/${t}">${t}</a>`)
+        .join('')}<a href="/contact/find-clinic">Find</a><a href="/contact/request-an-appointment">Book</a>
+        <a href="/about-us">About</a><a href="/terms-privacy-policy">Terms</a><a href="/payment-refund-policy">Refund</a><a href="/contact">Contact</a>`
+    const picked = await llmsUrls(home, [], false, async () => clinic)
+    assert.deepEqual(picked, [
+        home,
+        'https://s.in/about-us',
+        'https://s.in/terms-privacy-policy',
+        'https://s.in/contact',
+        'https://s.in/dental-treatments/root-canal',
+        'https://s.in/dental-treatments/implants',
+        'https://s.in/dental-treatments/braces'
+    ])
 
     // Summary vs link is decided by the heading: a link whose name was cleared keeps its URL
     const edited = fixOutputs({
